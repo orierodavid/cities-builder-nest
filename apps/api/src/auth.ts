@@ -6,11 +6,8 @@ export interface AuthenticatedRequest extends Request {
   userSupabase: SupabaseClient;
 }
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
 export function authConfigurationReady(): boolean {
-  return Boolean(supabaseUrl && supabaseAnonKey);
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
 }
 
 export async function requireAuth(
@@ -37,7 +34,7 @@ export async function requireAuth(
   }
 
   try {
-    const userSupabase = createClient(supabaseUrl!, supabaseAnonKey!, {
+    const userSupabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: {
         persistSession: false,
