@@ -41,12 +41,23 @@ export default function HomeScreen() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
-  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile">("home");
+  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management">("home");
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
   const [requestPriority, setRequestPriority] = useState("normal");
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
+  const [managementMessage, setManagementMessage] = useState("");
+  const [managementBusy, setManagementBusy] = useState(false);
+  const [newEstateName, setNewEstateName] = useState("");
+  const [newEstateAddress, setNewEstateAddress] = useState("");
+  const [newEstateCity, setNewEstateCity] = useState("");
+  const [newEstateState, setNewEstateState] = useState("");
+  const [managementBuildingName, setManagementBuildingName] = useState("");
+  const [managementBuildingId, setManagementBuildingId] = useState("");
+  const [managementUnitCode, setManagementUnitCode] = useState("");
+  const [managementUnitType, setManagementUnitType] = useState("");
+  const [managementResidentId, setManagementResidentId] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -148,6 +159,48 @@ export default function HomeScreen() {
     try { await AsyncStorage.setItem("cities-builder-nest.selected-estate-id", id); } catch { /* selection remains active for this session */ }
   }
 
+  async function managementRequest(path: string, method: "POST" | "PATCH", body: Record<string, unknown>) {
+    if (!session?.access_token || !apiUrl) throw new Error("Sign in and configure the API first.");
+    const res = await fetch(apiUrl + path, { method, headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const result = await res.json() as { error?: string; message?: string; building?: { id?: string } };
+    if (!res.ok) throw new Error(result.message || result.error || "Request failed (" + res.status + ").");
+    return result;
+  }
+
+  async function createEstate() {
+    if (newEstateName.trim().length < 2) { setManagementMessage("Enter an estate name."); return; }
+    setManagementBusy(true); setManagementMessage("");
+    try { await managementRequest("/v1/estates", "POST", { name: newEstateName.trim(), address: newEstateAddress.trim() || undefined, city: newEstateCity.trim() || undefined, state: newEstateState.trim() || undefined }); setNewEstateName(""); setNewEstateAddress(""); setNewEstateCity(""); setNewEstateState(""); setManagementMessage("Estate created. Refresh the list to see it."); await loadEstates(session!.access_token); }
+    catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not create estate."); } finally { setManagementBusy(false); }
+  }
+
+  async function toggleEstate(estate: Estate, enabled: boolean) {
+    setManagementBusy(true); setManagementMessage("");
+    try { await managementRequest("/v1/estates/" + encodeURIComponent(estate.id) + "/subscription", "PATCH", { enabled, reason: enabled ? undefined : "Subscription inactive" }); setManagementMessage(estate.name + (enabled ? " re-enabled." : " disabled.")); await loadEstates(session!.access_token); }
+    catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not update subscription."); } finally { setManagementBusy(false); }
+  }
+
+  async function createBuilding() {
+    if (!selectedEstateId || managementBuildingName.trim().length < 2) { setManagementMessage("Choose an estate and enter a building name."); return; }
+    setManagementBusy(true); setManagementMessage("");
+    try { const r = await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/buildings", "POST", { name: managementBuildingName.trim() }); setManagementBuildingName(""); setManagementMessage("Building created. ID: " + (r.building?.id || "created")); }
+    catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not create building."); } finally { setManagementBusy(false); }
+  }
+
+  async function createUnit() {
+    if (!selectedEstateId || !managementBuildingId.trim() || !managementUnitCode.trim()) { setManagementMessage("Enter building ID and unit code."); return; }
+    setManagementBusy(true); setManagementMessage("");
+    try { await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/buildings/" + encodeURIComponent(managementBuildingId.trim()) + "/units", "POST", { unitCode: managementUnitCode.trim(), unitType: managementUnitType.trim() || undefined }); setManagementUnitCode(""); setManagementUnitType(""); setManagementMessage("Unit created and marked available."); }
+    catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not create unit."); } finally { setManagementBusy(false); }
+  }
+
+  async function addResident() {
+    if (!selectedEstateId || !managementResidentId.trim()) { setManagementMessage("Enter an existing resident user ID."); return; }
+    setManagementBusy(true); setManagementMessage("");
+    try { await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/residents", "POST", { userId: managementResidentId.trim() }); setManagementResidentId(""); setManagementMessage("Resident added to the selected estate."); }
+    catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not add resident."); } finally { setManagementBusy(false); }
+  }
+
   async function submitMaintenance() {
     if (!session?.access_token || !selectedEstateId || !apiUrl) return;
     if (requestTitle.trim().length < 3 || requestDescription.trim().length < 5) {
@@ -169,6 +222,9 @@ export default function HomeScreen() {
   }
 
   const selectedEstate = estates.find((e) => e.id === selectedEstateId);
+  const isPlatformAdmin = estates.some((estate) => estate.membershipRole === "platform_admin");
+  const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
+  const isSecurity = selectedEstate?.membershipRole === "security";
   const location = selectedEstate ? [selectedEstate.city, selectedEstate.state, selectedEstate.country_code].filter(Boolean).join(", ") : "";
   const firstName = profile?.profile?.full_name?.trim().split(/\s+/)[0] || session?.user.email?.split("@")[0] || "Resident";
 
