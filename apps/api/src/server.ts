@@ -4,6 +4,7 @@ import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
+import { createAnnouncementDraft } from "./announcement-service.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -201,6 +202,46 @@ app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
             ...(input.unitId ? { unit_id: input.unitId } : {}),
           })
           .select("id, title, description, status, priority, created_at")
+          .single();
+        return { data, error: Boolean(error) };
+      },
+    },
+  );
+  res.status(outcome.status).json(outcome.body);
+});
+
+
+app.post("/v1/estates/:estateId/announcements", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateParam = req.params.estateId;
+  const estateId = Array.isArray(estateParam) ? (estateParam[0] ?? "") : estateParam;
+
+  const outcome = await createAnnouncementDraft(
+    estateId,
+    authenticated.authUser.id,
+    req.body,
+    {
+      async getActiveMembershipRole(targetEstateId, userId) {
+        const { data, error } = await authenticated.userSupabase
+          .from("estate_memberships")
+          .select("membership_role")
+          .eq("estate_id", targetEstateId)
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .maybeSingle();
+        return { role: error ? null : (data?.membership_role ?? null), error: Boolean(error) };
+      },
+      async insertDraft(targetEstateId, userId, input) {
+        const { data, error } = await authenticated.userSupabase
+          .from("announcements")
+          .insert({
+            estate_id: targetEstateId,
+            created_by: userId,
+            title: input.title,
+            body: input.body,
+            published_at: null,
+          })
+          .select("id, estate_id, created_by, title, body, published_at, created_at")
           .single();
         return { data, error: Boolean(error) };
       },
