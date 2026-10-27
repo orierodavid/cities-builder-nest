@@ -43,6 +43,143 @@ app.get("/", (_req, res) => {
   });
 });
 
+async function hasPlatformAdmin(userSupabase: AuthenticatedRequest["userSupabase"], userId: string): Promise<boolean> {
+  const { data, error } = await userSupabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "platform_admin")
+    .maybeSingle();
+  return !error && Boolean(data);
+}
+
+async function hasEstateManager(userSupabase: AuthenticatedRequest["userSupabase"], userId: string, estateId: string): Promise<boolean> {
+  const { data, error } = await userSupabase
+    .from("estate_memberships")
+    .select("membership_role")
+    .eq("estate_id", estateId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .in("membership_role", ["facility_manager", "estate_manager", "estate_admin"])
+    .maybeSingle();
+  return !error && Boolean(data);
+}
+
+app.post("/v1/estates", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  if (!(await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id))) {
+    res.status(403).json({ error: "platform_admin_required" });
+    return;
+  }
+
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const address = typeof req.body?.address === "string" ? req.body.address.trim() : "";
+  const city = typeof req.body?.city === "string" ? req.body.city.trim() : "";
+  const state = typeof req.body?.state === "string" ? req.body.state.trim() : "";
+  const countryCode = typeof req.body?.countryCode === "string" ? req.body.countryCode.trim().toUpperCase() : "NG";
+  const timezone = typeof req.body?.timezone === "string" ? req.body.timezone.trim() : "Africa/Lagos";
+
+  if (name.length < 2 || name.length > 120 || address.length < 4 || city.length < 2 || state.length < 2 || !/^[A-Z]{2}$/.test(countryCode) || timezone.length < 3 || timezone.length > 80) {
+    res.status(400).json({ error: "invalid_estate_details", message: "Provide an estate name, address, city, state, two-letter country code, and timezone." });
+    return;
+  }
+
+  const { data, error } = await authenticated.userSupabase
+    .from("estates")
+    .insert({ name, address, city, state, country_code: countryCode, timezone })
+    .select("id, name, address, city, state, country_code, timezone, created_at")
+    .single();
+
+  if (error || !data) {
+    res.status(400).json({ error: "estate_create_failed" });
+    return;
+  }
+  res.status(201).json({ estate: data });
+});
+
+app.post("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const residentUserId = typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
+
+  if (!residentUserId || residentUserId.length > 100) {
+    res.status(400).json({ error: "resident_user_id_required", message: "Provide the ID of an existing registered user." });
+    return;
+  }
+
+  const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
+  const manager = platformAdmin || await hasEstateManager(authenticated.userSupabase, authenticated.authUser.id, estateId);
+  if (!manager) {
+    res.status(403).json({ error: "estate_manager_access_required" });
+    return;
+  }
+
+  const { data: resident, error: residentError } = await authenticated.userSupabase
+    .from("users")
+    .select("id, full_name, phone_e164, is_active")
+    .eq("id", residentUserId)
+    .maybeSingle();
+
+  if (residentError || !resident || !resident.is_active) {
+    res.status(404).json({ error: "active_registered_user_not_found", message: "The resident must already have a registered, active account." });
+    return;
+  }
+
+  const { data, error } = await authenticated.userSupabase
+    .from("estate_memberships")
+    .insert({
+      estate_id: estateId,
+      user_id: residentUserId,
+      membership_role: "resident",
+      status: "active",
+    })
+    .select("id, estate_id, user_id, membership_role, status, created_at")
+    .single();
+
+  if (error || !data) {
+    res.status(400).json({ error: "resident_membership_create_failed", message: "Confirm the estate, resident account, and that the resident is not already a member." });
+    return;
+  }
+  res.status(201).json({ resident: { id: resident.id, fullName: resident.full_name, phone: resident.phone_e164 }, membership: data });
+});
+
+app.post("/v1/estates/:estateId/staff", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  if (!(await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id))) {
+    res.status(403).json({ error: "platform_admin_required" });
+    return;
+  }
+
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const userId = typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
+  const role = req.body?.role;
+  if (!userId || !["facility_manager", "security"].includes(role)) {
+    res.status(400).json({ error: "invalid_staff_assignment", message: "Provide an existing user ID and role facility_manager or security." });
+    return;
+  }
+
+  const { data: staff, error: staffError } = await authenticated.userSupabase
+    .from("users")
+    .select("id, full_name, is_active")
+    .eq("id", userId)
+    .maybeSingle();
+  if (staffError || !staff || !staff.is_active) {
+    res.status(404).json({ error: "active_staff_account_not_found" });
+    return;
+  }
+
+  const { data, error } = await authenticated.userSupabase
+    .from("estate_memberships")
+    .insert({ estate_id: estateId, user_id: userId, membership_role: role, status: "active" })
+    .select("id, estate_id, user_id, membership_role, status, created_at")
+    .single();
+  if (error || !data) {
+    res.status(400).json({ error: "staff_assignment_failed", message: "Confirm the estate and account, and check for an existing estate membership." });
+    return;
+  }
+  res.status(201).json({ staff: { id: staff.id, fullName: staff.full_name }, membership: data });
+});
+
 app.get("/v1/estates", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const { data, error } = await authenticated.userSupabase
