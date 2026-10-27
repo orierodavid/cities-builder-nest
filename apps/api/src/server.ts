@@ -357,6 +357,19 @@ app.post("/v1/estates/:estateId/units/:unitId/assignments", requireAuth, async (
 
 app.get("/v1/estates", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
+  const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
+  if (platformAdmin) {
+    const { data: allEstates, error: estatesError } = await authenticated.userSupabase
+      .from("estates")
+      .select("id, name, address, city, state, timezone, is_enabled, disabled_at, disabled_reason")
+      .order("name", { ascending: true });
+    if (estatesError) {
+      res.status(403).json({ error: "estate_access_denied" });
+      return;
+    }
+    res.status(200).json({ estates: (allEstates ?? []).map((estate) => ({ ...estate, membershipRole: "platform_admin" })) });
+    return;
+  }
   const { data, error } = await authenticated.userSupabase
     .from("estate_memberships")
     .select("estate_id, membership_role, status, created_at")
