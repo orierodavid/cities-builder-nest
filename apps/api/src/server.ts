@@ -105,7 +105,7 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
   }
 
   try {
-    const [estateResult, announcementsResult, maintenanceResult, unitsResult] = await Promise.all([
+    const [estateResult, announcementsResult, announcementsCountResult, maintenanceResult, maintenanceCountResult, unitsResult] = await Promise.all([
       authenticated.userSupabase
         .from("estates")
         .select("id, name, address, city, state, timezone")
@@ -119,12 +119,22 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
         .order("published_at", { ascending: false })
         .limit(3),
       authenticated.userSupabase
+        .from("announcements")
+        .select("id", { count: "exact", head: true })
+        .eq("estate_id", estateId)
+        .not("published_at", "is", null),
+      authenticated.userSupabase
         .from("maintenance_requests")
         .select("id, title, status, priority, created_at")
         .eq("estate_id", estateId)
         .not("status", "in", "(resolved,closed)")
         .order("created_at", { ascending: false })
         .limit(5),
+      authenticated.userSupabase
+        .from("maintenance_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("estate_id", estateId)
+        .not("status", "in", "(resolved,closed)"),
       authenticated.userSupabase
         .from("units")
         .select("id, status")
@@ -135,7 +145,7 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
       res.status(403).json({ error: "estate_access_denied" });
       return;
     }
-    if (announcementsResult.error || maintenanceResult.error || unitsResult.error) {
+    if (announcementsResult.error || announcementsCountResult.error || maintenanceResult.error || maintenanceCountResult.error || unitsResult.error) {
       res.status(403).json({ error: "estate_dashboard_data_access_denied" });
       return;
     }
@@ -147,8 +157,8 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
       summary: {
         units: units.length,
         occupiedUnits: units.filter((unit) => unit.status === "occupied").length,
-        openMaintenanceRequests: requests.length,
-        publishedAnnouncements: (announcementsResult.data ?? []).length,
+        openMaintenanceRequests: maintenanceCountResult.count ?? 0,
+        publishedAnnouncements: announcementsCountResult.count ?? 0,
       },
       announcements: announcementsResult.data ?? [],
       maintenanceRequests: requests,
