@@ -76,7 +76,16 @@ CREATE POLICY memberships_update_authorized ON public.estate_memberships
       SELECT 1 FROM public.user_roles ur
       WHERE ur.user_id = (SELECT auth.uid()) AND ur.role = 'platform_admin'
     )
-    OR membership_role = 'resident'
+    OR (
+      membership_role = 'resident'
+      AND EXISTS (
+        SELECT 1 FROM public.estate_memberships fm
+        WHERE fm.estate_id = estate_memberships.estate_id
+          AND fm.user_id = (SELECT auth.uid())
+          AND fm.status = 'active'
+          AND fm.membership_role IN ('facility_manager', 'estate_manager', 'estate_admin')
+      )
+    )
   );
 
 DROP POLICY IF EXISTS resident_units_insert_manager ON public.resident_units;
