@@ -2,6 +2,9 @@
 -- This migration preserves fail-closed access for financial and administrative write paths.
 BEGIN;
 
+-- Drop dependent policy before changing the membership role column type.
+DROP POLICY IF EXISTS maintenance_select_own_or_manager ON public.maintenance_requests;
+
 -- A user has one estate-scoped role per estate. Platform-wide authority is separate.
 ALTER TABLE public.estate_memberships
   DROP CONSTRAINT IF EXISTS estate_memberships_membership_role_check;
