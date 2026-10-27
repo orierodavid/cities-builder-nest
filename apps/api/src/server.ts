@@ -42,6 +42,45 @@ app.get("/", (_req, res) => {
   });
 });
 
+app.get("/v1/estates", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const { data, error } = await authenticated.userSupabase
+    .from("estate_memberships")
+    .select("estate_id, membership_role, status, created_at")
+    .eq("user_id", authenticated.authUser.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    res.status(403).json({ error: "estate_memberships_access_denied" });
+    return;
+  }
+
+  const memberships = data ?? [];
+  if (memberships.length === 0) {
+    res.status(200).json({ estates: [] });
+    return;
+  }
+
+  const ids = [...new Set(memberships.map((item) => item.estate_id))];
+  const result = await authenticated.userSupabase
+    .from("estates")
+    .select("id, name, address, city, state, country_code, timezone")
+    .in("id", ids)
+    .order("name", { ascending: true });
+
+  if (result.error) {
+    res.status(403).json({ error: "estate_access_denied" });
+    return;
+  }
+
+  const roleByEstate = new Map(memberships.map((item) => [item.estate_id, item.membership_role]));
+  res.status(200).json({ estates: (result.data ?? []).map((estate) => ({
+    ...estate,
+    membershipRole: roleByEstate.get(estate.id) ?? null,
+  })) });
+});
+
 app.get("/v1/me", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   try {
