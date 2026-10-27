@@ -66,6 +66,23 @@ async function hasEstateManager(userSupabase: AuthenticatedRequest["userSupabase
   return !error && Boolean(data);
 }
 
+async function isEstateEnabled(userSupabase: AuthenticatedRequest["userSupabase"], estateId: string): Promise<boolean | null> {
+  const { data, error } = await userSupabase
+    .from("estates")
+    .select("is_enabled")
+    .eq("id", estateId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.is_enabled === true;
+}
+
+function rejectInactiveEstate(res: import("express").Response): void {
+  res.status(423).json({
+    error: "estate_subscription_inactive",
+    message: "This estate is temporarily unavailable because its subscription is inactive.",
+  });
+}
+
 app.patch("/v1/estates/:estateId/subscription", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   if (!(await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id))) {
@@ -593,6 +610,9 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
     .select("membership_role").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
     .eq("status", "active").in("membership_role", ["resident", "facility_manager", "estate_manager", "estate_admin"]).maybeSingle();
   if (!membership) { res.status(403).json({ error: "estate_membership_required" }); return; }
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const visitorName = typeof req.body?.visitorName === "string" ? req.body.visitorName.trim() : "";
   const visitorPhone = typeof req.body?.visitorPhone === "string" ? req.body.visitorPhone.trim() : null;
   const validFrom = typeof req.body?.validFrom === "string" ? new Date(req.body.validFrom) : new Date();
@@ -620,6 +640,9 @@ app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) =>
     .select("estate_id").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
     .eq("status", "active").eq("membership_role", "security").maybeSingle();
   if (!membership) { res.status(403).json({ error: "security_membership_required" }); return; }
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
   if (!/^\\d{6}$/.test(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
   const hash = createHash("sha256").update(accessCode).digest("hex");
@@ -647,6 +670,9 @@ app.get("/v1/estates/:estateId/gate/visits", requireAuth, async (req, res) => {
     .select("estate_id").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
     .eq("status", "active").eq("membership_role", "security").maybeSingle();
   if (!membership) { res.status(403).json({ error: "security_membership_required" }); return; }
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const { data, error } = await authenticated.userSupabase.from("visitor_visits")
     .select("id, visitor_pass_id, checked_in_at, visitor_passes(visitor_name, visitor_phone)")
     .eq("estate_id", estateId).is("checked_out_at", null).order("checked_in_at", { ascending: false });
@@ -662,6 +688,9 @@ app.post("/v1/estates/:estateId/gate/visits/:visitId/check-out", requireAuth, as
     .select("estate_id").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
     .eq("status", "active").eq("membership_role", "security").maybeSingle();
   if (!membership) { res.status(403).json({ error: "security_membership_required" }); return; }
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const { data, error } = await authenticated.userSupabase.from("visitor_visits")
     .update({ checked_out_by: authenticated.authUser.id, checked_out_at: new Date().toISOString() })
     .eq("id", visitId).eq("estate_id", estateId).is("checked_out_at", null)
