@@ -27,6 +27,13 @@ type Estate = {
 };
 
 type EstatesResponse = { estates?: Estate[]; error?: string };
+type EstateDashboard = {
+  estate: Estate;
+  summary: { units: number; occupiedUnits: number; openMaintenanceRequests: number; publishedAnnouncements: number };
+  announcements: { id: string; title: string; body: string; published_at: string | null; created_at: string }[];
+  maintenanceRequests: { id: string; title: string; status: string; priority: string; created_at: string }[];
+};
+type EstateDashboardResponse = EstateDashboard & { error?: string };
 
 type ProfileResponse = {
   user?: { id: string; email: string | null; emailConfirmed: boolean };
@@ -57,6 +64,9 @@ export default function HomeScreen() {
   const [estatesLoading, setEstatesLoading] = useState(false);
   const [estatesError, setEstatesError] = useState("");
   const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<EstateDashboard | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -92,8 +102,40 @@ export default function HomeScreen() {
       setEstates([]);
       setEstatesError("");
       setSelectedEstateId(null);
+      setDashboard(null);
+      setDashboardError("");
     }
   }, [session?.access_token]);
+
+  useEffect(() => {
+    if (session?.access_token && selectedEstateId) {
+      void loadEstateDashboard(session.access_token, selectedEstateId);
+    } else {
+      setDashboard(null);
+    }
+  }, [session?.access_token, selectedEstateId]);
+
+  async function loadEstateDashboard(accessToken: string, estateId: string) {
+    if (!apiUrl) {
+      setDashboardError("Set EXPO_PUBLIC_API_URL to load community dashboard data.");
+      return;
+    }
+    setDashboardLoading(true);
+    setDashboardError("");
+    try {
+      const response = await fetch(`${apiUrl}/v1/estates/${encodeURIComponent(estateId)}/dashboard`, {
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      });
+      const body = (await response.json()) as EstateDashboardResponse;
+      if (!response.ok) throw new Error(body.error || `Dashboard request failed (${response.status})`);
+      setDashboard(body);
+    } catch (error) {
+      setDashboard(null);
+      setDashboardError(error instanceof Error ? error.message : "Could not load this estate dashboard.");
+    } finally {
+      setDashboardLoading(false);
+    }
+  }
 
   async function loadProfile(accessToken: string) {
     if (!apiUrl) {
@@ -299,6 +341,65 @@ export default function HomeScreen() {
             {selectedEstateId && estates.some((estate) => estate.id === selectedEstateId) && (
               <Text style={styles.selectedHint}>Selected community: {estates.find((estate) => estate.id === selectedEstateId)?.name}. This preference is saved on this device; estate access is still enforced by the API and database policies.</Text>
             )}
+            {!!selectedEstateId && (
+              <View style={styles.dashboardSection}>
+                <View style={styles.divider} />
+                <View style={styles.sectionHeadingRow}>
+                  <View style={styles.sectionHeadingCopy}>
+                    <Text style={styles.sectionTitle}>Community overview</Text>
+                    <Text style={styles.cardText}>Live data available to your account for the selected estate.</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => void loadEstateDashboard(session.access_token, selectedEstateId)} disabled={dashboardLoading} style={styles.refreshButton}>
+                    <Text style={styles.refreshButtonText}>Refresh</Text>
+                  </TouchableOpacity>
+                </View>
+                {dashboardLoading ? (
+                  <View style={styles.centerRow}><ActivityIndicator color="#E6B800" /><Text style={styles.muted}>Loading community data…</Text></View>
+                ) : dashboardError ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateTitle}>Dashboard unavailable</Text>
+                    <Text style={styles.cardText}>{dashboardError}</Text>
+                    <Text style={styles.smallText}>Access is denied unless the API confirms an active membership and database policies permit the requested data.</Text>
+                  </View>
+                ) : dashboard ? (
+                  <>
+                    <View style={styles.statGrid}>
+                      {[
+                        ["Total units", dashboard.summary.units],
+                        ["Occupied", dashboard.summary.occupiedUnits],
+                        ["Open maintenance", dashboard.summary.openMaintenanceRequests],
+                        ["Announcements", dashboard.summary.publishedAnnouncements],
+                      ].map(([label, value]) => (
+                        <View key={String(label)} style={styles.statCard}>
+                          <Text style={styles.statValue}>{String(value)}</Text>
+                          <Text style={styles.statLabel}>{String(label)}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <Text style={styles.subsectionTitle}>Latest announcements</Text>
+                    {dashboard.announcements.length ? dashboard.announcements.map((item) => (
+                      <View key={item.id} style={styles.contentItem}>
+                        <Text style={styles.contentItemTitle}>{item.title}</Text>
+                        <Text style={styles.contentItemBody} numberOfLines={3}>{item.body}</Text>
+                        {!!item.published_at && <Text style={styles.contentItemMeta}>{new Date(item.published_at).toLocaleDateString()}</Text>}
+                      </View>
+                    )) : <Text style={styles.muted}>No published announcements yet.</Text>}
+                    <Text style={styles.subsectionTitle}>Maintenance to follow up</Text>
+                    {dashboard.maintenanceRequests.length ? dashboard.maintenanceRequests.map((item) => (
+                      <View key={item.id} style={styles.maintenanceItem}>
+                        <View style={styles.maintenanceCopy}>
+                          <Text style={styles.contentItemTitle}>{item.title}</Text>
+                          <Text style={styles.contentItemMeta}>{item.status.replace(/_/g, " ")} · {item.priority} priority</Text>
+                        </View>
+                        <View style={[styles.priorityDot, item.priority === "urgent" || item.priority === "high" ? styles.priorityDotHigh : null]} />
+                      </View>
+                    )) : <Text style={styles.muted}>No open maintenance requests.</Text>}
+                  </>
+                ) : (
+                  <Text style={styles.muted}>Select an estate to load its community overview.</Text>
+                )}
+              </View>
+            )}
             <TouchableOpacity style={styles.secondaryButton} onPress={() => void loadProfile(session.access_token)} disabled={profileLoading}>
               <Text style={styles.secondaryButtonText}>Refresh profile</Text>
             </TouchableOpacity>
@@ -420,6 +521,20 @@ const styles = StyleSheet.create({
   selectionMarkSelected: { backgroundColor: "#E6B800", borderColor: "#E6B800" },
   selectionCheck: { color: "#302700", fontSize: 13, fontWeight: "900" },
   selectedHint: { color: "#687483", fontSize: 11, lineHeight: 17, marginTop: 12 },
+  dashboardSection: { marginTop: 2 },
+  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: 9, marginBottom: 18 },
+  statCard: { width: "48%", flexGrow: 1, minHeight: 82, backgroundColor: "#FFF9DF", borderWidth: 1, borderColor: "#F3E5A8", borderRadius: 13, padding: 13, justifyContent: "center" },
+  statValue: { color: "#4B3B00", fontSize: 24, fontWeight: "900", marginBottom: 5 },
+  statLabel: { color: "#725800", fontSize: 11, fontWeight: "700" },
+  subsectionTitle: { color: "#17212B", fontSize: 15, fontWeight: "800", marginTop: 10, marginBottom: 9 },
+  contentItem: { borderWidth: 1, borderColor: "#E8EDF1", borderRadius: 12, padding: 12, marginBottom: 9, backgroundColor: "#FFFFFF" },
+  contentItemTitle: { color: "#17212B", fontSize: 13, fontWeight: "800", marginBottom: 5 },
+  contentItemBody: { color: "#5C6673", fontSize: 12, lineHeight: 18 },
+  contentItemMeta: { color: "#7A8490", fontSize: 10, textTransform: "capitalize", marginTop: 6 },
+  maintenanceItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#EDF0F3", paddingVertical: 10 },
+  maintenanceCopy: { flex: 1, paddingRight: 10 },
+  priorityDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#E6B800" },
+  priorityDotHigh: { backgroundColor: "#C43D36" },
   cardTitle: { color: "#17212B", fontSize: 16, fontWeight: "700", marginBottom: 5 },
   cardText: { color: "#5C6673", fontSize: 14, lineHeight: 21 },
   label: { color: "#263541", fontSize: 13, fontWeight: "700", marginTop: 16, marginBottom: 7 },
