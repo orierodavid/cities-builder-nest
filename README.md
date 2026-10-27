@@ -10,6 +10,11 @@ A starter monorepo for an estate and community management app for iOS and Androi
 - **Jobs:** Background worker for payment events and reconciliation (hosting provider is configurable)
 - **Financial partner:** Holds Save for Rent funds and confirms deposits and payouts
 
+## Enterprise multi-estate model
+Cities Builder Nest is designed as one shared platform for many estates, not a single-estate deployment. Estate-scoped roles and memberships are separated from platform-wide administration, and the database enforces same-estate relationships between buildings, units, resident assignments, and maintenance requests. RLS remains fail-closed for finance, ledger, audit, and privileged administration paths until secure server endpoints are implemented and tested.
+
+Apply reviewed migrations in order: `001_initial_schema.sql`, `002_auth_rls_policies.sql`, `003_enterprise_tenant_isolation.sql`, then `004_tenant_fk_indexes.sql`. Migration 003 is applied to the connected Supabase project; 004 adds supporting indexes.
+
 ## Repository layout
 - `apps/mobile` — Expo mobile application
 - `apps/api` — HTTP API
