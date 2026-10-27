@@ -67,6 +67,11 @@ export default function HomeScreen() {
   const [dashboard, setDashboard] = useState<EstateDashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
+  const [maintenanceTitle, setMaintenanceTitle] = useState("");
+  const [maintenanceDescription, setMaintenanceDescription] = useState("");
+  const [maintenancePriority, setMaintenancePriority] = useState<"low" | "normal" | "high" | "urgent">("normal");
+  const [maintenanceSubmitting, setMaintenanceSubmitting] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -134,6 +139,37 @@ export default function HomeScreen() {
       setDashboardError(error instanceof Error ? error.message : "Could not load this estate dashboard.");
     } finally {
       setDashboardLoading(false);
+    }
+  }
+
+
+  async function submitMaintenanceRequest() {
+    if (!session?.access_token || !selectedEstateId || !apiUrl) return;
+    const title = maintenanceTitle.trim();
+    const description = maintenanceDescription.trim();
+    if (title.length < 3 || description.length < 5) {
+      setMaintenanceMessage("Enter a title (at least 3 characters) and description (at least 5 characters).");
+      return;
+    }
+    setMaintenanceSubmitting(true);
+    setMaintenanceMessage("");
+    try {
+      const response = await fetch(`${apiUrl}/v1/estates/${encodeURIComponent(selectedEstateId)}/maintenance`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}`, Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ title, description, priority: maintenancePriority }),
+      });
+      const body = (await response.json()) as { error?: string; maintenanceRequest?: { title: string } };
+      if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`);
+      setMaintenanceTitle("");
+      setMaintenanceDescription("");
+      setMaintenancePriority("normal");
+      setMaintenanceMessage("Maintenance request submitted.");
+      await loadEstateDashboard(session.access_token, selectedEstateId);
+    } catch (error) {
+      setMaintenanceMessage(error instanceof Error ? error.message : "Could not submit maintenance request.");
+    } finally {
+      setMaintenanceSubmitting(false);
     }
   }
 
@@ -400,6 +436,29 @@ export default function HomeScreen() {
                 )}
               </View>
             )}
+
+            {!!selectedEstateId && (
+              <View style={styles.requestForm}>
+                <Text style={styles.subsectionTitle}>Report a maintenance issue</Text>
+                <Text style={styles.cardText}>Your request is linked to the selected estate and submitted using your signed-in account.</Text>
+                <Text style={styles.label}>Issue title</Text>
+                <TextInput style={styles.input} value={maintenanceTitle} onChangeText={setMaintenanceTitle} placeholder="e.g. Streetlight not working" maxLength={120} editable={!maintenanceSubmitting} />
+                <Text style={styles.label}>Description</Text>
+                <TextInput style={[styles.input, styles.multilineInput]} value={maintenanceDescription} onChangeText={setMaintenanceDescription} placeholder="Describe where the issue is and what happened…" multiline textAlignVertical="top" maxLength={3000} editable={!maintenanceSubmitting} />
+                <Text style={styles.label}>Priority</Text>
+                <View style={styles.priorityChoices}>
+                  {(["low", "normal", "high", "urgent"] as const).map((priority) => (
+                    <TouchableOpacity key={priority} accessibilityRole="button" accessibilityState={{ selected: maintenancePriority === priority }} onPress={() => setMaintenancePriority(priority)} style={[styles.priorityChoice, maintenancePriority === priority && styles.priorityChoiceSelected]}>
+                      <Text style={[styles.priorityChoiceText, maintenancePriority === priority && styles.priorityChoiceTextSelected]}>{priority}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {!!maintenanceMessage && <Text style={maintenanceMessage.includes("submitted") ? styles.successText : styles.errorText}>{maintenanceMessage}</Text>}
+                <TouchableOpacity style={[styles.primaryButton, maintenanceSubmitting && styles.disabledButton]} onPress={() => void submitMaintenanceRequest()} disabled={maintenanceSubmitting}>
+                  {maintenanceSubmitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Submit maintenance request</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
             <TouchableOpacity style={styles.secondaryButton} onPress={() => void loadProfile(session.access_token)} disabled={profileLoading}>
               <Text style={styles.secondaryButtonText}>Refresh profile</Text>
             </TouchableOpacity>
@@ -522,6 +581,13 @@ const styles = StyleSheet.create({
   selectionCheck: { color: "#302700", fontSize: 13, fontWeight: "900" },
   selectedHint: { color: "#687483", fontSize: 11, lineHeight: 17, marginTop: 12 },
   dashboardSection: { marginTop: 2 },
+  requestForm: { marginTop: 20, paddingTop: 4 },
+  multilineInput: { minHeight: 100, paddingTop: 12 },
+  priorityChoices: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 2 },
+  priorityChoice: { borderWidth: 1, borderColor: "#D7DEE6", borderRadius: 99, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: "#FFFFFF" },
+  priorityChoiceSelected: { backgroundColor: "#FFF4C2", borderColor: "#E6B800" },
+  priorityChoiceText: { color: "#5C6673", fontSize: 12, fontWeight: "700", textTransform: "capitalize" },
+  priorityChoiceTextSelected: { color: "#725800" },
   statGrid: { flexDirection: "row", flexWrap: "wrap", gap: 9, marginBottom: 18 },
   statCard: { width: "48%", flexGrow: 1, minHeight: 82, backgroundColor: "#FFF9DF", borderWidth: 1, borderColor: "#F3E5A8", borderRadius: 13, padding: 13, justifyContent: "center" },
   statValue: { color: "#4B3B00", fontSize: 24, fontWeight: "900", marginBottom: 5 },
