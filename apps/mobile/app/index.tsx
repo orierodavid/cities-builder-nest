@@ -225,9 +225,6 @@ export default function HomeScreen() {
   const isPlatformAdmin = estates.some((estate) => estate.membershipRole === "platform_admin");
   const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
   const isSecurity = selectedEstate?.membershipRole === "security";
-  const isPlatformAdmin = estates.some((estate) => estate.membershipRole === "platform_admin");
-  const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
-  const isSecurity = selectedEstate?.membershipRole === "security";
   const location = selectedEstate ? [selectedEstate.city, selectedEstate.state, selectedEstate.country_code].filter(Boolean).join(", ") : "";
   const firstName = profile?.profile?.full_name?.trim().split(/\s+/)[0] || session?.user.email?.split("@")[0] || "Resident";
 
