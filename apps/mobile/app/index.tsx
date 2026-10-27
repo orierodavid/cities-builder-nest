@@ -186,7 +186,7 @@ export default function HomeScreen() {
       <View style={[styles.appFrame, wide && styles.appFrameWide]}>
         {session && wide && (
           <View style={styles.sidebar}>
-            <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View><View><Text style={styles.brandName}>Cities Builder</Text><Text style={styles.brandCaption}>NEST COMMUNITY</Text></View></View>
+            <View style={styles.brandRow}><View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View><View><Text style={styles.brandName}>Cities Builder</Text><Text style={styles.brandCaption}>NEST COMMUNITY</Text></View></View>
             <Text style={styles.navLabel}>YOUR SPACE</Text>
             {([["home","⌂","Home"],["community","◫","Community"],["maintenance","⚒","Maintenance"],["profile","◉","My profile"]] as const).map(([key,icon,label]) => (
               <TouchableOpacity key={key} onPress={() => setTab(key)} style={[styles.navItem, tab === key && styles.navItemActive]}><Text style={[styles.navIcon,tab === key && styles.navIconActive]}>{icon}</Text><Text style={[styles.navText,tab === key && styles.navTextActive]}>{label}</Text></TouchableOpacity>
@@ -196,7 +196,7 @@ export default function HomeScreen() {
         )}
         <View style={styles.main}>
           <View style={styles.topbar}>
-            <View style={styles.brandRow}>{(!session || !wide) && <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>}<View><Text style={styles.brandName}>Cities Builder Nest</Text><Text style={styles.brandCaption}>{session ? "YOUR COMMUNITY, CONNECTED" : "ONE PLATFORM · MANY ESTATES"}</Text></View></View>
+            <View style={styles.brandRow}>{(!session || !wide) && <View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View>}<View><Text style={styles.brandName}>Cities Builder Nest</Text><Text style={styles.brandCaption}>{session ? "YOUR COMMUNITY, CONNECTED" : "ONE PLATFORM · MANY ESTATES"}</Text></View></View>
             {session && <View style={styles.avatar}><Text style={styles.avatarText}>{firstName.slice(0,1).toUpperCase()}</Text></View>}
           </View>
 
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   root:{flex:1,backgroundColor:"#FFFFFF"},appFrame:{flex:1,width:"100%",alignSelf:"center",maxWidth:430,flexDirection:"row"},appFrameWide:{padding:0,gap:0},
   sidebar:{width:238,backgroundColor:"#071A3A",borderRadius:24,padding:20,justifyContent:"flex-start"},main:{flex:1,minWidth:0,backgroundColor:"#FFFFFF",overflow:"hidden"},
   topbar:{minHeight:78,paddingHorizontal:24,paddingVertical:14,backgroundColor:"#FFFFFF",borderBottomWidth:1,borderBottomColor:"#E5EAF2",flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
-  brandRow:{flexDirection:"row",alignItems:"center",gap:11},brandMark:{width:42,height:42,borderRadius:14,backgroundColor:green,alignItems:"center",justifyContent:"center"},brandMarkText:{color:"#FFFFFF",fontSize:25,fontWeight:"900"},
+  brandRow:{flexDirection:"row",alignItems:"center",gap:11},brandMark:{width:42,height:42,borderRadius:0,backgroundColor:"transparent",alignItems:"center",justifyContent:"center",flexDirection:"row",gap:2},logoTowerLeft:{width:8,height:19,backgroundColor:"#FFC400",transform:[{skewY:"-24deg"}],alignSelf:"center",marginTop:7},logoTowerCenter:{width:10,height:34,backgroundColor:"#FFC400",transform:[{skewY:"-8deg"}]},logoTowerRight:{width:8,height:23,backgroundColor:"#FFC400",transform:[{skewY:"24deg"}],alignSelf:"center",marginTop:5},
   brandName:{color:"#071A3A",fontSize:16,fontWeight:"900",letterSpacing:-.3},brandCaption:{color:"#819087",fontSize:9,fontWeight:"800",letterSpacing:1.1,marginTop:3},avatar:{width:39,height:39,borderRadius:20,backgroundColor:"#FFF0A6",alignItems:"center",justifyContent:"center"},avatarText:{color:green,fontSize:15,fontWeight:"900"},
   content:{paddingHorizontal:18,paddingTop:22,paddingBottom:30,gap:16},contentWide:{paddingHorizontal:18,paddingTop:22,paddingBottom:30,maxWidth:430,width:"100%",alignSelf:"center"},loadingPage:{minHeight:300,alignItems:"center",justifyContent:"center",gap:12},
   authLayout:{gap:16},authLayoutWide:{flexDirection:"row",alignItems:"stretch",gap:28,paddingTop:26,paddingBottom:26},welcomePanel:{backgroundColor:"#FFFFFF",borderRadius:0,padding:0,overflow:"hidden"},welcomePanelWide:{flex:1,justifyContent:"center",minHeight:540},authCardWide:{flex:1,justifyContent:"center",maxWidth:480},overlinePill:{alignSelf:"flex-start",flexDirection:"row",alignItems:"center",gap:8,borderWidth:1,borderColor:"#E5EAF2",borderRadius:30,paddingHorizontal:12,paddingVertical:8,backgroundColor:"#FFFFFF"},overlineText:{fontSize:9,color:"#071A3A",fontWeight:"900",letterSpacing:1},
