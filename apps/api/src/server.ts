@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import { createHash } from "node:crypto";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
@@ -583,6 +584,33 @@ app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
     },
   );
   res.status(outcome.status).json(outcome.body);
+});
+
+app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
+    .select("estate_id").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+    .eq("status", "active").eq("membership_role", "security").maybeSingle();
+  if (!membership) { res.status(403).json({ error: "security_membership_required" }); return; }
+  const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
+  if (!/^\\d{6}$/.test(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
+  const hash = createHash("sha256").update(accessCode).digest("hex");
+  const { data: pass, error: passError } = await authenticated.userSupabase.from("visitor_passes")
+    .select("id, visitor_name, visitor_phone, valid_from, valid_until, status")
+    .eq("estate_id", estateId).eq("access_code_hash", hash).maybeSingle();
+  if (passError || !pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
+  const now = Date.now();
+  if (pass.status !== "active" || new Date(pass.valid_from).getTime() > now || new Date(pass.valid_until).getTime() <= now) {
+    res.status(409).json({ error: "visitor_pass_expired_or_inactive" }); return;
+  }
+  const { data: visit, error } = await authenticated.userSupabase.from("visitor_visits")
+    .insert({ estate_id: estateId, visitor_pass_id: pass.id, checked_in_by: authenticated.authUser.id })
+    .select("id, visitor_pass_id, checked_in_at").single();
+  if (error || !visit) {
+    res.status(error?.code === "23505" ? 409 : 400).json({ error: error?.code === "23505" ? "visitor_already_checked_in" : "visitor_check_in_failed" }); return;
+  }
+  res.status(201).json({ visit, visitor: { name: pass.visitor_name, phone: pass.visitor_phone } });
 });
 
 app.get("/v1/estates/:estateId/gate/visits", requireAuth, async (req, res) => {
