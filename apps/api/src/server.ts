@@ -181,6 +181,72 @@ app.post("/v1/estates/:estateId/staff", requireAuth, async (req, res) => {
 });
 
 
+
+app.post("/v1/estates/:estateId/buildings", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const param = req.params.estateId;
+  const estateId = Array.isArray(param) ? (param[0] ?? "") : param;
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (name.length < 2 || name.length > 120) {
+    res.status(400).json({ error: "invalid_building_name" });
+    return;
+  }
+  const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
+  if (!platformAdmin && !(await hasEstateManager(authenticated.userSupabase, authenticated.authUser.id, estateId))) {
+    res.status(403).json({ error: "estate_manager_access_required" });
+    return;
+  }
+  const { data, error } = await authenticated.userSupabase
+    .from("buildings")
+    .insert({ estate_id: estateId, name })
+    .select("id, estate_id, name, created_at")
+    .single();
+  if (error || !data) {
+    res.status(error?.code === "23505" ? 409 : 400).json({ error: error?.code === "23505" ? "building_name_exists" : "building_create_failed" });
+    return;
+  }
+  res.status(201).json({ building: data });
+});
+
+app.post("/v1/estates/:estateId/buildings/:buildingId/units", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateParam = req.params.estateId;
+  const buildingParam = req.params.buildingId;
+  const estateId = Array.isArray(estateParam) ? (estateParam[0] ?? "") : estateParam;
+  const buildingId = Array.isArray(buildingParam) ? (buildingParam[0] ?? "") : buildingParam;
+  const unitCode = typeof req.body?.unitCode === "string" ? req.body.unitCode.trim() : "";
+  const unitType = typeof req.body?.unitType === "string" ? req.body.unitType.trim() : null;
+  if (unitCode.length < 1 || unitCode.length > 60 || (unitType !== null && unitType.length > 80)) {
+    res.status(400).json({ error: "invalid_unit_details" });
+    return;
+  }
+  const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
+  if (!platformAdmin && !(await hasEstateManager(authenticated.userSupabase, authenticated.authUser.id, estateId))) {
+    res.status(403).json({ error: "estate_manager_access_required" });
+    return;
+  }
+  const { data: building, error: buildingError } = await authenticated.userSupabase
+    .from("buildings")
+    .select("id, estate_id")
+    .eq("id", buildingId)
+    .eq("estate_id", estateId)
+    .maybeSingle();
+  if (buildingError || !building) {
+    res.status(404).json({ error: "building_not_found_in_estate" });
+    return;
+  }
+  const { data, error } = await authenticated.userSupabase
+    .from("units")
+    .insert({ building_id: buildingId, estate_id: estateId, unit_code: unitCode, unit_type: unitType, status: "available" })
+    .select("id, estate_id, building_id, unit_code, unit_type, status")
+    .single();
+  if (error || !data) {
+    res.status(error?.code === "23505" ? 409 : 400).json({ error: error?.code === "23505" ? "unit_code_exists" : "unit_create_failed" });
+    return;
+  }
+  res.status(201).json({ unit: data });
+});
+
 app.post("/v1/estates/:estateId/units/:unitId/assignments", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateParam = req.params.estateId;
