@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Cities Builder Nest",
+    "slug": "cities-builder-nest",
+    "scheme": "citiesbuildernest",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.citiesbuilder.nest"
+    },
+    "android": {
+      "package": "com.citiesbuilder.nest"
+    }
+  }
+}
