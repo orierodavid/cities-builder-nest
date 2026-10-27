@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
+import { validateMaintenanceInput } from "./maintenance-validation.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -172,19 +173,15 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
 app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = req.params.estateId;
-  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
-  const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
-  const priority = typeof req.body?.priority === "string" ? req.body.priority : "normal";
-  const unitId = typeof req.body?.unitId === "string" && req.body.unitId.trim() ? req.body.unitId.trim() : null;
-
-  if (title.length < 3 || title.length > 120 || description.length < 5 || description.length > 3000) {
-    res.status(400).json({ error: "invalid_maintenance_request", message: "Title must be 3–120 characters and description 5–3000 characters." });
+  const validation = validateMaintenanceInput(req.body);
+  if (!validation.ok) {
+    const message = validation.error === "invalid_maintenance_request"
+      ? "Title must be 3–120 characters and description 5–3000 characters."
+      : undefined;
+    res.status(400).json({ error: validation.error, ...(message ? { message } : {}) });
     return;
   }
-  if (!["low", "normal", "high", "urgent"].includes(priority)) {
-    res.status(400).json({ error: "invalid_maintenance_priority" });
-    return;
-  }
+  const { title, description, priority, unitId } = validation.value;
 
   const { data: membership, error: membershipError } = await authenticated.userSupabase
     .from("estate_memberships")
