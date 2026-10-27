@@ -10,6 +10,34 @@ A starter monorepo for an estate and community management app for iOS and Androi
 - **Jobs:** Background worker for payment events and reconciliation (hosting provider is configurable)
 - **Financial partner:** Holds Save for Rent funds and confirms deposits and payouts
 
+## Local browser development
+
+Open two VS Code terminals from the repository root.
+
+### Terminal 1 — API
+
+```powershell
+cd apps\api
+npm.cmd install
+Copy-Item .env.example .env
+npm.cmd run dev
+```
+
+Leave this terminal running. Verify the API by opening [http://localhost:4000/health](http://localhost:4000/health). A response with `"status":"ok"` means the HTTP service is running. `"database":"not-configured"` means the optional direct PostgreSQL connection string has not been set; estate data still depends on the configured Supabase project, schema, memberships, and RLS policies.
+
+### Terminal 2 — Expo web
+
+```powershell
+cd apps\mobile
+npm.cmd install
+Copy-Item .env.example .env -Force
+npx.cmd expo start --web --clear
+```
+
+Keep `EXPO_PUBLIC_API_URL=http://localhost:4000` for a browser running on the same computer. The mobile app and API must run in separate terminals. If an `.env` file already exists, review it before overwriting it.
+
+The URL and `sb_publishable_...` value in the example files are public client configuration, not server secrets. Never put a Supabase service-role key or database password in the mobile app or commit them to Git. Email confirmation, database schema, RLS policies, and an active estate membership may still be required for all features to work.
+
 ## Enterprise multi-estate model
 Cities Builder Nest is designed as one shared platform for many estates, not a single-estate deployment. Estate-scoped roles and memberships are separated from platform-wide administration, and the database enforces same-estate relationships between buildings, units, resident assignments, and maintenance requests. RLS remains fail-closed for finance, ledger, audit, and privileged administration paths until secure server endpoints are implemented and tested.
 
