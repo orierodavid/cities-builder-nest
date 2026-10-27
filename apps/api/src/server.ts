@@ -180,6 +180,81 @@ app.post("/v1/estates/:estateId/staff", requireAuth, async (req, res) => {
   res.status(201).json({ staff: { id: staff.id, fullName: staff.full_name }, membership: data });
 });
 
+
+app.post("/v1/estates/:estateId/units/:unitId/assignments", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateParam = req.params.estateId;
+  const unitParam = req.params.unitId;
+  const estateId = Array.isArray(estateParam) ? (estateParam[0] ?? "") : estateParam;
+  const unitId = Array.isArray(unitParam) ? (unitParam[0] ?? "") : unitParam;
+  const residentUserId = typeof req.body?.residentUserId === "string" ? req.body.residentUserId.trim() : "";
+  const startDate = typeof req.body?.startDate === "string" ? req.body.startDate : undefined;
+
+  if (!residentUserId || residentUserId.length > 100 || (startDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate))) {
+    res.status(400).json({ error: "invalid_unit_assignment", message: "Provide residentUserId and an optional startDate in YYYY-MM-DD format." });
+    return;
+  }
+
+  const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
+  const manager = platformAdmin || await hasEstateManager(authenticated.userSupabase, authenticated.authUser.id, estateId);
+  if (!manager) {
+    res.status(403).json({ error: "estate_manager_access_required" });
+    return;
+  }
+
+  const { data: unit, error: unitError } = await authenticated.userSupabase
+    .from("units")
+    .select("id, estate_id, building_id, unit_code, status")
+    .eq("id", unitId)
+    .eq("estate_id", estateId)
+    .maybeSingle();
+  if (unitError || !unit) {
+    res.status(404).json({ error: "unit_not_found_in_estate" });
+    return;
+  }
+  if (unit.status !== "available") {
+    res.status(409).json({ error: "unit_not_available", message: "Only available units can be assigned." });
+    return;
+  }
+
+  const { data: resident, error: residentError } = await authenticated.userSupabase
+    .from("estate_memberships")
+    .select("user_id, membership_role, status")
+    .eq("estate_id", estateId)
+    .eq("user_id", residentUserId)
+    .eq("membership_role", "resident")
+    .eq("status", "active")
+    .maybeSingle();
+  if (residentError || !resident) {
+    res.status(404).json({ error: "active_resident_membership_required" });
+    return;
+  }
+
+  const { data: assignment, error: assignmentError } = await authenticated.userSupabase
+    .from("resident_units")
+    .insert({
+      estate_id: estateId,
+      unit_id: unitId,
+      resident_user_id: residentUserId,
+      ...(startDate ? { start_date: startDate } : {}),
+    })
+    .select("id, estate_id, unit_id, resident_user_id, start_date, end_date, created_at")
+    .single();
+
+  if (assignmentError || !assignment) {
+    const conflict = assignmentError?.code === "23505";
+    res.status(conflict ? 409 : 400).json({
+      error: conflict ? "unit_or_resident_already_assigned" : "unit_assignment_failed",
+      message: conflict
+        ? "The unit is already occupied or this resident already has an active unit assignment."
+        : "Confirm the resident, unit, estate, and that migration 007 has been applied.",
+    });
+    return;
+  }
+
+  res.status(201).json({ assignment });
+});
+
 app.get("/v1/estates", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const { data, error } = await authenticated.userSupabase
