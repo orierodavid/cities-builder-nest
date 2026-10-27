@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from "express";
-import { createHash } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
@@ -584,6 +584,33 @@ app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
     },
   );
   res.status(outcome.status).json(outcome.body);
+});
+
+app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
+    .select("membership_role").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+    .eq("status", "active").in("membership_role", ["resident", "facility_manager", "estate_manager", "estate_admin"]).maybeSingle();
+  if (!membership) { res.status(403).json({ error: "estate_membership_required" }); return; }
+  const visitorName = typeof req.body?.visitorName === "string" ? req.body.visitorName.trim() : "";
+  const visitorPhone = typeof req.body?.visitorPhone === "string" ? req.body.visitorPhone.trim() : null;
+  const validFrom = typeof req.body?.validFrom === "string" ? new Date(req.body.validFrom) : new Date();
+  const validUntil = typeof req.body?.validUntil === "string" ? new Date(req.body.validUntil) : new Date(Date.now() + 12 * 60 * 60 * 1000);
+  if (visitorName.length < 2 || visitorName.length > 120 || (visitorPhone && visitorPhone.length > 40) ||
+      !Number.isFinite(validFrom.getTime()) || !Number.isFinite(validUntil.getTime()) ||
+      validUntil.getTime() <= Date.now() || validUntil <= validFrom || validUntil.getTime() - validFrom.getTime() > 7 * 86400000) {
+    res.status(400).json({ error: "invalid_visitor_pass", message: "Provide a visitor name and a valid time window of up to 7 days." }); return;
+  }
+  const accessCode = String(randomInt(100000, 1000000));
+  const accessCodeHash = createHash("sha256").update(accessCode).digest("hex");
+  const { data, error } = await authenticated.userSupabase.from("visitor_passes").insert({
+    estate_id: estateId, host_user_id: authenticated.authUser.id, visitor_name: visitorName,
+    visitor_phone: visitorPhone, access_code_hash: accessCodeHash, valid_from: validFrom.toISOString(),
+    valid_until: validUntil.toISOString(), status: "active",
+  }).select("id, estate_id, visitor_name, valid_from, valid_until, status, created_at").single();
+  if (error || !data) { res.status(400).json({ error: "visitor_pass_create_failed" }); return; }
+  res.status(201).json({ visitorPass: data, accessCode });
 });
 
 app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) => {
