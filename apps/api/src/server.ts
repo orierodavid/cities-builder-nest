@@ -585,6 +585,36 @@ app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
   res.status(outcome.status).json(outcome.body);
 });
 
+app.get("/v1/estates/:estateId/gate/visits", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
+    .select("estate_id").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+    .eq("status", "active").eq("membership_role", "security").maybeSingle();
+  if (!membership) { res.status(403).json({ error: "security_membership_required" }); return; }
+  const { data, error } = await authenticated.userSupabase.from("visitor_visits")
+    .select("id, visitor_pass_id, checked_in_at, visitor_passes(visitor_name, visitor_phone)")
+    .eq("estate_id", estateId).is("checked_out_at", null).order("checked_in_at", { ascending: false });
+  if (error) { res.status(400).json({ error: "active_visits_load_failed" }); return; }
+  res.status(200).json({ visits: data ?? [] });
+});
+
+app.post("/v1/estates/:estateId/gate/visits/:visitId/check-out", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const visitId = Array.isArray(req.params.visitId) ? req.params.visitId[0] : req.params.visitId;
+  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
+    .select("estate_id").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+    .eq("status", "active").eq("membership_role", "security").maybeSingle();
+  if (!membership) { res.status(403).json({ error: "security_membership_required" }); return; }
+  const { data, error } = await authenticated.userSupabase.from("visitor_visits")
+    .update({ checked_out_by: authenticated.authUser.id, checked_out_at: new Date().toISOString() })
+    .eq("id", visitId).eq("estate_id", estateId).is("checked_out_at", null)
+    .select("id, checked_in_at, checked_out_at").maybeSingle();
+  if (error || !data) { res.status(409).json({ error: "open_visit_not_found_or_checkout_failed" }); return; }
+  res.status(200).json({ visit: data });
+});
+
 app.get("/v1/me", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   try {
