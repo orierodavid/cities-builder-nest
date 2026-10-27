@@ -1,7 +1,7 @@
 # Roadmap
 
 1. **Foundation:** monorepo, mobile shell, API health check, PostgreSQL schema.
-2. **Identity:** secure authentication, role-based authorization, resident onboarding.
+2. **Identity and tenancy:** Supabase Auth, token verification, platform-admin versus estate-scoped roles, multi-estate membership, and automated cross-tenant access tests.
 3. **Estate operations:** estates, buildings, units, announcements, maintenance.
 4. **Security workflow:** visitor passes, guard check-in/out, event audit.
 5. **Save for Rent:** regulated partner selection, provider sandbox, verified events, ledger, withdrawal reservations, reconciliation.
