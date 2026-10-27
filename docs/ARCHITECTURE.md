@@ -8,6 +8,14 @@
 - Background worker for provider events, payouts, and reconciliation; host independently of the database provider.
 - Regulated financial partner as custodian of Save for Rent funds.
 
+## Enterprise multi-tenancy
+- One shared platform serves many estates; every estate-owned record is scoped to an estate.
+- Estate-scoped roles live on `estate_memberships` and are separate from the global `platform_admin` role.
+- A user may hold one primary estate role per estate and may belong to multiple estates.
+- Database constraints enforce that units belong to their building's estate, resident-unit assignments reference a unit and membership in the same estate, and maintenance units cannot cross estate boundaries.
+- Row-level policies restrict client reads to active memberships and the user's own records. Estate creation, membership administration, role assignment, and financial mutations remain server-mediated until the API has token verification and authorization tests.
+- Do not trust client-supplied estate IDs or editable user metadata as authorization. The API must validate the bearer token and check the user's active membership and role for every estate-scoped operation.
+
 ## Core domains
 Identity and roles; estates, buildings and units; resident directory; announcements; maintenance requests; visitor passes; savings goals; payment intents; withdrawals; ledger; provider events; reconciliation; audit logs.
 
