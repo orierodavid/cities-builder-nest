@@ -172,7 +172,8 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
 
 app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
-  const estateId = req.params.estateId;
+  const estateParam = req.params.estateId;
+  const estateId = Array.isArray(estateParam) ? (estateParam[0] ?? "") : estateParam;
   const outcome = await submitMaintenanceRequest(
     estateId,
     authenticated.authUser.id,
