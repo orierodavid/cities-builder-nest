@@ -225,6 +225,9 @@ export default function HomeScreen() {
   const isPlatformAdmin = estates.some((estate) => estate.membershipRole === "platform_admin");
   const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
   const isSecurity = selectedEstate?.membershipRole === "security";
+  const isPlatformAdmin = estates.some((estate) => estate.membershipRole === "platform_admin");
+  const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
+  const isSecurity = selectedEstate?.membershipRole === "security";
   const location = selectedEstate ? [selectedEstate.city, selectedEstate.state, selectedEstate.country_code].filter(Boolean).join(", ") : "";
   const firstName = profile?.profile?.full_name?.trim().split(/\s+/)[0] || session?.user.email?.split("@")[0] || "Resident";
 
@@ -245,7 +248,7 @@ export default function HomeScreen() {
           <View style={styles.sidebar}>
             <View style={styles.brandRow}><View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View><View><Text style={styles.brandName}>Cities Builder</Text><Text style={styles.brandCaption}>NEST COMMUNITY</Text></View></View>
             <Text style={styles.navLabel}>YOUR SPACE</Text>
-            {([["home","⌂","Home"],["community","◫","Community"],["maintenance","⚒","Maintenance"],["profile","◉","My profile"]] as const).map(([key,icon,label]) => (
+            {([["home","⌂","Home"],["community","◫","Community"],["maintenance","⚒","Maintenance"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","▦","Management"] as const] : []),["profile","◉","My profile"]] as const).map(([key,icon,label]) => (
               <TouchableOpacity key={key} onPress={() => setTab(key)} style={[styles.navItem, tab === key && styles.navItemActive]}><Text style={[styles.navIcon,tab === key && styles.navIconActive]}>{icon}</Text><Text style={[styles.navText,tab === key && styles.navTextActive]}>{label}</Text></TouchableOpacity>
             ))}
             <View style={styles.sidebarBottom}><Text style={styles.sidebarHint}>One platform. Many estates.</Text><Text style={styles.sidebarVersion}>RESIDENT PORTAL · PREVIEW</Text></View>
@@ -303,7 +306,7 @@ export default function HomeScreen() {
               </>
             )}
           </ScrollView>
-          {session && !wide && <View style={styles.bottomNav}>{([["home","⌂","Home"],["community","◫","Community"],["maintenance","⚒","Maintain"],["profile","◉","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Text style={[styles.bottomNavIcon,tab === key && styles.bottomNavIconActive]}>{icon}</Text><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive]}>{label}</Text>{tab === key && <View style={styles.bottomNavActiveMark}/>}</TouchableOpacity>)}</View>}
+          {session && !wide && <View style={styles.bottomNav}>{([["home","⌂","Home"],["community","◫","Community"],["maintenance","⚒","Maintain"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","▦","Manage"] as const] : []),["profile","◉","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Text style={[styles.bottomNavIcon,tab === key && styles.bottomNavIconActive]}>{icon}</Text><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive]}>{label}</Text>{tab === key && <View style={styles.bottomNavActiveMark}/>}</TouchableOpacity>)}</View>}
         </View>
       </View>
     </KeyboardAvoidingView>
