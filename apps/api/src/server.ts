@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
-import { validateMaintenanceInput } from "./maintenance-validation.js";
+import { submitMaintenanceRequest } from "./maintenance-service.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -173,51 +173,39 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
 app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = req.params.estateId;
-  const validation = validateMaintenanceInput(req.body);
-  if (!validation.ok) {
-    const message = validation.error === "invalid_maintenance_request"
-      ? "Title must be 3–120 characters and description 5–3000 characters."
-      : undefined;
-    res.status(400).json({ error: validation.error, ...(message ? { message } : {}) });
-    return;
-  }
-  const { title, description, priority, unitId } = validation.value;
-
-  const { data: membership, error: membershipError } = await authenticated.userSupabase
-    .from("estate_memberships")
-    .select("estate_id")
-    .eq("estate_id", estateId)
-    .eq("user_id", authenticated.authUser.id)
-    .eq("status", "active")
-    .maybeSingle();
-
-  if (membershipError) {
-    res.status(403).json({ error: "estate_membership_check_failed" });
-    return;
-  }
-  if (!membership) {
-    res.status(403).json({ error: "active_estate_membership_required" });
-    return;
-  }
-
-  const { data, error } = await authenticated.userSupabase
-    .from("maintenance_requests")
-    .insert({
-      estate_id: estateId,
-      created_by: authenticated.authUser.id,
-      title,
-      description,
-      priority,
-      ...(unitId ? { unit_id: unitId } : {}),
-    })
-    .select("id, title, description, status, priority, created_at")
-    .single();
-
-  if (error || !data) {
-    res.status(400).json({ error: "maintenance_request_create_failed" });
-    return;
-  }
-  res.status(201).json({ maintenanceRequest: data });
+  const outcome = await submitMaintenanceRequest(
+    estateId,
+    authenticated.authUser.id,
+    req.body,
+    {
+      async hasActiveMembership(targetEstateId, userId) {
+        const { data, error } = await authenticated.userSupabase
+          .from("estate_memberships")
+          .select("estate_id")
+          .eq("estate_id", targetEstateId)
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .maybeSingle();
+        return { active: Boolean(data), error: Boolean(error) };
+      },
+      async insertRequest(targetEstateId, userId, input) {
+        const { data, error } = await authenticated.userSupabase
+          .from("maintenance_requests")
+          .insert({
+            estate_id: targetEstateId,
+            created_by: userId,
+            title: input.title,
+            description: input.description,
+            priority: input.priority,
+            ...(input.unitId ? { unit_id: input.unitId } : {}),
+          })
+          .select("id, title, description, status, priority, created_at")
+          .single();
+        return { data, error: Boolean(error) };
+      },
+    },
+  );
+  res.status(outcome.status).json(outcome.body);
 });
 
 app.get("/v1/me", requireAuth, async (req, res) => {
