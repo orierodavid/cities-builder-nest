@@ -248,10 +248,6 @@ export default function HomeScreen() {
     finally { setManagementBusy(false); }
   }
 
-  useEffect(() => {
-    if (tab === "management" && selectedEstateId && session?.access_token && (isEstateManager || isPlatformAdmin)) void loadManagementDirectory();
-  }, [tab, selectedEstateId, session?.access_token, isEstateManager, isPlatformAdmin]);
-
   async function submitMaintenance() {
     if (!session?.access_token || !selectedEstateId || !apiUrl) return;
     if (requestTitle.trim().length < 3 || requestDescription.trim().length < 5) {
@@ -276,6 +272,11 @@ export default function HomeScreen() {
   const isPlatformAdmin = estates.some((estate) => estate.membershipRole === "platform_admin");
   const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
   const isSecurity = selectedEstate?.membershipRole === "security";
+
+  useEffect(() => {
+    if (tab === "management" && selectedEstateId && session?.access_token && (isEstateManager || isPlatformAdmin)) void loadManagementDirectory();
+  }, [tab, selectedEstateId, session?.access_token, isEstateManager, isPlatformAdmin]);
+
   const location = selectedEstate ? [selectedEstate.city, selectedEstate.state, selectedEstate.country_code].filter(Boolean).join(", ") : "";
   const firstName = profile?.profile?.full_name?.trim().split(/\s+/)[0] || session?.user.email?.split("@")[0] || "Resident";
 
