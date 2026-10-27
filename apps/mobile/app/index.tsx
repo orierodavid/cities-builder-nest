@@ -10,6 +10,11 @@ import { supabase, supabaseConfigured } from "../lib/supabase";
 type Estate = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; country_code?: string | null; is_enabled?: boolean; disabled_reason?: string | null; membershipRole: string | null };
 type ProfileResponse = { profile?: { id: string; full_name: string | null; is_active: boolean } | null; profilePending?: boolean; error?: string };
 type EstatesResponse = { estates?: Estate[]; error?: string };
+type Building = { id: string; name: string };
+type Unit = { id: string; unit_code: string; unit_type: string | null; status: string };
+type Resident = { id: string; full_name: string | null; phone_e164?: string | null };
+type DirectoryResponse<T> = { buildings?: T[]; units?: T[]; residents?: T[]; error?: string; message?: string };
+
 type Dashboard = {
   summary: { units: number; occupiedUnits: number; openMaintenanceRequests: number; publishedAnnouncements: number };
   announcements: { id: string; title: string; body: string; published_at: string | null }[];
@@ -58,6 +63,11 @@ export default function HomeScreen() {
   const [managementUnitCode, setManagementUnitCode] = useState("");
   const [managementUnitType, setManagementUnitType] = useState("");
   const [managementResidentId, setManagementResidentId] = useState("");
+  const [managementBuildings, setManagementBuildings] = useState<Building[]>([]);
+  const [managementUnits, setManagementUnits] = useState<Unit[]>([]);
+  const [managementResidents, setManagementResidents] = useState<Resident[]>([]);
+  const [managementUnitId, setManagementUnitId] = useState("");
+  const [directoryLoading, setDirectoryLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -200,6 +210,47 @@ export default function HomeScreen() {
     try { await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/residents", "POST", { userId: managementResidentId.trim() }); setManagementResidentId(""); setManagementMessage("Resident added to the selected estate."); await loadManagementDirectory(); }
     catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not add resident."); } finally { setManagementBusy(false); }
   }
+
+  async function loadManagementDirectory() {
+    if (!session?.access_token || !selectedEstateId || !apiUrl) return;
+    setDirectoryLoading(true);
+    try {
+      const headers = { Authorization: "Bearer " + session.access_token, Accept: "application/json" };
+      const base = apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId);
+      const [buildingRes, unitRes, residentRes] = await Promise.all([
+        fetch(base + "/buildings", { headers }), fetch(base + "/units", { headers }), fetch(base + "/residents", { headers }),
+      ]);
+      const [buildingBody, unitBody, residentBody] = await Promise.all([
+        buildingRes.json() as Promise<DirectoryResponse<Building>>,
+        unitRes.json() as Promise<DirectoryResponse<Unit>>,
+        residentRes.json() as Promise<DirectoryResponse<Resident>>,
+      ]);
+      if (!buildingRes.ok) throw new Error(buildingBody.error || buildingBody.message || "Could not load buildings.");
+      if (!unitRes.ok) throw new Error(unitBody.error || unitBody.message || "Could not load units.");
+      if (!residentRes.ok) throw new Error(residentBody.error || residentBody.message || "Could not load residents.");
+      setManagementBuildings(buildingBody.buildings || []);
+      setManagementUnits(unitBody.units || []);
+      setManagementResidents(residentBody.residents || []);
+      if (managementBuildingId && !(buildingBody.buildings || []).some((item) => item.id === managementBuildingId)) setManagementBuildingId("");
+      if (managementUnitId && !(unitBody.units || []).some((item) => item.id === managementUnitId)) setManagementUnitId("");
+    } catch (e) {
+      setManagementMessage(e instanceof Error ? e.message : "Could not load estate directory.");
+    } finally { setDirectoryLoading(false); }
+  }
+
+  async function assignResidentToUnit() {
+    if (!selectedEstateId || !managementUnitId || !managementResidentId) { setManagementMessage("Select a unit and resident first."); return; }
+    setManagementBusy(true); setManagementMessage("");
+    try {
+      await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/units/" + encodeURIComponent(managementUnitId) + "/assignments", "POST", { residentUserId: managementResidentId });
+      setManagementMessage("Resident assigned to unit."); setManagementUnitId(""); setManagementResidentId(""); await loadManagementDirectory();
+    } catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not assign resident."); }
+    finally { setManagementBusy(false); }
+  }
+
+  useEffect(() => {
+    if (tab === "management" && selectedEstateId && session?.access_token && (isEstateManager || isPlatformAdmin)) void loadManagementDirectory();
+  }, [tab, selectedEstateId, session?.access_token, isEstateManager, isPlatformAdmin]);
 
   async function submitMaintenance() {
     if (!session?.access_token || !selectedEstateId || !apiUrl) return;
