@@ -10,17 +10,12 @@ CREATE TYPE payment_status AS ENUM ('created', 'pending', 'successful', 'failed'
 CREATE TYPE ledger_entry_kind AS ENUM ('deposit', 'withdrawal', 'withdrawal_reservation', 'reservation_release', 'reversal', 'adjustment');
 
 CREATE TABLE users (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email text UNIQUE,
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE RESTRICT,
   phone_e164 text UNIQUE,
   full_name text NOT NULL,
-  password_hash text,
   is_active boolean NOT NULL DEFAULT true,
-  email_verified_at timestamptz,
-  phone_verified_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (email IS NOT NULL OR phone_e164 IS NOT NULL)
 );
 
 CREATE TABLE user_roles (
@@ -260,5 +255,31 @@ CREATE INDEX idx_ledger_tx_resident ON ledger_transactions(resident_user_id, cre
 CREATE INDEX idx_ledger_entries_transaction ON ledger_entries(transaction_id);
 CREATE INDEX idx_provider_events_processing ON provider_events(processing_status, received_at);
 CREATE INDEX idx_audit_logs_resource ON audit_logs(resource_type, resource_id, created_at DESC);
+
+
+-- Fail closed until table-specific authorization policies are reviewed and added.
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.estates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.estate_memberships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.buildings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.units ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.resident_units ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.maintenance_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.visitor_passes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rent_savings_goals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.financial_partners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_intents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.withdrawal_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ledger_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ledger_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.provider_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reconciliation_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reconciliation_exceptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- The auto-enable event-trigger function must not be callable through the Data API.
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC, anon, authenticated;
 
 COMMIT;
