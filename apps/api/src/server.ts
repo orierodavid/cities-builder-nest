@@ -168,6 +168,61 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
   }
 });
 
+
+app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = req.params.estateId;
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
+  const priority = typeof req.body?.priority === "string" ? req.body.priority : "normal";
+  const unitId = typeof req.body?.unitId === "string" && req.body.unitId.trim() ? req.body.unitId.trim() : null;
+
+  if (title.length < 3 || title.length > 120 || description.length < 5 || description.length > 3000) {
+    res.status(400).json({ error: "invalid_maintenance_request", message: "Title must be 3–120 characters and description 5–3000 characters." });
+    return;
+  }
+  if (!["low", "normal", "high", "urgent"].includes(priority)) {
+    res.status(400).json({ error: "invalid_maintenance_priority" });
+    return;
+  }
+
+  const { data: membership, error: membershipError } = await authenticated.userSupabase
+    .from("estate_memberships")
+    .select("estate_id")
+    .eq("estate_id", estateId)
+    .eq("user_id", authenticated.authUser.id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (membershipError) {
+    res.status(403).json({ error: "estate_membership_check_failed" });
+    return;
+  }
+  if (!membership) {
+    res.status(403).json({ error: "active_estate_membership_required" });
+    return;
+  }
+
+  const { data, error } = await authenticated.userSupabase
+    .from("maintenance_requests")
+    .insert({
+      estate_id: estateId,
+      created_by: authenticated.authUser.id,
+      title,
+      description,
+      priority,
+      ...(unitId ? { unit_id: unitId } : {}),
+    })
+    .select("id, title, description, status, priority, created_at")
+    .single();
+
+  if (error || !data) {
+    res.status(400).json({ error: "maintenance_request_create_failed" });
+    return;
+  }
+  res.status(201).json({ maintenanceRequest: data });
+});
+
 app.get("/v1/me", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   try {
