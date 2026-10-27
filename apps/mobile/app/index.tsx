@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +14,19 @@ import {
 } from "react-native";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "../lib/supabase";
+
+type Estate = {
+  id: string;
+  name: string;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country_code?: string | null;
+  timezone?: string | null;
+  membershipRole: string | null;
+};
+
+type EstatesResponse = { estates?: Estate[]; error?: string };
 
 type ProfileResponse = {
   user?: { id: string; email: string | null; emailConfirmed: boolean };
@@ -39,6 +53,10 @@ export default function HomeScreen() {
   const [message, setMessage] = useState("");
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [estates, setEstates] = useState<Estate[]>([]);
+  const [estatesLoading, setEstatesLoading] = useState(false);
+  const [estatesError, setEstatesError] = useState("");
+  const [selectedEstateId, setSelectedEstateId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -68,8 +86,12 @@ export default function HomeScreen() {
   useEffect(() => {
     if (session?.access_token) {
       void loadProfile(session.access_token);
+      void loadEstates(session.access_token);
     } else {
       setProfile(null);
+      setEstates([]);
+      setEstatesError("");
+      setSelectedEstateId(null);
     }
   }, [session?.access_token]);
 
@@ -93,6 +115,39 @@ export default function HomeScreen() {
       setProfile({ error: "Could not reach the API. Check EXPO_PUBLIC_API_URL and that the API is running." });
     } finally {
       setProfileLoading(false);
+    }
+  }
+
+  async function loadEstates(accessToken: string) {
+    if (!apiUrl) {
+      setEstatesError("Set EXPO_PUBLIC_API_URL to load your estate memberships.");
+      return;
+    }
+    setEstatesLoading(true);
+    setEstatesError("");
+    try {
+      const response = await fetch(`${apiUrl}/v1/estates`, {
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      });
+      const body = (await response.json()) as EstatesResponse;
+      if (!response.ok) throw new Error(body.error || `Estate request failed (${response.status})`);
+      const available = body.estates ?? [];
+      setEstates(available);
+      const savedId = await AsyncStorage.getItem("cities-builder-nest.selected-estate-id");
+      setSelectedEstateId(savedId && available.some((estate) => estate.id === savedId) ? savedId : available[0]?.id ?? null);
+    } catch (error) {
+      setEstatesError(error instanceof Error ? error.message : "Could not load estate memberships.");
+    } finally {
+      setEstatesLoading(false);
+    }
+  }
+
+  async function chooseEstate(estateId: string) {
+    setSelectedEstateId(estateId);
+    try {
+      await AsyncStorage.setItem("cities-builder-nest.selected-estate-id", estateId);
+    } catch {
+      setEstatesError("Estate selected for this session, but could not save the preference on this device.");
     }
   }
 
@@ -192,6 +247,57 @@ export default function HomeScreen() {
               <Text style={styles.cardText}>
                 {profile?.profilePending ? "Your profile is not available yet. If you just registered, wait for email confirmation and refresh by signing in again." : "Waiting for profile details."}
               </Text>
+            )}
+            <View style={styles.divider} />
+            <View style={styles.sectionHeadingRow}>
+              <View style={styles.sectionHeadingCopy}>
+                <Text style={styles.sectionTitle}>Your estates</Text>
+                <Text style={styles.cardText}>Choose the community you want to view.</Text>
+              </View>
+              <TouchableOpacity onPress={() => void loadEstates(session.access_token)} disabled={estatesLoading} style={styles.refreshButton}>
+                <Text style={styles.refreshButtonText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
+            {estatesLoading ? (
+              <View style={styles.centerRow}><ActivityIndicator color="#E6B800" /><Text style={styles.muted}>Loading estate memberships…</Text></View>
+            ) : estatesError ? (
+              <Text style={styles.errorText}>{estatesError}</Text>
+            ) : estates.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateTitle}>No active estate yet</Text>
+                <Text style={styles.cardText}>Your account is signed in, but no active estate membership was returned. Ask your estate administrator to add your membership.</Text>
+              </View>
+            ) : (
+              <View style={styles.estateList}>
+                {estates.map((estate) => {
+                  const selected = estate.id === selectedEstateId;
+                  const location = [estate.city, estate.state, estate.country_code].filter(Boolean).join(", ");
+                  return (
+                    <TouchableOpacity
+                      key={estate.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      style={[styles.estateItem, selected && styles.estateItemSelected]}
+                      onPress={() => void chooseEstate(estate.id)}
+                    >
+                      <View style={[styles.estateIcon, selected && styles.estateIconSelected]}>
+                        <Text style={[styles.estateIconText, selected && styles.estateIconTextSelected]}>⌂</Text>
+                      </View>
+                      <View style={styles.estateCopy}>
+                        <Text style={styles.estateName}>{estate.name}</Text>
+                        {!!(estate.address || location) && <Text style={styles.estateLocation}>{[estate.address, location].filter(Boolean).join(" · ")}</Text>}
+                        {!!estate.membershipRole && <Text style={styles.roleText}>{estate.membershipRole.replace(/_/g, " ")}</Text>}
+                      </View>
+                      <View style={[styles.selectionMark, selected && styles.selectionMarkSelected]}>
+                        {selected && <Text style={styles.selectionCheck}>✓</Text>}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+            {selectedEstateId && estates.some((estate) => estate.id === selectedEstateId) && (
+              <Text style={styles.selectedHint}>Selected community: {estates.find((estate) => estate.id === selectedEstateId)?.name}. This preference is saved on this device; estate access is still enforced by the API and database policies.</Text>
             )}
             <TouchableOpacity style={styles.secondaryButton} onPress={() => void loadProfile(session.access_token)} disabled={profileLoading}>
               <Text style={styles.secondaryButtonText}>Refresh profile</Text>
@@ -293,6 +399,27 @@ const styles = StyleSheet.create({
   pillText: { color: "#123B32", fontWeight: "700", fontSize: 12 },
   card: { backgroundColor: "#FFFFFF", borderRadius: 18, padding: 20, marginBottom: 28, borderWidth: 1, borderColor: "#E5EAF0" },
   sectionTitle: { color: "#17212B", fontSize: 20, fontWeight: "800", marginBottom: 8 },
+  sectionHeadingRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 14 },
+  sectionHeadingCopy: { flex: 1 },
+  refreshButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: "#FFF4C2" },
+  refreshButtonText: { color: "#725800", fontSize: 12, fontWeight: "800" },
+  emptyState: { backgroundColor: "#FFFBEB", borderColor: "#F3E2A1", borderWidth: 1, padding: 14, borderRadius: 12, marginTop: 8 },
+  emptyStateTitle: { color: "#725800", fontSize: 14, fontWeight: "800", marginBottom: 5 },
+  estateList: { gap: 10 },
+  estateItem: { flexDirection: "row", alignItems: "center", padding: 13, borderWidth: 1, borderColor: "#E5EAF0", borderRadius: 14, backgroundColor: "#FFFFFF", gap: 12 },
+  estateItemSelected: { borderColor: "#E6B800", backgroundColor: "#FFFCED" },
+  estateIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: "#F1F4F6", alignItems: "center", justifyContent: "center" },
+  estateIconSelected: { backgroundColor: "#FCEB99" },
+  estateIconText: { fontSize: 25, color: "#5C6673", fontWeight: "700" },
+  estateIconTextSelected: { color: "#725800" },
+  estateCopy: { flex: 1 },
+  estateName: { color: "#17212B", fontSize: 14, fontWeight: "800", marginBottom: 4 },
+  estateLocation: { color: "#687483", fontSize: 12, lineHeight: 17 },
+  roleText: { color: "#725800", fontSize: 11, fontWeight: "700", textTransform: "capitalize", marginTop: 5 },
+  selectionMark: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: "#D7DEE6", alignItems: "center", justifyContent: "center" },
+  selectionMarkSelected: { backgroundColor: "#E6B800", borderColor: "#E6B800" },
+  selectionCheck: { color: "#302700", fontSize: 13, fontWeight: "900" },
+  selectedHint: { color: "#687483", fontSize: 11, lineHeight: 17, marginTop: 12 },
   cardTitle: { color: "#17212B", fontSize: 16, fontWeight: "700", marginBottom: 5 },
   cardText: { color: "#5C6673", fontSize: 14, lineHeight: 21 },
   label: { color: "#263541", fontSize: 13, fontWeight: "700", marginTop: 16, marginBottom: 7 },
