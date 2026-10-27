@@ -6,7 +6,7 @@ A starter monorepo for an estate and community management app for iOS and Androi
 - **Mobile:** React Native + Expo + TypeScript
 - **API:** Node.js + TypeScript (host on an available provider; Railway is optional)
 - **Database:** Supabase PostgreSQL by default
-- **Authentication:** Supabase Auth is the intended default, but API token verification and mobile auth wiring still need implementation and testing
+- **Authentication:** Supabase Auth sign-up/sign-in and API bearer-token validation are implemented; full estate-role authorization and end-to-end tests remain outstanding
 - **Jobs:** Background worker for payment events and reconciliation (hosting provider is configurable)
 - **Financial partner:** Holds Save for Rent funds and confirms deposits and payouts
 
@@ -27,11 +27,11 @@ Apply reviewed migrations in order: `001_initial_schema.sql`, `002_auth_rls_poli
 3. Review and test `database/migrations/001_initial_schema.sql` against the new Supabase database before applying it.
 4. Install dependencies in `apps/api` and `apps/mobile` separately using each package's package manager.
 5. Start the API and Expo app using the scripts in their package manifests.
-6. Before enabling authenticated features, implement and test Supabase Auth token verification in the API, role/estate authorization, and mobile sign-in flows. See `docs/SUPABASE_SETUP.md`.
+6. Configure the mobile and API environment variables using their `.env.example` files. Run the CI typechecks and API middleware tests; then verify signup, email confirmation, sign-in, `/v1/me`, and estate isolation against the connected Supabase project. See `docs/SUPABASE_SETUP.md`.
 
 Railway remains an optional hosting alternative. Supabase environment placeholders and documentation do not mean that Supabase Auth is already integrated or that deployment is complete.
 
 ## Important safety note
-This is an early scaffold, not a production-ready financial application. Authentication, authorization, tests, provider integration, webhook verification, reconciliation jobs, and hardened deployment still need implementation. Do not accept real money until the regulated financial partner, legal/compliance reviewers, and security reviewers have approved the full flow.
+This is an early scaffold, not a production-ready financial application. Authentication scaffolding is implemented, but estate authorization, end-to-end security tests, provider integration, webhook verification, reconciliation jobs, and hardened deployment still need implementation. Do not accept real money until the regulated financial partner, legal/compliance reviewers, and security reviewers have approved the full flow.
 
 Save for Rent amounts must use integer minor units (NGN kobo). Payment confirmations must come from verified provider events or status checks, with unique references, idempotency, append-only ledger records, atomic withdrawal reservations, audit trails, and reconciliation.
