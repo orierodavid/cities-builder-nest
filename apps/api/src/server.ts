@@ -190,7 +190,7 @@ app.post("/v1/estates/:estateId/units/:unitId/assignments", requireAuth, async (
   const residentUserId = typeof req.body?.residentUserId === "string" ? req.body.residentUserId.trim() : "";
   const startDate = typeof req.body?.startDate === "string" ? req.body.startDate : undefined;
 
-  if (!residentUserId || residentUserId.length > 100 || (startDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate))) {
+  if (!residentUserId || residentUserId.length > 100 || (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate))) {
     res.status(400).json({ error: "invalid_unit_assignment", message: "Provide residentUserId and an optional startDate in YYYY-MM-DD format." });
     return;
   }
