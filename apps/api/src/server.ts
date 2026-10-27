@@ -65,6 +65,40 @@ async function hasEstateManager(userSupabase: AuthenticatedRequest["userSupabase
   return !error && Boolean(data);
 }
 
+app.patch("/v1/estates/:estateId/subscription", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  if (!(await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id))) {
+    res.status(403).json({ error: "platform_admin_required" });
+    return;
+  }
+
+  const param = req.params.estateId;
+  const estateId = Array.isArray(param) ? (param[0] ?? "") : param;
+  const enabled = req.body?.enabled;
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : null;
+  if (typeof enabled !== "boolean" || (reason !== null && reason.length > 500)) {
+    res.status(400).json({ error: "invalid_subscription_status", message: "Provide enabled as a boolean and an optional reason up to 500 characters." });
+    return;
+  }
+
+  const { data, error } = await authenticated.userSupabase
+    .from("estates")
+    .update({
+      is_enabled: enabled,
+      disabled_at: enabled ? null : new Date().toISOString(),
+      disabled_reason: enabled ? null : (reason || "Subscription inactive"),
+    })
+    .eq("id", estateId)
+    .select("id, name, is_enabled, disabled_at, disabled_reason")
+    .maybeSingle();
+
+  if (error || !data) {
+    res.status(400).json({ error: "estate_subscription_update_failed", message: "Confirm migration 009 is applied and the estate exists." });
+    return;
+  }
+  res.status(200).json({ estate: data });
+});
+
 app.post("/v1/estates", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   if (!(await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id))) {
@@ -344,7 +378,7 @@ app.get("/v1/estates", requireAuth, async (req, res) => {
   const ids = [...new Set(memberships.map((item) => item.estate_id))];
   const result = await authenticated.userSupabase
     .from("estates")
-    .select("id, name, address, city, state, timezone")
+    .select("id, name, address, city, state, timezone, is_enabled, disabled_at, disabled_reason")
     .in("id", ids)
     .order("name", { ascending: true });
 
@@ -387,7 +421,7 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
     const [estateResult, announcementsResult, announcementsCountResult, maintenanceResult, maintenanceCountResult, unitsResult] = await Promise.all([
       authenticated.userSupabase
         .from("estates")
-        .select("id, name, address, city, state, timezone")
+        .select("id, name, address, city, state, timezone, is_enabled, disabled_at, disabled_reason")
         .eq("id", estateId)
         .maybeSingle(),
       authenticated.userSupabase
@@ -422,6 +456,10 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
 
     if (estateResult.error || !estateResult.data) {
       res.status(403).json({ error: "estate_access_denied" });
+      return;
+    }
+    if (!estateResult.data.is_enabled) {
+      res.status(423).json({ error: "estate_subscription_inactive", message: "This estate is temporarily unavailable because its subscription is inactive." });
       return;
     }
     if (announcementsResult.error || announcementsCountResult.error || maintenanceResult.error || maintenanceCountResult.error || unitsResult.error) {
