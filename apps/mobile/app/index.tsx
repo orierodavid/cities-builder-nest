@@ -183,21 +183,21 @@ export default function HomeScreen() {
   async function createBuilding() {
     if (!selectedEstateId || managementBuildingName.trim().length < 2) { setManagementMessage("Choose an estate and enter a building name."); return; }
     setManagementBusy(true); setManagementMessage("");
-    try { const r = await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/buildings", "POST", { name: managementBuildingName.trim() }); setManagementBuildingName(""); setManagementMessage("Building created. ID: " + (r.building?.id || "created")); }
+    try { const r = await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/buildings", "POST", { name: managementBuildingName.trim() }); setManagementBuildingName(""); setManagementMessage("Building created."); await loadManagementDirectory(); }
     catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not create building."); } finally { setManagementBusy(false); }
   }
 
   async function createUnit() {
     if (!selectedEstateId || !managementBuildingId.trim() || !managementUnitCode.trim()) { setManagementMessage("Enter building ID and unit code."); return; }
     setManagementBusy(true); setManagementMessage("");
-    try { await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/buildings/" + encodeURIComponent(managementBuildingId.trim()) + "/units", "POST", { unitCode: managementUnitCode.trim(), unitType: managementUnitType.trim() || undefined }); setManagementUnitCode(""); setManagementUnitType(""); setManagementMessage("Unit created and marked available."); }
+    try { await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/buildings/" + encodeURIComponent(managementBuildingId.trim()) + "/units", "POST", { unitCode: managementUnitCode.trim(), unitType: managementUnitType.trim() || undefined }); setManagementUnitCode(""); setManagementUnitType(""); setManagementMessage("Unit created and marked available."); await loadManagementDirectory(); }
     catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not create unit."); } finally { setManagementBusy(false); }
   }
 
   async function addResident() {
     if (!selectedEstateId || !managementResidentId.trim()) { setManagementMessage("Enter an existing resident user ID."); return; }
     setManagementBusy(true); setManagementMessage("");
-    try { await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/residents", "POST", { userId: managementResidentId.trim() }); setManagementResidentId(""); setManagementMessage("Resident added to the selected estate."); }
+    try { await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/residents", "POST", { userId: managementResidentId.trim() }); setManagementResidentId(""); setManagementMessage("Resident added to the selected estate."); await loadManagementDirectory(); }
     catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not add resident."); } finally { setManagementBusy(false); }
   }
 
