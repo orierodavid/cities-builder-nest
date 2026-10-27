@@ -2,35 +2,35 @@
 
 Supabase is the default database platform for Cities Builder Nest. Railway is optional for hosting the API/worker or as an alternative PostgreSQL provider.
 
-## 1. Create a project
-Create a Supabase project and choose a strong database password. Save credentials in a secure password manager.
+## 1. Configure mobile authentication
 
-## 2. Configure the API database
-Copy `apps/api/.env.example` to a local `.env` file (never commit it). Set `DATABASE_URL` to the PostgreSQL connection string supplied by the Supabase dashboard. Choose the direct or pooler connection method suitable for the runtime.
+Copy `apps/mobile/.env.example` to `apps/mobile/.env` and set:
+- `EXPO_PUBLIC_SUPABASE_URL`: Project URL from Supabase Project Settings → API.
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`: project publishable key (or legacy anon key).
+- `EXPO_PUBLIC_API_URL`: deployed API URL; use `http://localhost:4000` for a local web/dev environment. A physical phone needs your development machine's LAN IP instead of localhost.
 
-The current API uses the standard PostgreSQL driver. This supports database connectivity through `DATABASE_URL`; it does not automatically enable Supabase Auth.
+Install mobile dependencies with the repository's package manager from `apps/mobile`, then run the typecheck. The app stores the Supabase session in AsyncStorage. Treat the publishable/anon key as public and rely on RLS; never put a service-role/secret key in an Expo variable.
 
-## 3. Authentication status
-Supabase Auth is the intended default, but the scaffold still needs:
-- Supabase Auth sign-up/sign-in flows in the mobile app.
-- API access-token verification.
-- Role and estate-level authorization checks on protected routes.
-- Tests for expired/invalid tokens and cross-estate access.
+In Supabase Dashboard → Authentication → URL Configuration, configure only the redirect URLs needed for the chosen app flow. Email confirmation may be enabled; in that case, signup may not create a session until the user confirms the email.
 
-Do not treat authentication as complete until these changes are implemented and tested. Keep `AUTH_PROVIDER=local` until the actual Supabase Auth integration is ready.
+## 2. Configure API authentication
 
-## 4. Configure the mobile app
-If the mobile app will use the Supabase client directly, copy `apps/mobile/.env.example` to a local environment file and provide the project URL and publishable/anon key. Install and configure the Supabase client only as part of a reviewed implementation change.
+Copy `apps/api/.env.example` to `apps/api/.env` and set `SUPABASE_URL` and `SUPABASE_ANON_KEY` to the same project. Keep `AUTH_PROVIDER=supabase`. The API's `requireAuth` middleware validates bearer tokens with Supabase Auth using `auth.getUser(token)`; it does not merely decode the JWT. `GET /v1/me` uses the user's bearer token and public RLS policy to read only their own profile.
 
-Never expose the service-role/secret key in Expo variables. Any variable prefixed with `EXPO_PUBLIC_` is bundled for the client and must be treated as public.
+The API database connection `DATABASE_URL` is currently used only for health checks. Do not use a privileged PostgreSQL connection for user-scoped queries unless the API explicitly sets and safely scopes the database role/claims. Keep privileged finance and administration workflows server-only.
 
-## 5. Database and security
-Review and test `database/migrations/001_initial_schema.sql` against a clean Supabase database before applying it. If tables are accessed directly from mobile clients, enable and test Row Level Security policies before exposing them. The API must enforce roles and estate-level permissions as well.
+## 3. Profile creation
 
-## 6. Validate before launch
-- Verify the API can connect to the selected database.
-- Add automated migration and integration tests.
-- Verify authentication and authorization, including resident/facility-manager/security boundaries.
-- Test backups and recovery.
-- Keep financial operations server-side and use verified financial-partner events.
-- Never accept real-money transactions until the regulated partner, legal/compliance reviewers, and security reviewers approve the implementation.
+Migration `002_auth_rls_policies.sql` creates a trigger that inserts a matching `public.users` profile after a Supabase Auth user is created. If email confirmation is required, the profile may exist while the mobile app has no active session yet.
+
+## 4. Tenant authorization status
+
+The current endpoint verifies identity and reads the current user's own profile. It does not yet implement estate administration, estate-scoped business endpoints, platform-admin controls, or role-based API actions. For each future estate endpoint, derive the authenticated user from the validated token and check an active `estate_memberships` row for the requested estate and required role. Never trust a client-supplied estate ID, role, or user ID as proof of authorization.
+
+Add automated tests for invalid/expired tokens, missing profiles, inactive memberships, and attempts to access another estate before enabling additional protected routes.
+
+## 5. Database and financial safety
+
+Review migrations in order: `001_initial_schema.sql`, `002_auth_rls_policies.sql`, `003_enterprise_tenant_isolation.sql`, `004_tenant_fk_indexes.sql`, and `005_foreign_key_indexes.sql`. The connected Supabase project has migrations 001–005 applied.
+
+Financial tables (payment intents, withdrawals, ledger, provider events, reconciliation, audit logs) have no direct client-facing policies. Keep real-money operations disabled until server-controlled payment intents, verified provider webhooks, idempotency, ledger integrity, reconciliation, and required partner/legal/compliance/security reviews are complete.
