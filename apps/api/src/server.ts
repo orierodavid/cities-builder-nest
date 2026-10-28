@@ -568,6 +568,16 @@ app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateParam = req.params.estateId;
   const estateId = Array.isArray(estateParam) ? (estateParam[0] ?? "") : estateParam;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) {
+    res.status(404).json({ error: "estate_not_found_or_unavailable" });
+    return;
+  }
+  if (!estateEnabled) {
+    rejectInactiveEstate(res);
+    return;
+  }
+
   const outcome = await submitMaintenanceRequest(
     estateId,
     authenticated.authUser.id,
