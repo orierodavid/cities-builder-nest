@@ -488,7 +488,6 @@ export default function HomeScreen() {
                 <View style={styles.sectionRow}><SectionTitle title="Create visitor pass" subtitle="Invite someone to your estate securely."/></View>
                 <Text style={styles.bodyText}>Create a time-limited visitor pass. The access code is shown once; share it privately.</Text>
                 <TextInput style={styles.input} value={visitorName} onChangeText={setVisitorName} placeholder="Visitor full name" maxLength={120}/>
-                <TextInput style={styles.input} value={visitorPhone} onChangeText={setVisitorPhone} placeholder="Visitor phone (optional)" keyboardType="phone-pad" maxLength={40}/>
                 <Button title="Create visitor pass" onPress={() => void createVisitorPass()} disabled={managementBusy || visitorName.trim().length < 2}/>
                 {!!issuedVisitorCode && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Visitor access code</Text><Text style={styles.welcomeTitle}>{issuedVisitorCode}</Text><Text style={styles.bodyText}>Valid for 12 hours. The code has been copied to your clipboard. Paste it into WhatsApp or SMS to send it to your visitor.</Text></View>}
                 <View style={styles.sectionRow}><SectionTitle title="Your visitor passes" subtitle="Only passes created by your account are shown."/></View>
