@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const migrationPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../database/migrations/017_visitor_pass_lifecycle_guards.sql");
+const migrationPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261028020100_visitor_pass_lifecycle_guards.sql");
 
 test("check-in consumes only an active, unexpired pass for the same enabled estate", async () => {
   const sql = await readFile(migrationPath, "utf8");
@@ -21,5 +21,7 @@ test("check-in consumes only an active, unexpired pass for the same enabled esta
 test("pass creation rejects disabled estates and lifecycle guards fail closed", async () => {
   const sql = await readFile(migrationPath, "utf8");
   assert.match(sql, /visitor_pass_enabled_estate_guard/);
-  assert.equal((sql.match(/USING ERRCODE = '23514'/g) ?? []).length, 3);
+  assert.match(sql, /REVOKE ALL ON FUNCTION private\\.reject_disabled_visitor_pass_creation\\(\\) FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION private\\.consume_visitor_pass_on_check_in\\(\\) FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /RAISE EXCEPTION 'Visitor pass already used'[\\s\\S]*?USING ERRCODE = '23505'/);
 });
