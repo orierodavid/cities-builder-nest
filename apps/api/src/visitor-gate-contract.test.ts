@@ -42,3 +42,40 @@ test("checkout stays estate-scoped and can only close an open visit once", async
   assert.match(checkoutRoute, /\.eq\("id", visitId\)\.eq\("estate_id", estateId\)\.is\("checked_out_at", null\)/);
   assert.match(checkoutRoute, /res\.status\(409\)\.json\(\{ error: "open_visit_not_found_or_checkout_failed" \}\)/);
 });
+
+
+test("mobile visitor workflows expose permission-denied and lifecycle-safe messages", async () => {
+  const mobilePath = resolve(here, "../../mobile/app/index.tsx");
+  const mobile = await readFile(mobilePath, "utf8");
+
+  for (const code of [
+    "security_membership_required",
+    "estate_membership_required",
+    "estate_subscription_inactive",
+    "invalid_access_code",
+    "visitor_pass_expired_or_inactive",
+    "visitor_pass_already_used",
+    "open_visit_not_found_or_checkout_failed",
+  ]) {
+    assert.ok(mobile.includes('case "' + code + '"'), "missing mobile message mapping for " + code);
+  }
+
+  assert.match(mobile, /visitorPassesLoading/);
+  assert.match(mobile, /visitorPassesError/);
+  assert.match(mobile, /gateVisitsLoading/);
+  assert.match(mobile, /gateVisitsError/);
+  assert.match(mobile, /setGateVisitsError\(["']["']\)/);
+  assert.match(mobile, /setVisitorPassesError\(["']["']\)/);
+});
+
+test("mobile visitor screens provide loading, empty, and error states", async () => {
+  const mobilePath = resolve(here, "../../mobile/app/index.tsx");
+  const mobile = await readFile(mobilePath, "utf8");
+
+  assert.match(mobile, /Loading visitor passes|Loading passes|visitorPassesLoading/);
+  assert.match(mobile, /gateVisitsLoading/);
+  assert.match(mobile, /visitorPassesError/);
+  assert.match(mobile, /gateVisitsError/);
+  assert.match(mobile, /visitorPasses\.length === 0|visitorPasses\.length > 0/);
+  assert.match(mobile, /gateVisits\.length === 0|gateVisits\.length > 0/);
+});
