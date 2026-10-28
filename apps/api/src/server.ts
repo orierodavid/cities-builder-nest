@@ -753,7 +753,12 @@ app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) =>
     .insert({ estate_id: estateId, visitor_pass_id: pass.id, checked_in_by: authenticated.authUser.id })
     .select("id, visitor_pass_id, checked_in_at").single();
   if (error || !visit) {
-    res.status(error?.code === "23505" ? 409 : 400).json({ error: error?.code === "23505" ? "visitor_pass_already_used" : "visitor_check_in_failed" }); return;
+    const alreadyUsed = error?.code === "23505";
+    const estateDisabled = error?.code === "55000";
+    res.status(alreadyUsed ? 409 : estateDisabled ? 423 : 400).json({
+      error: alreadyUsed ? "visitor_pass_already_used" : estateDisabled ? "estate_subscription_inactive" : "visitor_check_in_failed",
+    });
+    return;
   }
   res.status(201).json({ visit, visitor: { name: pass.visitor_name, phone: pass.visitor_phone } });
 });
