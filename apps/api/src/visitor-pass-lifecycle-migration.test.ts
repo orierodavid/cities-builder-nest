@@ -18,8 +18,8 @@ test("check-in consumes only an active, unexpired pass for the same enabled esta
   assert.match(sql, /visitor_pass_consume_on_check_in/);
 });
 
-test("pass creation rejects disabled estates and invalid lifecycle actions fail closed", async () => {
+test("pass creation rejects disabled estates and lifecycle guards fail closed", async () => {
   const sql = await readFile(migrationPath, "utf8");
   assert.match(sql, /visitor_pass_enabled_estate_guard/);
-  assert.equal((sql.match(/USING ERRCODE = '23514'/g) ?? []).length, 2);
+  assert.equal((sql.match(/USING ERRCODE = '23514'/g) ?? []).length, 3);
 });
