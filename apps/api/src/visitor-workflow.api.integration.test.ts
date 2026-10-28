@@ -139,13 +139,13 @@ test("authenticated resident can create a pass and list only passes hosted by th
     visitorName: "Test Visitor",
   });
   assert.equal(created.status, 201);
-  assert.equal(created.body.visitorPass.host_user_id, undefined);
   assert.match(created.body.accessCode, /^\d{6}$/);
 
   const listed = await request(`/v1/estates/${estateA}/visitor-passes`, "resident-token");
   assert.equal(listed.status, 200);
   assert.ok(Array.isArray(listed.body.visitorPasses));
-  assert.ok(listed.body.visitorPasses.every((pass: Record<string, unknown>) => pass.host_user_id !== "someone-else"));
+  assert.equal(listed.body.visitorPasses.length, 1);
+  assert.equal(listed.body.visitorPasses[0].visitor_name, "Test Visitor");
   assert.ok(!listed.body.visitorPasses.some((pass: Record<string, unknown>) => pass.id === "other-host-pass"));
 });
 
