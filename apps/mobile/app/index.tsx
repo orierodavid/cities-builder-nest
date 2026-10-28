@@ -85,11 +85,9 @@ export default function HomeScreen() {
   const [session, setSession] = useState<Session | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"sign-in">("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [fullName, setFullName] = useState("");
   const [message, setMessage] = useState("");
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [estates, setEstates] = useState<Estate[]>([]);
