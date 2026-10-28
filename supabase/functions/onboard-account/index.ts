@@ -17,7 +17,7 @@ function json(status: number, body: Record<string, unknown>) {
  * user also invalidates that invite rather than leaving a partially provisioned account.
  */
 async function rollbackOnboarding(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   userId: string,
   estateId: string,
   unitId?: string,
@@ -49,7 +49,10 @@ async function rollbackOnboarding(
     if (activeAssignmentError) {
       clean = false;
     } else if (!activeAssignments?.length) {
-      const { error: restoreError } = await admin.from("units").update({ status: "available" })
+      // This project currently has no generated Supabase Database type for the
+      // units table in this function, so use the generic PostgREST builder here.
+      const unitsTable = admin.from("units") as any;
+      const { error: restoreError } = await unitsTable.update({ status: "available" })
         .eq("id", unitId).eq("estate_id", estateId).eq("status", "occupied");
       if (restoreError) clean = false;
     }
