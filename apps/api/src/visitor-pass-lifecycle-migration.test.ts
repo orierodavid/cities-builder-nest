@@ -21,7 +21,8 @@ test("check-in consumes only an active, unexpired pass for the same enabled esta
 test("pass creation rejects disabled estates and lifecycle guards fail closed", async () => {
   const sql = await readFile(migrationPath, "utf8");
   assert.match(sql, /visitor_pass_enabled_estate_guard/);
-  assert.match(sql, /REVOKE ALL ON FUNCTION private\\.reject_disabled_visitor_pass_creation\\(\\) FROM PUBLIC, anon, authenticated/);
-  assert.match(sql, /REVOKE ALL ON FUNCTION private\\.consume_visitor_pass_on_check_in\\(\\) FROM PUBLIC, anon, authenticated/);
-  assert.match(sql, /RAISE EXCEPTION 'Visitor pass already used'[\\s\\S]*?USING ERRCODE = '23505'/);
+  assert.ok(sql.includes("REVOKE ALL ON FUNCTION private.reject_disabled_visitor_pass_creation() FROM PUBLIC, anon, authenticated"));
+  assert.ok(sql.includes("REVOKE ALL ON FUNCTION private.consume_visitor_pass_on_check_in() FROM PUBLIC, anon, authenticated"));
+  assert.ok(sql.includes("RAISE EXCEPTION 'Visitor pass already used'"));
+  assert.ok(sql.includes("USING ERRCODE = '23505'"));
 });
