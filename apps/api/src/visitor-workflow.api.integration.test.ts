@@ -17,9 +17,16 @@ const memberships = [
   { estate_id: "disabled-estate", user_id: securityId, membership_role: "security", status: "active" },
 ];
 const estates = [
-  { id: estateA, is_enabled: true },
-  { id: estateB, is_enabled: true },
-  { id: "disabled-estate", is_enabled: false },
+  { id: estateA, name: "Estate A", address: "1 Test Road", city: "Lagos", state: "Lagos", timezone: "Africa/Lagos", is_enabled: true, disabled_at: null, disabled_reason: null },
+  { id: estateB, name: "Estate B", address: "2 Test Road", city: "Lagos", state: "Lagos", timezone: "Africa/Lagos", is_enabled: true, disabled_at: null, disabled_reason: null },
+  { id: "disabled-estate", name: "Disabled Estate", address: "3 Test Road", city: "Lagos", state: "Lagos", timezone: "Africa/Lagos", is_enabled: false, disabled_at: new Date().toISOString(), disabled_reason: "Test disabled estate" },
+];
+const announcements: Record<string, any>[] = [
+  { id: "announcement-a", estate_id: estateA, title: "Estate A notice", body: "Test notice", published_at: new Date().toISOString(), created_at: new Date().toISOString() },
+];
+const maintenanceRequests: Record<string, any>[] = [];
+const units: Record<string, any>[] = [
+  { id: "unit-a", estate_id: estateA, status: "occupied" },
 ];
 const gateCodeHash = createHash("sha256").update("123456").digest("hex");
 const passes: Record<string, unknown>[] = [
@@ -84,6 +91,35 @@ const mockSupabase = createServer(async (req, res) => {
   }
   if (req.method === "GET" && table === "estates") {
     return sendJson(res, 200, estates.filter(matches), objectResponse);
+  }
+  if ((req.method === "GET" || req.method === "HEAD") && table === "announcements") {
+    const rows = announcements.filter(matches);
+    if (req.method === "HEAD") {
+      res.statusCode = 200;
+      res.setHeader("content-range", `0-${Math.max(0, rows.length - 1)}/${rows.length}`);
+      return res.end();
+    }
+    return sendJson(res, 200, rows, objectResponse);
+  }
+  if ((req.method === "GET" || req.method === "HEAD") && table === "maintenance_requests") {
+    const rows = maintenanceRequests.filter(matches).sort((a, b) =>
+      String(b.created_at).localeCompare(String(a.created_at)),
+    ).slice(0, Number(url.searchParams.get("limit") ?? 100));
+    if (req.method === "HEAD") {
+      res.statusCode = 200;
+      res.setHeader("content-range", `0-${Math.max(0, rows.length - 1)}/${maintenanceRequests.filter(matches).length}`);
+      return res.end();
+    }
+    return sendJson(res, 200, rows, objectResponse);
+  }
+  if (table === "maintenance_requests" && req.method === "POST") {
+    const body = await readBody(req);
+    const row = { id: "maintenance-" + (maintenanceRequests.length + 1), created_at: new Date().toISOString(), status: "open", ...body };
+    maintenanceRequests.push(row);
+    return sendJson(res, 201, row, objectResponse);
+  }
+  if ((req.method === "GET" || req.method === "HEAD") && table === "units") {
+    return sendJson(res, 200, units.filter(matches), objectResponse);
   }
   if (table === "visitor_passes" && req.method === "POST") {
     const body = await readBody(req);
@@ -259,4 +295,57 @@ test("resident and security roles cannot use each other's workflows; disabled es
   });
   assert.equal(disabledCheckIn.status, 423);
   assert.equal(disabledCheckIn.body.error, "estate_subscription_inactive");
+});
+
+
+test("dashboard requires active membership in the requested estate and blocks disabled estates", async () => {
+  const allowed = await request(`/v1/estates/${estateA}/dashboard`, "resident-token");
+  assert.equal(allowed.status, 200);
+  assert.equal(allowed.body.estate.membershipRole, "resident");
+  assert.equal(allowed.body.summary.units, 1);
+  assert.equal(allowed.body.announcements[0].title, "Estate A notice");
+
+  const crossEstate = await request(`/v1/estates/${estateB}/dashboard`, "resident-token");
+  assert.equal(crossEstate.status, 403);
+  assert.equal(crossEstate.body.error, "active_estate_membership_required");
+
+  const noMembership = await request(`/v1/estates/${estateA}/dashboard`, "other-token");
+  assert.equal(noMembership.status, 403);
+
+  const disabled = await request("/v1/estates/disabled-estate/dashboard", "resident-token");
+  assert.equal(disabled.status, 423);
+  assert.equal(disabled.body.error, "estate_subscription_inactive");
+});
+
+test("maintenance submission requires active membership in the same enabled estate", async () => {
+  const created = await request(`/v1/estates/${estateA}/maintenance`, "resident-token", "POST", {
+    title: "Leaking kitchen tap",
+    description: "Water is leaking under the kitchen sink.",
+    priority: "high",
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.maintenanceRequest.created_by, residentId);
+  assert.equal(created.body.maintenanceRequest.estate_id, estateA);
+
+  const crossEstate = await request(`/v1/estates/${estateB}/maintenance`, "resident-token", "POST", {
+    title: "Leaking kitchen tap",
+    description: "Water is leaking under the kitchen sink.",
+    priority: "high",
+  });
+  assert.equal(crossEstate.status, 403);
+  assert.equal(crossEstate.body.error, "active_estate_membership_required");
+
+  const noMembership = await request(`/v1/estates/${estateA}/maintenance`, "other-token", "POST", {
+    title: "Leaking kitchen tap",
+    description: "Water is leaking under the kitchen sink.",
+    priority: "high",
+  });
+  assert.equal(noMembership.status, 403);
+
+  const disabled = await request("/v1/estates/disabled-estate/maintenance", "resident-token", "POST", {
+    title: "Leaking kitchen tap",
+    description: "Water is leaking under the kitchen sink.",
+    priority: "high",
+  });
+  assert.equal(disabled.status, 423);
 });
