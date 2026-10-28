@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
@@ -56,7 +57,23 @@ function visitorApiErrorMessage(code: string | undefined): string {
   }
 }
 
-const apiUrl = (process.env.EXPO_PUBLIC_API_URL || "").replace(/\/$/, "");
+const configuredApiUrl = (process.env.EXPO_PUBLIC_API_URL || "").replace(/\/$/, "");
+// On a physical device, localhost points to the device itself, not the computer
+// running the Expo/API development servers. Resolve localhost to Expo's LAN host.
+const apiUrl = (() => {
+  if (!configuredApiUrl) return "";
+  try {
+    const url = new URL(configuredApiUrl);
+    if (Platform.OS !== "web" && (url.hostname === "localhost" || url.hostname === "127.0.0.1")) {
+      const hostUri = Constants.expoConfig?.hostUri;
+      const developmentHost = hostUri?.split(":")[0];
+      if (developmentHost) url.hostname = developmentHost;
+    }
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return configuredApiUrl;
+  }
+})();
 const green = "#071A3A"; // Official deep navy
 const gold = "#FFC400"; // Official bright yellow
 
