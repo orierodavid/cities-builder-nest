@@ -245,6 +245,9 @@ app.post("/v1/estates/:estateId/staff", requireAuth, async (req, res) => {
 app.get("/v1/estates/:estateId/buildings", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
   if (!platformAdmin && !(await hasEstateManager(authenticated.userSupabase, authenticated.authUser.id, estateId))) {
     res.status(403).json({ error: "estate_manager_access_required" });
@@ -259,6 +262,9 @@ app.get("/v1/estates/:estateId/buildings", requireAuth, async (req, res) => {
 app.get("/v1/estates/:estateId/units", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
   if (!platformAdmin && !(await hasEstateManager(authenticated.userSupabase, authenticated.authUser.id, estateId))) {
     res.status(403).json({ error: "estate_manager_access_required" });
@@ -273,6 +279,9 @@ app.get("/v1/estates/:estateId/units", requireAuth, async (req, res) => {
 app.get("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
   if (!platformAdmin && !(await hasEstateManager(authenticated.userSupabase, authenticated.authUser.id, estateId))) {
     res.status(403).json({ error: "estate_manager_access_required" });
