@@ -11,6 +11,7 @@ const memberships = [
   { estate_id: estateA, user_id: residentId, membership_role: "resident", status: "active" },
   { estate_id: estateA, user_id: "inactive-resident", membership_role: "resident", status: "inactive" },
   { estate_id: estateA, user_id: securityId, membership_role: "security", status: "active" },
+  { estate_id: "disabled-estate", user_id: residentId, membership_role: "resident", status: "active" },
 ];
 const estates = [
   { id: estateA, is_enabled: true },
@@ -172,5 +173,6 @@ test("resident membership and estate checks fail closed for another estate and d
   const disabledEstate = await request("/v1/estates/disabled-estate/visitor-passes", "resident-token", "POST", {
     visitorName: "Disabled Estate",
   });
-  assert.equal(disabledEstate.status, 403);
+  assert.equal(disabledEstate.status, 423);
+  assert.equal(disabledEstate.body.error, "estate_subscription_inactive");
 });
