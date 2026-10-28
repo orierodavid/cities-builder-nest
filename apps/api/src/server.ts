@@ -192,14 +192,15 @@ app.post("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
     return;
   }
 
-  const { data: resident, error: residentError } = await authenticated.userSupabase
-    .from("users")
-    .select("id, full_name, phone_e164, is_active")
-    .eq("id", residentUserId)
-    .maybeSingle();
+  const { data: residentCandidates, error: residentError } = await authenticated.userSupabase
+    .rpc("get_active_resident_candidate", {
+      target_estate_id: estateId,
+      target_user_id: residentUserId,
+    });
+  const resident = Array.isArray(residentCandidates) ? residentCandidates[0] : null;
 
   if (residentError || !resident || !resident.is_active) {
-    res.status(404).json({ error: "active_registered_user_not_found", message: "The resident must already have a registered, active account." });
+    res.status(404).json({ error: "active_registered_user_not_found", message: "The resident must already have a registered, active account and be eligible for this estate." });
     return;
   }
 
