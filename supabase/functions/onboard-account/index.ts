@@ -184,12 +184,19 @@ Deno.serve(async (req: Request) => {
         message: rolledBack ? "Unit assignment failed and the pending account was rolled back. You can retry the invitation." : "Unit assignment failed and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
       });
     }
-    const { error: unitUpdateError } = await admin.from("units").update({ status: "occupied" }).eq("id", unitId).eq("estate_id", estateId);
-    if (unitUpdateError) {
+    // Compare-and-set protects against two concurrent invitations claiming the
+    // same unit after both have passed the initial availability check.
+    const { data: updatedUnit, error: unitUpdateError } = await admin.from("units")
+      .update({ status: "occupied" })
+      .eq("id", unitId).eq("estate_id", estateId).eq("status", "available")
+      .select("id").maybeSingle();
+    if (unitUpdateError || !updatedUnit) {
       const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, unitId);
-      return json(500, {
-        error: "unit_status_update_failed",
-        message: rolledBack ? "Unit status update failed and the pending account was rolled back. You can retry the invitation." : "Unit status update failed and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
+      return json(unitUpdateError ? 500 : 409, {
+        error: unitUpdateError ? "unit_status_update_failed" : "unit_no_longer_available",
+        message: rolledBack
+          ? "The unit became unavailable during onboarding and the pending account was rolled back. Select an available unit and retry."
+          : "The unit became unavailable during onboarding and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
       });
     }
   }
