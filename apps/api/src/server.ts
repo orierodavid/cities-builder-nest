@@ -7,6 +7,7 @@ import { checkDatabase } from "./storage.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
 import { canCreateVisitorPass } from "./visitor-pass-policy.js";
 import { canUseGateWorkflow } from "./gate-workflow-policy.js";
+import { isValidVisitorAccessCode, visitorCheckInFailure, visitorPassAvailabilityError } from "./visitor-pass-lifecycle-policy.js";
 import { isAllowedCorsOrigin } from "./cors-policy.js";
 
 const app = express();
@@ -739,25 +740,20 @@ app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) =>
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
-  if (!/^\d{6}$/.test(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
+  if (!isValidVisitorAccessCode(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
   const hash = createHash("sha256").update(accessCode).digest("hex");
   const { data: pass, error: passError } = await authenticated.userSupabase.from("visitor_passes")
     .select("id, visitor_name, visitor_phone, valid_from, valid_until, status")
     .eq("estate_id", estateId).eq("access_code_hash", hash).maybeSingle();
   if (passError || !pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
-  const now = Date.now();
-  if (pass.status !== "active" || new Date(pass.valid_from).getTime() > now || new Date(pass.valid_until).getTime() <= now) {
-    res.status(409).json({ error: "visitor_pass_expired_or_inactive" }); return;
-  }
+  const passAvailabilityError = visitorPassAvailabilityError(pass);
+  if (passAvailabilityError) { res.status(409).json({ error: passAvailabilityError }); return; }
   const { data: visit, error } = await authenticated.userSupabase.from("visitor_visits")
     .insert({ estate_id: estateId, visitor_pass_id: pass.id, checked_in_by: authenticated.authUser.id })
     .select("id, visitor_pass_id, checked_in_at").single();
   if (error || !visit) {
-    const alreadyUsed = error?.code === "23505";
-    const estateDisabled = error?.code === "55000";
-    res.status(alreadyUsed ? 409 : estateDisabled ? 423 : 400).json({
-      error: alreadyUsed ? "visitor_pass_already_used" : estateDisabled ? "estate_subscription_inactive" : "visitor_check_in_failed",
-    });
+    const failure = visitorCheckInFailure(error?.code);
+    res.status(failure.status).json({ error: failure.error });
     return;
   }
   res.status(201).json({ visit, visitor: { name: pass.visitor_name, phone: pass.visitor_phone } });
