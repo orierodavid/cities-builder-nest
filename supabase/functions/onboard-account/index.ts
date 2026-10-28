@@ -59,30 +59,35 @@ Deno.serve(async (req: Request) => {
   }
 
   const userId = authData.user.id;
-  const [{ data: platformAdmin }, { data: estateMembership }, { data: estate, error: estateError }] = await Promise.all([
+  const [{ data: platformAdmin, error: platformRoleError }, { data: estateMembership, error: membershipCheckError }, { data: estate, error: estateError }] = await Promise.all([
     admin.from("user_roles").select("role").eq("user_id", userId).eq("role", "platform_admin").maybeSingle(),
-    admin.from("estate_memberships").select("membership_role").eq("estate_id", estateId).eq("user_id", userId).eq("status", "active").in("membership_role", ["facility_manager", "estate_manager", "estate_admin"]).maybeSingle(),
+    admin.from("estate_memberships").select("membership_role").eq("estate_id", estateId).eq("user_id", userId).eq("status", "active").in("membership_role", ["estate_manager", "estate_admin"]).maybeSingle(),
     admin.from("estates").select("is_enabled").eq("id", estateId).maybeSingle(),
   ]);
+  if (platformRoleError || membershipCheckError) return json(500, { error: "authorization_check_failed" });
+
   const isPlatformAdmin = Boolean(platformAdmin);
   if (!isPlatformAdmin && !estateMembership) {
-    return json(403, { error: "estate_admin_access_required", message: "Only a platform administrator or manager of this estate can create accounts." });
+    return json(403, { error: "estate_admin_access_required", message: "Only a platform administrator or an estate manager/administrator for this estate can create accounts." });
   }
   if (role === "estate_admin" && !isPlatformAdmin) {
     return json(403, { error: "platform_admin_required", message: "Only a platform administrator can invite an estate administrator." });
   }
-  if (estateError || !estate) return json(404, { error: "estate_not_found_or_unavailable" });
+  if (estateError) return json(500, { error: "estate_lookup_failed" });
+  if (!estate) return json(404, { error: "estate_not_found_or_unavailable" });
   if (estate.is_enabled !== true) return json(403, { error: "estate_subscription_inactive" });
 
   if (role === "resident") {
     const { data: unit, error: unitError } = await admin.from("units")
-      .select("id, buildings!inner(estate_id)").eq("id", unitId).maybeSingle();
-    const building = unit?.buildings as unknown as { estate_id?: string } | null;
-    if (unitError || !unit || building?.estate_id !== estateId) {
+      .select("id, estate_id, status").eq("id", unitId).maybeSingle();
+    if (unitError) return json(500, { error: "unit_validation_failed" });
+    if (!unit || unit.estate_id !== estateId) {
       return json(400, { error: "unit_not_in_selected_estate", message: "Select a unit belonging to this estate." });
     }
+    if (unit.status !== "available") return json(409, { error: "unit_not_available", message: "The selected unit is not available for a new resident." });
+
     const { data: assignment, error: assignmentCheckError } = await admin.from("resident_units")
-      .select("id").eq("unit_id", unitId).is("end_date", null).maybeSingle();
+      .select("id").eq("unit_id", unitId).eq("estate_id", estateId).is("end_date", null).maybeSingle();
     if (assignmentCheckError) return json(500, { error: "unit_assignment_check_failed" });
     if (assignment) return json(409, { error: "unit_already_assigned" });
   }
@@ -112,9 +117,9 @@ Deno.serve(async (req: Request) => {
 
   if (role === "resident") {
     const { error: residentUnitError } = await admin.from("resident_units")
-      .insert({ unit_id: unitId, resident_user_id: invitedUserId });
+      .insert({ unit_id: unitId, estate_id: estateId, resident_user_id: invitedUserId });
     if (residentUnitError) return json(500, { error: "resident_unit_assignment_failed", message: "Account created but unit assignment failed; review the resident assignment." });
-    const { error: unitUpdateError } = await admin.from("units").update({ status: "occupied" }).eq("id", unitId);
+    const { error: unitUpdateError } = await admin.from("units").update({ status: "occupied" }).eq("id", unitId).eq("estate_id", estateId);
     if (unitUpdateError) return json(500, { error: "unit_status_update_failed", message: "Account and assignment created but unit status needs review." });
   }
 
