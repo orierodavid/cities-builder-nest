@@ -152,6 +152,10 @@ app.post("/v1/estates", requireAuth, async (req, res) => {
 app.post("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
+
   const residentUserId = typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
 
   if (!residentUserId || residentUserId.length > 100) {
@@ -203,6 +207,10 @@ app.post("/v1/estates/:estateId/staff", requireAuth, async (req, res) => {
   }
 
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
+
   const userId = typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
   const role = req.body?.role;
   if (!userId || !["facility_manager", "security"].includes(role)) {
@@ -285,6 +293,10 @@ app.post("/v1/estates/:estateId/buildings", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const param = req.params.estateId;
   const estateId = Array.isArray(param) ? (param[0] ?? "") : param;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
+
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
   if (name.length < 2 || name.length > 120) {
     res.status(400).json({ error: "invalid_building_name" });
@@ -313,6 +325,10 @@ app.post("/v1/estates/:estateId/buildings/:buildingId/units", requireAuth, async
   const buildingParam = req.params.buildingId;
   const estateId = Array.isArray(estateParam) ? (estateParam[0] ?? "") : estateParam;
   const buildingId = Array.isArray(buildingParam) ? (buildingParam[0] ?? "") : buildingParam;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
+
   const unitCode = typeof req.body?.unitCode === "string" ? req.body.unitCode.trim() : "";
   const unitType = typeof req.body?.unitType === "string" ? req.body.unitType.trim() : null;
   if (unitCode.length < 1 || unitCode.length > 60 || (unitType !== null && unitType.length > 80)) {
@@ -354,6 +370,9 @@ app.post("/v1/estates/:estateId/units/:unitId/assignments", requireAuth, async (
   const unitId = Array.isArray(unitParam) ? (unitParam[0] ?? "") : unitParam;
   const residentUserId = typeof req.body?.residentUserId === "string" ? req.body.residentUserId.trim() : "";
   const startDate = typeof req.body?.startDate === "string" ? req.body.startDate : undefined;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
 
   if (!residentUserId || residentUserId.length > 100 || (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate))) {
     res.status(400).json({ error: "invalid_unit_assignment", message: "Provide residentUserId and an optional startDate in YYYY-MM-DD format." });
