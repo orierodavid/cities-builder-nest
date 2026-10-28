@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createHash } from "node:crypto";
 
 const residentId = "resident-1";
 const securityId = "security-1";
@@ -12,19 +13,25 @@ const memberships = [
   { estate_id: estateA, user_id: "inactive-resident", membership_role: "resident", status: "inactive" },
   { estate_id: estateA, user_id: securityId, membership_role: "security", status: "active" },
   { estate_id: "disabled-estate", user_id: residentId, membership_role: "resident", status: "active" },
+  { estate_id: estateB, user_id: "security-b", membership_role: "security", status: "active" },
+  { estate_id: "disabled-estate", user_id: securityId, membership_role: "security", status: "active" },
 ];
 const estates = [
   { id: estateA, is_enabled: true },
   { id: estateB, is_enabled: true },
   { id: "disabled-estate", is_enabled: false },
 ];
+const gateCodeHash = createHash("sha256").update("123456").digest("hex");
 const passes: Record<string, unknown>[] = [
   {
     id: "other-host-pass", estate_id: estateA, host_user_id: "someone-else",
-    visitor_name: "Private visitor", visitor_phone: null, valid_from: "2026-10-28T00:00:00.000Z",
-    valid_until: "2026-10-29T00:00:00.000Z", status: "active", created_at: "2026-10-28T00:00:00.000Z",
+    visitor_name: "Gate Test Visitor", visitor_phone: null, access_code_hash: gateCodeHash,
+    valid_from: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    valid_until: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    status: "active", created_at: new Date().toISOString(),
   },
 ];
+const visits: Record<string, any>[] = [];
 
 function sendJson(res: ServerResponse, status: number, body: unknown, objectResponse = false) {
   res.statusCode = status;
@@ -53,6 +60,7 @@ const mockSupabase = createServer(async (req, res) => {
       "security-token": securityId,
       "inactive-token": "inactive-resident",
       "other-token": "someone-else",
+      "security-b-token": "security-b",
     };
     const id = token ? ids[token] : undefined;
     if (!id) return sendJson(res, 401, { message: "Invalid token" });
@@ -65,6 +73,7 @@ const mockSupabase = createServer(async (req, res) => {
   const matches = (row: Record<string, any>) => filters.every(([key, value]) => {
     const [operator, ...rest] = value.split(".");
     const expected = rest.join(".");
+    if (operator === "is") return expected === "null" ? row[key] === null || row[key] === undefined : String(row[key]) === expected;
     if (operator !== "eq") return true;
     return String(row[key]) === expected;
   });
@@ -91,6 +100,33 @@ const mockSupabase = createServer(async (req, res) => {
       String(b.created_at).localeCompare(String(a.created_at)),
     ).slice(0, Number(url.searchParams.get("limit") ?? 100));
     return sendJson(res, 200, rows, objectResponse);
+  }
+  if (table === "visitor_visits" && req.method === "POST") {
+    const body = await readBody(req);
+    const row = {
+      id: "visit-" + (visits.length + 1),
+      checked_in_at: new Date().toISOString(),
+      checked_out_by: null,
+      checked_out_at: null,
+      ...body,
+    };
+    visits.push(row);
+    return sendJson(res, 201, row, objectResponse);
+  }
+  if (table === "visitor_visits" && req.method === "GET") {
+    const rows = visits.filter(matches).sort((a, b) =>
+      String(b.checked_in_at).localeCompare(String(a.checked_in_at)),
+    ).map((visit) => {
+      const pass = passes.find((item) => item.id === visit.visitor_pass_id);
+      return { ...visit, visitor_passes: pass ? { visitor_name: pass.visitor_name, visitor_phone: pass.visitor_phone } : null };
+    });
+    return sendJson(res, 200, rows, objectResponse);
+  }
+  if (table === "visitor_visits" && req.method === "PATCH") {
+    const body = await readBody(req);
+    const updated = visits.filter(matches);
+    for (const row of updated) Object.assign(row, body);
+    return sendJson(res, 200, updated, objectResponse);
   }
   return sendJson(res, 404, { message: "Mock route not implemented", table, method: req.method });
 });
@@ -175,4 +211,52 @@ test("resident membership and estate checks fail closed for another estate and d
   });
   assert.equal(disabledEstate.status, 423);
   assert.equal(disabledEstate.body.error, "estate_subscription_inactive");
+});
+
+test("authenticated security can check in, list, and check out only visits in the assigned estate", async () => {
+  const checkIn = await request(`/v1/estates/${estateA}/gate/check-in`, "security-token", "POST", {
+    accessCode: "123456",
+  });
+  assert.equal(checkIn.status, 201);
+  assert.equal(checkIn.body.visitor.name, "Gate Test Visitor");
+  const visitId = checkIn.body.visit.id as string;
+
+  const active = await request(`/v1/estates/${estateA}/gate/visits`, "security-token");
+  assert.equal(active.status, 200);
+  assert.ok(active.body.visits.some((visit: Record<string, unknown>) => visit.id === visitId));
+
+  const crossEstate = await request(
+    `/v1/estates/${estateB}/gate/visits/${visitId}/check-out`,
+    "security-b-token",
+    "POST",
+  );
+  assert.equal(crossEstate.status, 409);
+
+  const checkout = await request(
+    `/v1/estates/${estateA}/gate/visits/${visitId}/check-out`,
+    "security-token",
+    "POST",
+  );
+  assert.equal(checkout.status, 200);
+
+  const repeated = await request(
+    `/v1/estates/${estateA}/gate/visits/${visitId}/check-out`,
+    "security-token",
+    "POST",
+  );
+  assert.equal(repeated.status, 409);
+});
+
+test("resident and security roles cannot use each other's workflows; disabled estate blocks gate operations", async () => {
+  const residentCheckIn = await request(`/v1/estates/${estateA}/gate/check-in`, "resident-token", "POST", {
+    accessCode: "123456",
+  });
+  assert.equal(residentCheckIn.status, 403);
+  assert.equal(residentCheckIn.body.error, "security_membership_required");
+
+  const disabledCheckIn = await request("/v1/estates/disabled-estate/gate/check-in", "security-token", "POST", {
+    accessCode: "123456",
+  });
+  assert.equal(disabledCheckIn.status, 423);
+  assert.equal(disabledCheckIn.body.error, "estate_subscription_inactive");
 });
