@@ -227,26 +227,54 @@ export default function HomeScreen() {
   }
 
   async function createEstateAccount() {
-    if (!selectedEstateId || !session?.access_token || !apiUrl) { setManagementMessage("Choose an estate and confirm the API is configured."); return; }
-    if (accountFullName.trim().length < 2 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(accountEmail.trim())) {
-      setManagementMessage("Enter the person's full name and a valid email address."); return;
+    if (!selectedEstateId || !session?.access_token || !supabaseConfigured) {
+      setManagementMessage("Choose an estate and confirm Supabase is configured.");
+      return;
     }
-    if (accountRole === "resident" && !accountUnitId) { setManagementMessage("Select the resident's apartment or unit."); return; }
-    setManagementBusy(true); setManagementMessage("");
+    if (accountFullName.trim().length < 2 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(accountEmail.trim())) {
+      setManagementMessage("Enter the person's full name and a valid email address.");
+      return;
+    }
+    if (accountRole === "resident" && !accountUnitId) {
+      setManagementMessage("Select the resident's apartment or unit.");
+      return;
+    }
+    setManagementBusy(true);
+    setManagementMessage("");
     try {
-      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/accounts", {
-        method: "POST",
-        headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName: accountFullName.trim(), email: accountEmail.trim().toLowerCase(), role: accountRole, unitId: accountRole === "resident" ? accountUnitId : undefined }),
+      const { data, error } = await supabase.functions.invoke("onboard-account", {
+        body: {
+          estateId: selectedEstateId,
+          fullName: accountFullName.trim(),
+          email: accountEmail.trim().toLowerCase(),
+          role: accountRole,
+          ...(accountRole === "resident" ? { unitId: accountUnitId } : {}),
+        },
+        headers: { Authorization: "Bearer " + session.access_token },
       });
-      const body = await response.json() as { error?: string; message?: string; account?: { invitationSent?: boolean } };
-      if (!response.ok) throw new Error(body.message || body.error || "Could not create account (" + response.status + ").");
-      setAccountFullName(""); setAccountEmail(""); setAccountUnitId("");
+      if (error) {
+        let detail = error.message || "Could not create account.";
+        try {
+          const response = (error as { context?: Response }).context;
+          if (response) {
+            const body = await response.clone().json() as { error?: string; message?: string };
+            detail = body.message || body.error || detail;
+          }
+        } catch { /* Keep the SDK's error message when no JSON response is available. */ }
+        throw new Error(detail);
+      }
+      if (!data?.account?.invitationSent) throw new Error("The function did not confirm that an invitation was sent.");
+      setAccountFullName("");
+      setAccountEmail("");
+      setAccountUnitId("");
       setManagementMessage("Account created. A secure invitation email has been sent so the user can set their password.");
       await loadManagementDirectory();
       await loadEstates(session.access_token);
-    } catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not create estate account."); }
-    finally { setManagementBusy(false); }
+    } catch (e) {
+      setManagementMessage(e instanceof Error ? e.message : "Could not create estate account.");
+    } finally {
+      setManagementBusy(false);
+    }
   }
 
   async function signOut() {
