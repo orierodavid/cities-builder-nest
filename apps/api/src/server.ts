@@ -646,7 +646,7 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
     .select("membership_role").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .eq("status", "active").in("membership_role", ["resident", "facility_manager", "estate_manager", "estate_admin"]).maybeSingle();
+    .eq("status", "active").eq("membership_role", "resident").maybeSingle();
   if (!membership) { res.status(403).json({ error: "estate_membership_required" }); return; }
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
