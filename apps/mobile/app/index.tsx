@@ -23,6 +23,39 @@ type Dashboard = {
   error?: string;
 };
 
+function visitorApiErrorMessage(code: string | undefined): string {
+  switch (code) {
+    case "security_membership_required":
+      return "Access denied: only active security staff assigned to this estate can manage gate visits.";
+    case "estate_membership_required":
+      return "Access denied: only an active resident of this estate can manage your visitor passes.";
+    case "estate_subscription_inactive":
+      return "This estate is temporarily unavailable because its subscription is inactive.";
+    case "invalid_access_code":
+      return "Enter the six-digit visitor access code.";
+    case "visitor_pass_not_found_or_invalid":
+      return "No visitor pass matches that code in this estate.";
+    case "visitor_pass_expired_or_inactive":
+      return "This visitor pass is expired, revoked, or inactive.";
+    case "visitor_pass_already_used":
+      return "This visitor pass has already been used and cannot be reused.";
+    case "visitor_check_in_failed":
+      return "Check-in could not be completed. Please try again.";
+    case "active_visits_load_failed":
+      return "Active visits could not be loaded. Check your gate permissions and connection.";
+    case "open_visit_not_found_or_checkout_failed":
+      return "This visit is no longer open or could not be checked out.";
+    case "visitor_pass_list_failed":
+      return "Visitor pass history could not be loaded.";
+    case "visitor_pass_create_failed":
+      return "The visitor pass could not be created. Confirm your estate membership and try again.";
+    case "estate_not_found_or_unavailable":
+      return "The selected estate could not be found or is unavailable.";
+    default:
+      return code ? "Visitor operation failed (" + code + ")." : "Visitor operation failed. Check your connection and try again.";
+  }
+}
+
 const apiUrl = (process.env.EXPO_PUBLIC_API_URL || "").replace(/\/$/, "");
 const green = "#071A3A"; // Official deep navy
 const gold = "#FFC400"; // Official bright yellow
@@ -264,7 +297,7 @@ export default function HomeScreen() {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const result = await response.json() as {error?:string;accessCode?:string;visits?:typeof gateVisits;visit?:{id:string};visitorPasses?:VisitorPass[];visitorPass?:VisitorPass};
-    if (!response.ok) throw new Error(result.error || "Visitor operation failed.");
+    if (!response.ok) throw new Error(visitorApiErrorMessage(result.error));
     return result;
   }
 
