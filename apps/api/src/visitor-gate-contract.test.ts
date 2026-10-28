@@ -79,3 +79,44 @@ test("mobile visitor screens provide loading, empty, and error states", async ()
   assert.match(mobile, /visitorPasses\.length === 0|visitorPasses\.length > 0/);
   assert.match(mobile, /gateVisits\.length === 0|gateVisits\.length > 0/);
 });
+
+
+test("resident pass creation and listing require active membership and return only the host's passes", async () => {
+  const server = await readFile(serverPath, "utf8");
+  const createStart = server.indexOf('app.post("/v1/estates/:estateId/visitor-passes"');
+  const listStart = server.indexOf('app.get("/v1/estates/:estateId/visitor-passes"');
+  const gateStart = server.indexOf('app.post("/v1/estates/:estateId/gate/check-in"');
+  assert.ok(createStart >= 0 && listStart > createStart && gateStart > listStart);
+
+  const createRoute = server.slice(createStart, listStart);
+  const listRoute = server.slice(listStart, gateStart);
+  assert.match(createRoute, /\.eq\("user_id", authenticated\.authUser\.id\)/);
+  assert.match(createRoute, /canCreateVisitorPass\(membership, estateId\)/);
+  assert.match(createRoute, /isEstateEnabled\(authenticated\.userSupabase, estateId\)/);
+  assert.match(createRoute, /host_user_id: authenticated\.authUser\.id/);
+
+  assert.match(listRoute, /\.eq\("user_id", authenticated\.authUser\.id\)/);
+  assert.match(listRoute, /canCreateVisitorPass\(membership, estateId\)/);
+  assert.match(listRoute, /\.eq\("host_user_id", authenticated\.authUser\.id\)/);
+  assert.match(listRoute, /\.eq\("estate_id", estateId\)/);
+  assert.match(listRoute, /isEstateEnabled\(authenticated\.userSupabase, estateId\)/);
+});
+
+test("all gate routes fail closed for non-security memberships and disabled estates", async () => {
+  const server = await readFile(serverPath, "utf8");
+  const routes = [
+    'app.post("/v1/estates/:estateId/gate/check-in"',
+    'app.get("/v1/estates/:estateId/gate/visits"',
+    'app.post("/v1/estates/:estateId/gate/visits/:visitId/check-out"',
+  ];
+
+  for (const routeSignature of routes) {
+    const start = server.indexOf(routeSignature);
+    assert.notEqual(start, -1, "missing route " + routeSignature);
+    const nextRoute = server.indexOf('\napp.', start + 5);
+    const route = server.slice(start, nextRoute === -1 ? undefined : nextRoute);
+    assert.match(route, /canUseGateWorkflow\(membership, estateId\)/);
+    assert.match(route, /isEstateEnabled\(authenticated\.userSupabase, estateId\)/);
+    assert.match(route, /rejectInactiveEstate\(res\)/);
+  }
+});
