@@ -11,7 +11,7 @@ import { canUseGateWorkflow } from "./gate-workflow-policy.js";
 import { isValidVisitorAccessCode, visitorCheckInFailure, visitorPassAvailabilityError } from "./visitor-pass-lifecycle-policy.js";
 import { isAllowedCorsOrigin } from "./cors-policy.js";
 
-const app = express();
+export const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
 const allowedOrigins = new Set(
@@ -820,6 +820,8 @@ app.get("/v1/me", requireAuth, async (req, res) => {
   }
 });
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Cities Builder Nest API listening on port ${port}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Cities Builder Nest API listening on port ${port}`);
+  });
+}
