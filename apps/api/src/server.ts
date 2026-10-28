@@ -917,6 +917,16 @@ app.get("/v1/me", requireAuth, async (req, res) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", authenticated.authUser.id);
+    const { data: memberships } = await authenticated.userSupabase
+      .from("estate_memberships")
+      .select("id, estate_id, membership_role, status, estates(name, address, city, state)")
+      .eq("user_id", authenticated.authUser.id)
+      .order("created_at", { ascending: true });
+    const { data: residentUnits } = await authenticated.userSupabase
+      .from("resident_units")
+      .select("unit_id, start_date, end_date, units(unit_code, unit_type, building_id, buildings(name, estate_id, estates(name)))")
+      .eq("resident_user_id", authenticated.authUser.id)
+      .is("end_date", null);
     res.status(200).json({
       user: {
         id: authenticated.authUser.id,
@@ -925,6 +935,8 @@ app.get("/v1/me", requireAuth, async (req, res) => {
       },
       profile: profile ?? null,
       globalRoles: (roleRows ?? []).map((item) => item.role),
+      estateMemberships: memberships ?? [],
+      residentUnits: residentUnits ?? [],
       profilePending: profile === null,
     });
   } catch {
