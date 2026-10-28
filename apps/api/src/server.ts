@@ -10,7 +10,24 @@ import { canCreateVisitorPass } from "./visitor-pass-policy.js";
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
-app.use(cors());
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+
+// Requests without an Origin header (for example, server-to-server health checks)
+// remain supported. Browser origins must be explicitly configured via CORS_ORIGINS.
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("Origin is not allowed by CORS"));
+  },
+}));
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", async (_req, res) => {
