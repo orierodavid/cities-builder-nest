@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { createHash, randomInt } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
@@ -220,6 +221,110 @@ app.post("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
     return;
   }
   res.status(201).json({ resident: { id: resident.id, fullName: resident.full_name, phone: resident.phone_e164 }, membership: data });
+});
+
+
+app.post("/v1/estates/:estateId/accounts", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  if (!(await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id))) {
+    res.status(403).json({ error: "platform_admin_required" });
+    return;
+  }
+
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
+
+  const fullName = typeof req.body?.fullName === "string" ? req.body.fullName.trim() : "";
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const role = req.body?.role;
+  const unitId = typeof req.body?.unitId === "string" ? req.body.unitId.trim() : "";
+  if (fullName.length < 2 || fullName.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      !["resident", "facility_manager", "security"].includes(role) ||
+      (role === "resident" && !unitId) || (role !== "resident" && unitId)) {
+    res.status(400).json({ error: "invalid_account_input", message: "Provide a full name, valid email, supported role, and a unit for residents only." });
+    return;
+  }
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!process.env.SUPABASE_URL || !serviceKey) {
+    res.status(503).json({ error: "invitation_service_not_configured", message: "Configure SUPABASE_SERVICE_ROLE_KEY on the API server before creating invited accounts." });
+    return;
+  }
+
+  const adminSupabase = createClient(process.env.SUPABASE_URL, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });
+
+  if (role === "resident") {
+    const { data: unit, error: unitError } = await adminSupabase
+      .from("units")
+      .select("id, building_id, buildings!inner(estate_id)")
+      .eq("id", unitId)
+      .maybeSingle();
+    const building = unit?.buildings as unknown as { estate_id?: string } | null;
+    if (unitError || !unit || building?.estate_id !== estateId) {
+      res.status(400).json({ error: "unit_not_in_selected_estate", message: "Select an apartment or unit belonging to this estate." });
+      return;
+    }
+    const { data: activeAssignment } = await adminSupabase
+      .from("resident_units")
+      .select("id")
+      .eq("unit_id", unitId)
+      .is("end_date", null)
+      .maybeSingle();
+    if (activeAssignment) {
+      res.status(409).json({ error: "unit_already_assigned", message: "This unit already has an active resident assignment." });
+      return;
+    }
+  }
+
+  const redirectTo = process.env.AUTH_INVITE_REDIRECT_URL;
+  const { data: invited, error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
+    data: { full_name: fullName },
+    ...(redirectTo ? { redirectTo } : {}),
+  });
+  if (inviteError || !invited.user) {
+    const duplicate = /already|registered|exists/i.test(inviteError?.message ?? "");
+    res.status(duplicate ? 409 : 400).json({
+      error: duplicate ? "email_already_registered" : "invitation_failed",
+      message: duplicate ? "An account already exists for this email address." : (inviteError?.message ?? "Could not send the invitation email."),
+    });
+    return;
+  }
+
+  const userId = invited.user.id;
+  const { error: profileError } = await adminSupabase.from("users")
+    .upsert({ id: userId, full_name: fullName, phone_e164: null, is_active: true }, { onConflict: "id" });
+  if (profileError) {
+    res.status(500).json({ error: "account_profile_setup_failed", message: "The invitation was created, but the profile could not be saved. Check API logs before retrying this email." });
+    return;
+  }
+
+  const { data: membership, error: membershipError } = await adminSupabase.from("estate_memberships")
+    .insert({ estate_id: estateId, user_id: userId, membership_role: role, status: "active" })
+    .select("id, estate_id, user_id, membership_role, status, created_at")
+    .single();
+  if (membershipError || !membership) {
+    res.status(500).json({ error: "account_membership_setup_failed", message: "The invitation was sent, but estate access could not be assigned. An administrator must resolve this account before inviting again." });
+    return;
+  }
+
+  if (role === "resident") {
+    const { error: assignmentError } = await adminSupabase.from("resident_units")
+      .insert({ unit_id: unitId, resident_user_id: userId });
+    if (assignmentError) {
+      res.status(500).json({ error: "resident_unit_assignment_failed", message: "The account and estate membership were created, but the unit assignment failed. Please review the resident assignment." });
+      return;
+    }
+    await adminSupabase.from("units").update({ status: "occupied" }).eq("id", unitId);
+  }
+
+  res.status(201).json({
+    account: { id: userId, fullName, email, role, estateId, unitId: role === "resident" ? unitId : null, invitationSent: true },
+    membership,
+  });
 });
 
 app.post("/v1/estates/:estateId/staff", requireAuth, async (req, res) => {
