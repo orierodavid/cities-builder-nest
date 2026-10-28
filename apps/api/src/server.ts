@@ -808,6 +808,10 @@ app.get("/v1/me", requireAuth, async (req, res) => {
       return;
     }
 
+    const { data: roleRows } = await authenticated.userSupabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", authenticated.authUser.id);
     res.status(200).json({
       user: {
         id: authenticated.authUser.id,
@@ -815,6 +819,7 @@ app.get("/v1/me", requireAuth, async (req, res) => {
         emailConfirmed: Boolean(authenticated.authUser.email_confirmed_at),
       },
       profile: profile ?? null,
+      globalRoles: (roleRows ?? []).map((item) => item.role),
       profilePending: profile === null,
     });
   } catch {
