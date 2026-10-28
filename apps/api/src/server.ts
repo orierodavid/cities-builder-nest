@@ -6,6 +6,7 @@ import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "
 import { checkDatabase } from "./storage.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
 import { canCreateVisitorPass } from "./visitor-pass-policy.js";
+import { isAllowedCorsOrigin } from "./cors-policy.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -21,7 +22,7 @@ const allowedOrigins = new Set(
 // remain supported. Browser origins must be explicitly configured via CORS_ORIGINS.
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin)) {
+    if (isAllowedCorsOrigin(origin, allowedOrigins)) {
       callback(null, true);
       return;
     }
