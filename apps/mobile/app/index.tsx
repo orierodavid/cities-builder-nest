@@ -11,7 +11,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 
 type Estate = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; country_code?: string | null; is_enabled?: boolean; disabled_reason?: string | null; membershipRole: string | null };
-type ProfileResponse = { profile?: { id: string; full_name: string | null; is_active: boolean } | null; globalRoles?: string[]; profilePending?: boolean; error?: string };
+type ProfileResponse = { profile?: { id: string; full_name: string | null; is_active: boolean } | null; globalRoles?: string[]; estateMemberships?: { id: string; estate_id: string; membership_role: string; status: string; estates?: { name?: string; address?: string; city?: string; state?: string } | null }[]; residentUnits?: { unit_id: string; units?: { unit_code?: string; unit_type?: string | null; buildings?: { name?: string; estate_id?: string; estates?: { name?: string } | null } | null } | null }[]; profilePending?: boolean; error?: string };
 type EstatesResponse = { estates?: Estate[]; error?: string };
 type Building = { id: string; name: string };
 type Unit = { id: string; unit_code: string; unit_type: string | null; status: string };
@@ -85,7 +85,7 @@ export default function HomeScreen() {
   const [session, setSession] = useState<Session | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [mode, setMode] = useState<"sign-in">("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -117,7 +117,11 @@ export default function HomeScreen() {
   const [managementUnitType, setManagementUnitType] = useState("");
   const [managementResidentId, setManagementResidentId] = useState("");
   const [managementStaffId, setManagementStaffId] = useState("");
-  const [managementStaffRole, setManagementStaffRole] = useState<"estate_admin" | "estate_manager" | "facility_manager" | "security">("facility_manager");
+  const [managementStaffRole, setManagementStaffRole] = useState<"facility_manager" | "security" | "resident">("facility_manager");
+  const [accountFullName, setAccountFullName] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountRole, setAccountRole] = useState<"resident" | "facility_manager" | "security">("resident");
+  const [accountUnitId, setAccountUnitId] = useState("");
   const [managementBuildings, setManagementBuildings] = useState<Building[]>([]);
   const [managementUnits, setManagementUnits] = useState<Unit[]>([]);
   const [managementResidents, setManagementResidents] = useState<Resident[]>([]);
@@ -204,20 +208,49 @@ export default function HomeScreen() {
     if (!supabaseConfigured) { setMessage("Supabase configuration is missing. Check apps/mobile/.env."); return; }
     if (!cleanEmail || !password) { setMessage("Enter your email address and password."); return; }
     if (password.length < 8) { setMessage("Your password must contain at least 8 characters."); return; }
-    if (mode === "sign-up" && !fullName.trim()) { setMessage("Enter your full name."); return; }
     setBusy(true);
     try {
-      if (mode === "sign-up") {
-        const { data, error } = await supabase.auth.signUp({ email: cleanEmail, password, options: { data: { full_name: fullName.trim() } } });
-        if (error) throw error;
-        setMessage(data.session ? "Account created. Welcome to your community." : "Account request submitted. Check your email to confirm your account.");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
-        if (error) throw error;
-        setMessage("Signed in successfully.");
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+      if (error) throw error;
+      setMessage("Signed in successfully.");
     } catch (e) { setMessage(e instanceof Error ? e.message : "Authentication failed. Please try again."); }
     finally { setBusy(false); }
+  }
+
+  async function requestPasswordReset() {
+    setMessage("");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) { setMessage("Enter your email address first to receive a password reset link."); return; }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+      if (error) throw error;
+      setMessage("If an account exists for this email, a password reset link has been sent.");
+    } catch (e) { setMessage(e instanceof Error ? e.message : "Could not request a password reset."); }
+    finally { setBusy(false); }
+  }
+
+  async function createEstateAccount() {
+    if (!selectedEstateId || !session?.access_token || !apiUrl) { setManagementMessage("Choose an estate and confirm the API is configured."); return; }
+    if (accountFullName.trim().length < 2 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(accountEmail.trim())) {
+      setManagementMessage("Enter the person's full name and a valid email address."); return;
+    }
+    if (accountRole === "resident" && !accountUnitId) { setManagementMessage("Select the resident's apartment or unit."); return; }
+    setManagementBusy(true); setManagementMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/accounts", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName: accountFullName.trim(), email: accountEmail.trim().toLowerCase(), role: accountRole, unitId: accountRole === "resident" ? accountUnitId : undefined }),
+      });
+      const body = await response.json() as { error?: string; message?: string; account?: { invitationSent?: boolean } };
+      if (!response.ok) throw new Error(body.message || body.error || "Could not create account (" + response.status + ").");
+      setAccountFullName(""); setAccountEmail(""); setAccountUnitId("");
+      setManagementMessage("Account created. A secure invitation email has been sent so the user can set their password.");
+      await loadManagementDirectory();
+      await loadEstates(session.access_token);
+    } catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not create estate account."); }
+    finally { setManagementBusy(false); }
   }
 
   async function signOut() {
@@ -457,18 +490,18 @@ export default function HomeScreen() {
                   <Text style={styles.welcomeFoot}>BUILT AROUND YOUR COMMUNITY</Text>
                 </View>
                 <View style={[styles.authCard, wide && styles.authCardWide]}>
-                  <Text style={styles.formEyebrow}>{mode === "sign-in" ? "WELCOME BACK" : "GET STARTED"}</Text>
-                  <Text style={styles.formTitle}>{mode === "sign-in" ? "Sign in to your space" : "Create your account"}</Text>
-                  <Text style={styles.formIntro}>{mode === "sign-in" ? "Your community is just a sign in away." : "Join your connected estate community."}</Text>
-                  {mode === "sign-up" && <><Text style={styles.fieldLabel}>Full name</Text><TextInput accessibilityLabel="Full name" returnKeyType="next" style={styles.input} value={fullName} onChangeText={setFullName} placeholder="How should we call you?" autoCapitalize="words" autoComplete="name" editable={!busy}/></>}
+                  <Text style={styles.formEyebrow}>"WELCOME BACK"</Text>
+                  <Text style={styles.formTitle}>"Sign in to your space"</Text>
+                  <Text style={styles.formIntro}>"Use the email address your estate administrator invited."</Text>
+                  
                   <Text style={styles.fieldLabel}>Email address</Text>
                   <TextInput accessibilityLabel="Email address" returnKeyType="next" style={styles.input} value={email} onChangeText={setEmail} placeholder="you@example.com" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" editable={!busy}/>
                   <View style={styles.passwordLabelRow}><Text style={styles.fieldLabel}>Password</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={showPassword ? "Hide password" : "Show password"} onPress={() => setShowPassword((visible) => !visible)} disabled={busy} style={styles.passwordToggle}><Text style={styles.passwordToggleText}>{showPassword ? "Hide" : "Show"}</Text></TouchableOpacity></View>
-                  <TextInput accessibilityLabel="Password" returnKeyType="go" style={styles.input} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry={!showPassword} autoComplete={mode === "sign-up" ? "new-password" : "current-password"} editable={!busy} onSubmitEditing={() => void submitAuth()}/>
+                  <TextInput accessibilityLabel="Password" returnKeyType="go" style={styles.input} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry={!showPassword} autoComplete="current-password" editable={!busy} onSubmitEditing={() => void submitAuth()}/>
                   {!!message && <Text style={message.toLowerCase().includes("success") || message.toLowerCase().includes("submitted") ? styles.successMessage : styles.errorMessage}>{message}</Text>}
                   {!supabaseConfigured && <Text style={styles.warningMessage}>Supabase setup is required. Check your local mobile environment file.</Text>}
-                  <TouchableOpacity style={[styles.button,styles.authButton,busy && styles.disabled]} onPress={() => void submitAuth()} disabled={busy}>{busy ? <ActivityIndicator color="#fff"/> : <Text style={styles.buttonText}>{mode === "sign-in" ? "Sign in securely  →" : "Create account  →"}</Text>}</TouchableOpacity>
-                  <TouchableOpacity style={styles.switchMode} onPress={() => {setMode(mode === "sign-in" ? "sign-up" : "sign-in");setShowPassword(false);setMessage("");}} disabled={busy}><Text style={styles.switchText}>{mode === "sign-in" ? "New to your community? " : "Already have an account? "}<Text style={styles.switchStrong}>{mode === "sign-in" ? "Create account" : "Sign in"}</Text></Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.button,styles.authButton,busy && styles.disabled]} onPress={() => void submitAuth()} disabled={busy}>{busy ? <ActivityIndicator color="#fff"/> : <Text style={styles.buttonText}>"Sign in securely  →"</Text>}</TouchableOpacity>
+                  <TouchableOpacity style={styles.switchMode} onPress={() => void requestPasswordReset()} disabled={busy}><Text style={styles.switchText}><Text style={styles.switchStrong}>Forgot your password?</Text></Text></TouchableOpacity>
                   <Text style={styles.secureNote}>Your account is protected by Supabase authentication.</Text>
                 </View>
               </View>
