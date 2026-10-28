@@ -25,6 +25,8 @@ test("PostgreSQL enforces visitor pass lifecycle, estate boundaries, and single 
   try {
     // This test is enabled only for a dedicated disposable CI PostgreSQL service.
     await pool.query(`
+      DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+      DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       DROP TABLE IF EXISTS public.visitor_visits CASCADE;
       DROP TABLE IF EXISTS public.visitor_passes CASCADE;
       DROP TABLE IF EXISTS public.estates CASCADE;
