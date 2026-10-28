@@ -6,10 +6,12 @@ import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "
 import { checkDatabase } from "./storage.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
 import { canCreateVisitorPass } from "./visitor-pass-policy.js";
+import { parseVisitorPassInput } from "./visitor-pass-input-policy.js";
 import { canUseGateWorkflow } from "./gate-workflow-policy.js";
+import { isValidVisitorAccessCode, visitorCheckInFailure, visitorPassAvailabilityError } from "./visitor-pass-lifecycle-policy.js";
 import { isAllowedCorsOrigin } from "./cors-policy.js";
 
-const app = express();
+export const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
 const allowedOrigins = new Set(
@@ -674,15 +676,11 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
-  const visitorName = typeof req.body?.visitorName === "string" ? req.body.visitorName.trim() : "";
-  const visitorPhone = typeof req.body?.visitorPhone === "string" ? req.body.visitorPhone.trim() : null;
-  const validFrom = typeof req.body?.validFrom === "string" ? new Date(req.body.validFrom) : new Date();
-  const validUntil = typeof req.body?.validUntil === "string" ? new Date(req.body.validUntil) : new Date(Date.now() + 12 * 60 * 60 * 1000);
-  if (visitorName.length < 2 || visitorName.length > 120 || (visitorPhone && visitorPhone.length > 40) ||
-      !Number.isFinite(validFrom.getTime()) || !Number.isFinite(validUntil.getTime()) ||
-      validUntil.getTime() <= Date.now() || validUntil <= validFrom || validUntil.getTime() - validFrom.getTime() > 7 * 86400000) {
+  const visitorInput = parseVisitorPassInput(req.body ?? {});
+  if (!visitorInput) {
     res.status(400).json({ error: "invalid_visitor_pass", message: "Provide a visitor name and a valid time window of up to 7 days." }); return;
   }
+  const { visitorName, visitorPhone, validFrom, validUntil } = visitorInput;
   const accessCode = String(randomInt(100000, 1000000));
   const accessCodeHash = createHash("sha256").update(accessCode).digest("hex");
   const { data, error } = await authenticated.userSupabase.from("visitor_passes").insert({
@@ -739,21 +737,21 @@ app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) =>
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
-  if (!/^\d{6}$/.test(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
+  if (!isValidVisitorAccessCode(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
   const hash = createHash("sha256").update(accessCode).digest("hex");
   const { data: pass, error: passError } = await authenticated.userSupabase.from("visitor_passes")
     .select("id, visitor_name, visitor_phone, valid_from, valid_until, status")
     .eq("estate_id", estateId).eq("access_code_hash", hash).maybeSingle();
   if (passError || !pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
-  const now = Date.now();
-  if (pass.status !== "active" || new Date(pass.valid_from).getTime() > now || new Date(pass.valid_until).getTime() <= now) {
-    res.status(409).json({ error: "visitor_pass_expired_or_inactive" }); return;
-  }
+  const passAvailabilityError = visitorPassAvailabilityError(pass);
+  if (passAvailabilityError) { res.status(409).json({ error: passAvailabilityError }); return; }
   const { data: visit, error } = await authenticated.userSupabase.from("visitor_visits")
     .insert({ estate_id: estateId, visitor_pass_id: pass.id, checked_in_by: authenticated.authUser.id })
     .select("id, visitor_pass_id, checked_in_at").single();
   if (error || !visit) {
-    res.status(error?.code === "23505" ? 409 : 400).json({ error: error?.code === "23505" ? "visitor_already_checked_in" : "visitor_check_in_failed" }); return;
+    const failure = visitorCheckInFailure(error?.code);
+    res.status(failure.status).json({ error: failure.error });
+    return;
   }
   res.status(201).json({ visit, visitor: { name: pass.visitor_name, phone: pass.visitor_phone } });
 });
@@ -822,6 +820,8 @@ app.get("/v1/me", requireAuth, async (req, res) => {
   }
 });
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Cities Builder Nest API listening on port ${port}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Cities Builder Nest API listening on port ${port}`);
+  });
+}
