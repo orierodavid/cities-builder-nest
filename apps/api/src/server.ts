@@ -226,12 +226,12 @@ app.post("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
 
 app.post("/v1/estates/:estateId/accounts", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
-  if (!(await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id))) {
-    res.status(403).json({ error: "platform_admin_required" });
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const isPlatformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
+  if (!isPlatformAdmin && !(await hasEstateManager(authenticated.userSupabase, authenticated.authUser.id, estateId))) {
+    res.status(403).json({ error: "estate_admin_access_required", message: "Only a platform administrator or manager of this estate can create accounts." });
     return;
   }
-
-  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
