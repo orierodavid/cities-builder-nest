@@ -11,6 +11,53 @@ function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
+/**
+ * Best-effort compensation for failures after an invite has created an auth user.
+ * The invite email has already been sent at this point, so deleting the pending
+ * user also invalidates that invite rather than leaving a partially provisioned account.
+ */
+async function rollbackOnboarding(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  estateId: string,
+  unitId?: string,
+): Promise<boolean> {
+  let clean = true;
+
+  if (unitId) {
+    const { error } = await admin.from("resident_units").delete()
+      .eq("resident_user_id", userId).eq("estate_id", estateId);
+    if (error) clean = false;
+  }
+
+  const { error: membershipDeleteError } = await admin.from("estate_memberships").delete()
+    .eq("user_id", userId).eq("estate_id", estateId);
+  if (membershipDeleteError) clean = false;
+
+  const { error: profileDeleteError } = await admin.from("users").delete().eq("id", userId);
+  if (profileDeleteError) clean = false;
+
+  const { error: authDeleteError } = await admin.auth.admin.deleteUser(userId);
+  if (authDeleteError) clean = false;
+
+  // A resident assignment may have been removed after the unit status update
+  // succeeded but its response failed. Restore availability only if no active
+  // resident assignment remains.
+  if (unitId) {
+    const { data: activeAssignments, error: activeAssignmentError } = await admin.from("resident_units")
+      .select("id").eq("unit_id", unitId).eq("estate_id", estateId).is("end_date", null).limit(1);
+    if (activeAssignmentError) {
+      clean = false;
+    } else if (!activeAssignments?.length) {
+      const { error: restoreError } = await admin.from("units").update({ status: "available" })
+        .eq("id", unitId).eq("estate_id", estateId).eq("status", "occupied");
+      if (restoreError) clean = false;
+    }
+  }
+
+  return clean;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
@@ -108,19 +155,43 @@ Deno.serve(async (req: Request) => {
   const invitedUserId = invited.user.id;
   const { error: profileError } = await admin.from("users")
     .upsert({ id: invitedUserId, full_name: fullName, phone_e164: null, is_active: true }, { onConflict: "id" });
-  if (profileError) return json(500, { error: "account_profile_setup_failed", message: "Invitation sent but profile creation failed; review the account before retrying." });
+  if (profileError) {
+    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? unitId : undefined);
+    return json(500, {
+      error: "account_profile_setup_failed",
+      message: rolledBack ? "Profile setup failed and the pending account was rolled back. You can retry the invitation." : "Profile setup failed and automatic cleanup was incomplete. Review the pending account before retrying.",
+    });
+  }
 
   const { data: membership, error: membershipError } = await admin.from("estate_memberships")
     .insert({ estate_id: estateId, user_id: invitedUserId, membership_role: role, status: "active" })
     .select("id, estate_id, user_id, membership_role, status, created_at").single();
-  if (membershipError || !membership) return json(500, { error: "account_membership_setup_failed", message: "Invitation sent but estate access could not be assigned; review this account before retrying." });
+  if (membershipError || !membership) {
+    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? unitId : undefined);
+    return json(500, {
+      error: "account_membership_setup_failed",
+      message: rolledBack ? "Estate access setup failed and the pending account was rolled back. You can retry the invitation." : "Estate access setup failed and automatic cleanup was incomplete. Review the pending account before retrying.",
+    });
+  }
 
   if (role === "resident") {
     const { error: residentUnitError } = await admin.from("resident_units")
       .insert({ unit_id: unitId, estate_id: estateId, resident_user_id: invitedUserId });
-    if (residentUnitError) return json(500, { error: "resident_unit_assignment_failed", message: "Account created but unit assignment failed; review the resident assignment." });
+    if (residentUnitError) {
+      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, unitId);
+      return json(500, {
+        error: "resident_unit_assignment_failed",
+        message: rolledBack ? "Unit assignment failed and the pending account was rolled back. You can retry the invitation." : "Unit assignment failed and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
+      });
+    }
     const { error: unitUpdateError } = await admin.from("units").update({ status: "occupied" }).eq("id", unitId).eq("estate_id", estateId);
-    if (unitUpdateError) return json(500, { error: "unit_status_update_failed", message: "Account and assignment created but unit status needs review." });
+    if (unitUpdateError) {
+      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, unitId);
+      return json(500, {
+        error: "unit_status_update_failed",
+        message: rolledBack ? "Unit status update failed and the pending account was rolled back. You can retry the invitation." : "Unit status update failed and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
+      });
+    }
   }
 
   return json(201, {
