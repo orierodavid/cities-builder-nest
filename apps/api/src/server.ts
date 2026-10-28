@@ -705,7 +705,7 @@ app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) =>
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
-  if (!/^\\d{6}$/.test(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
+  if (!/^\d{6}$/.test(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
   const hash = createHash("sha256").update(accessCode).digest("hex");
   const { data: pass, error: passError } = await authenticated.userSupabase.from("visitor_passes")
     .select("id, visitor_name, visitor_phone, valid_from, valid_until, status")
