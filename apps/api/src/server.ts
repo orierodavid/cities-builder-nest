@@ -240,10 +240,16 @@ app.post("/v1/estates/:estateId/accounts", requireAuth, async (req, res) => {
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   const role = req.body?.role;
   const unitId = typeof req.body?.unitId === "string" ? req.body.unitId.trim() : "";
+  const supportedRoles = ["estate_admin", "resident", "facility_manager", "security"];
+  // Estate administrators are privileged: only a platform administrator may invite one.
   if (fullName.length < 2 || fullName.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-      !["resident", "facility_manager", "security"].includes(role) ||
+      !supportedRoles.includes(role) ||
       (role === "resident" && !unitId) || (role !== "resident" && unitId)) {
-    res.status(400).json({ error: "invalid_account_input", message: "Provide a full name, valid email, supported role, and a unit for residents only." });
+    res.status(400).json({ error: "invalid_account_input", message: "Provide a full name, valid email, supported role (estate_admin, resident, facility_manager, or security), and a unit for residents only." });
+    return;
+  }
+  if (role === "estate_admin" && !isPlatformAdmin) {
+    res.status(403).json({ error: "platform_admin_required", message: "Only a platform administrator can invite an estate administrator." });
     return;
   }
 
