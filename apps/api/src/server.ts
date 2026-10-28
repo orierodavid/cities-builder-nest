@@ -6,6 +6,7 @@ import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "
 import { checkDatabase } from "./storage.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
 import { canCreateVisitorPass } from "./visitor-pass-policy.js";
+import { canUseGateWorkflow } from "./gate-workflow-policy.js";
 import { isAllowedCorsOrigin } from "./cors-policy.js";
 
 const app = express();
@@ -697,9 +698,9 @@ app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) =>
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
-    .select("estate_id").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .eq("status", "active").eq("membership_role", "security").maybeSingle();
-  if (!membership) { res.status(403).json({ error: "security_membership_required" }); return; }
+    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+    .maybeSingle();
+  if (!canUseGateWorkflow(membership, estateId)) { res.status(403).json({ error: "security_membership_required" }); return; }
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
@@ -727,9 +728,9 @@ app.get("/v1/estates/:estateId/gate/visits", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
-    .select("estate_id").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .eq("status", "active").eq("membership_role", "security").maybeSingle();
-  if (!membership) { res.status(403).json({ error: "security_membership_required" }); return; }
+    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+    .maybeSingle();
+  if (!canUseGateWorkflow(membership, estateId)) { res.status(403).json({ error: "security_membership_required" }); return; }
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
@@ -745,9 +746,9 @@ app.post("/v1/estates/:estateId/gate/visits/:visitId/check-out", requireAuth, as
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const visitId = Array.isArray(req.params.visitId) ? req.params.visitId[0] : req.params.visitId;
   const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
-    .select("estate_id").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .eq("status", "active").eq("membership_role", "security").maybeSingle();
-  if (!membership) { res.status(403).json({ error: "security_membership_required" }); return; }
+    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+    .maybeSingle();
+  if (!canUseGateWorkflow(membership, estateId)) { res.status(403).json({ error: "security_membership_required" }); return; }
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
