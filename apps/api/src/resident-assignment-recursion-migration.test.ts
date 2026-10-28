@@ -14,6 +14,7 @@ test("resident assignment membership and unit checks use security-definer helper
   assert.match(migration, /CREATE OR REPLACE FUNCTION private\.unit_belongs_to_estate\(\s*target_unit_id uuid,\s*target_estate_id uuid\s*\)[\s\S]*?SECURITY DEFINER/);
   assert.match(migration, /private\.has_active_resident_membership\(\s*resident_units\.estate_id,\s*resident_units\.resident_user_id\s*\)/);
   assert.match(migration, /private\.unit_belongs_to_estate\(\s*resident_units\.unit_id,\s*resident_units\.estate_id\s*\)/);
-  assert.doesNotMatch(migration, /FROM public\.estate_memberships m[\s\S]*?CREATE POLICY resident_units_insert_manager_same_estate/);
-  assert.doesNotMatch(migration, /FROM public\.units u[\s\S]*?CREATE POLICY resident_units_insert_manager_same_estate/);
+  const policyDefinition = migration.split("CREATE POLICY resident_units_insert_manager_same_estate")[1] ?? "";
+  assert.doesNotMatch(policyDefinition, /FROM public\.estate_memberships m/);
+  assert.doesNotMatch(policyDefinition, /FROM public\.units u/);
 });
