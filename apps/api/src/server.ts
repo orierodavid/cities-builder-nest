@@ -5,6 +5,7 @@ import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
+import { canCreateVisitorPass } from "./visitor-pass-policy.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -644,10 +645,13 @@ app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
 app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
-    .select("membership_role").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .eq("status", "active").eq("membership_role", "resident").maybeSingle();
-  if (!membership) { res.status(403).json({ error: "estate_membership_required" }); return; }
+  const { data: membership, error: membershipError } = await authenticated.userSupabase.from("estate_memberships")
+    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+    .maybeSingle();
+  if (membershipError || !canCreateVisitorPass(membership, estateId)) {
+    res.status(403).json({ error: "estate_membership_required" });
+    return;
+  }
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
