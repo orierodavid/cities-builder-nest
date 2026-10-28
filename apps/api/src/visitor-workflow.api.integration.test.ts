@@ -90,7 +90,7 @@ const mockSupabase = createServer(async (req, res) => {
     const expected = rest.join(".");
     if (operator === "is") return expected === "null" ? row[key] === null || row[key] === undefined : String(row[key]) === expected;
     if (operator === "in") {
-      const allowed = expected.replace(/^\\(/, "").replace(/\\)$/, "").split(",").map((item) => item.replace(/^"|"$/g, ""));
+      const allowed = expected.replace(/^\(/, "").replace(/\)$/, "").split(",").map((item) => item.replace(/^"|"$/g, ""));
       return allowed.includes(String(row[key]));
     }
     if (operator !== "eq") return true;
