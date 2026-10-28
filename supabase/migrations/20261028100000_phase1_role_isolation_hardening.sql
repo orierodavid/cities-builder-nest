@@ -36,8 +36,11 @@ AS $$
   );
 $$;
 
-REVOKE ALL ON FUNCTION private.is_active_estate_manager(uuid) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION private.is_platform_admin() FROM PUBLIC, anon;
+-- Allow authenticated policy evaluation to resolve only explicitly granted helpers.
+-- Other private functions remain non-executable by authenticated and anon roles.
+GRANT USAGE ON SCHEMA private TO authenticated;
+REVOKE ALL ON FUNCTION private.is_active_estate_manager(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION private.is_platform_admin() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION private.is_active_estate_manager(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION private.is_platform_admin() TO authenticated;
 
