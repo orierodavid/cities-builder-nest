@@ -6,6 +6,7 @@ import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "
 import { checkDatabase } from "./storage.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
 import { canCreateVisitorPass } from "./visitor-pass-policy.js";
+import { parseVisitorPassInput } from "./visitor-pass-input-policy.js";
 import { canUseGateWorkflow } from "./gate-workflow-policy.js";
 import { isValidVisitorAccessCode, visitorCheckInFailure, visitorPassAvailabilityError } from "./visitor-pass-lifecycle-policy.js";
 import { isAllowedCorsOrigin } from "./cors-policy.js";
@@ -675,15 +676,11 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
-  const visitorName = typeof req.body?.visitorName === "string" ? req.body.visitorName.trim() : "";
-  const visitorPhone = typeof req.body?.visitorPhone === "string" ? req.body.visitorPhone.trim() : null;
-  const validFrom = typeof req.body?.validFrom === "string" ? new Date(req.body.validFrom) : new Date();
-  const validUntil = typeof req.body?.validUntil === "string" ? new Date(req.body.validUntil) : new Date(Date.now() + 12 * 60 * 60 * 1000);
-  if (visitorName.length < 2 || visitorName.length > 120 || (visitorPhone && visitorPhone.length > 40) ||
-      !Number.isFinite(validFrom.getTime()) || !Number.isFinite(validUntil.getTime()) ||
-      validUntil.getTime() <= Date.now() || validUntil <= validFrom || validUntil.getTime() - validFrom.getTime() > 7 * 86400000) {
+  const visitorInput = parseVisitorPassInput(req.body ?? {});
+  if (!visitorInput) {
     res.status(400).json({ error: "invalid_visitor_pass", message: "Provide a visitor name and a valid time window of up to 7 days." }); return;
   }
+  const { visitorName, visitorPhone, validFrom, validUntil } = visitorInput;
   const accessCode = String(randomInt(100000, 1000000));
   const accessCodeHash = createHash("sha256").update(accessCode).digest("hex");
   const { data, error } = await authenticated.userSupabase.from("visitor_passes").insert({
