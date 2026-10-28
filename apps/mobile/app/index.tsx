@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Constants from "expo-constants";
+import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
@@ -122,7 +123,6 @@ export default function HomeScreen() {
   const [managementUnitId, setManagementUnitId] = useState("");
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [visitorName, setVisitorName] = useState("");
-  const [visitorPhone, setVisitorPhone] = useState("");
   const [visitorCode, setVisitorCode] = useState("");
   const [issuedVisitorCode, setIssuedVisitorCode] = useState("");
   const [visitorPasses, setVisitorPasses] = useState<VisitorPass[]>([]);
@@ -337,9 +337,16 @@ export default function HomeScreen() {
   async function createVisitorPass() {
     setManagementBusy(true); setManagementMessage(""); setIssuedVisitorCode("");
     try {
-      const result = await visitorRequest("/visitor-passes", "POST", { visitorName: visitorName.trim(), visitorPhone: visitorPhone.trim() || undefined });
-      setIssuedVisitorCode(result.accessCode || ""); setVisitorName(""); setVisitorPhone("");
-      setManagementMessage("Visitor pass created. Share this code privately with your visitor.");
+      const result = await visitorRequest("/visitor-passes", "POST", { visitorName: visitorName.trim() });
+      const accessCode = result.accessCode || "";
+      setIssuedVisitorCode(accessCode);
+      setVisitorName("");
+      if (accessCode) {
+        await Clipboard.setStringAsync(accessCode);
+        setManagementMessage("Visitor pass generated and copied. Paste the code into WhatsApp, SMS, or another messaging app to send it to your visitor.");
+      } else {
+        setManagementMessage("Visitor pass created, but no access code was returned. Refresh pass history and contact support.");
+      }
     } catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not create visitor pass."); }
     finally { setManagementBusy(false); }
   }
@@ -483,7 +490,7 @@ export default function HomeScreen() {
                 <TextInput style={styles.input} value={visitorName} onChangeText={setVisitorName} placeholder="Visitor full name" maxLength={120}/>
                 <TextInput style={styles.input} value={visitorPhone} onChangeText={setVisitorPhone} placeholder="Visitor phone (optional)" keyboardType="phone-pad" maxLength={40}/>
                 <Button title="Create visitor pass" onPress={() => void createVisitorPass()} disabled={managementBusy || visitorName.trim().length < 2}/>
-                {!!issuedVisitorCode && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Visitor access code</Text><Text style={styles.welcomeTitle}>{issuedVisitorCode}</Text><Text style={styles.bodyText}>Valid for 12 hours from creation. Share securely with your visitor.</Text></View>}
+                {!!issuedVisitorCode && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Visitor access code</Text><Text style={styles.welcomeTitle}>{issuedVisitorCode}</Text><Text style={styles.bodyText}>Valid for 12 hours. The code has been copied to your clipboard. Paste it into WhatsApp or SMS to send it to your visitor.</Text></View>}
                 <View style={styles.sectionRow}><SectionTitle title="Your visitor passes" subtitle="Only passes created by your account are shown."/></View>
                 <Button title={visitorPassesLoading ? "Loading passes…" : "Refresh visitor passes"} secondary onPress={() => void loadVisitorPasses()} disabled={visitorPassesLoading || managementBusy}/>
                 {!!visitorPassesError && <View style={styles.warningBanner}><Text style={styles.warningBannerTitle}>Pass history unavailable</Text><Text style={styles.warningBannerText}>{visitorPassesError}</Text></View>}
