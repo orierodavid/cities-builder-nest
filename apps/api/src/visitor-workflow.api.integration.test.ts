@@ -4,11 +4,15 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { createHash } from "node:crypto";
 
 const residentId = "resident-1";
+const managerId = "manager-1";
+const managerBId = "manager-b";
 const securityId = "security-1";
 const estateA = "estate-a";
 const estateB = "estate-b";
 
 const memberships = [
+  { estate_id: estateA, user_id: managerId, membership_role: "estate_manager", status: "active" },
+  { estate_id: estateB, user_id: managerBId, membership_role: "estate_manager", status: "active" },
   { estate_id: estateA, user_id: residentId, membership_role: "resident", status: "active" },
   { estate_id: estateA, user_id: "inactive-resident", membership_role: "resident", status: "inactive" },
   { estate_id: estateA, user_id: securityId, membership_role: "security", status: "active" },
@@ -26,8 +30,10 @@ const announcements: Record<string, any>[] = [
 ];
 const maintenanceRequests: Record<string, any>[] = [];
 const units: Record<string, any>[] = [
-  { id: "unit-a", estate_id: estateA, status: "occupied" },
+  { id: "unit-a", estate_id: estateA, status: "available" },
+  { id: "unit-b", estate_id: estateB, status: "available" },
 ];
+const assignments: Record<string, any>[] = [];
 const gateCodeHash = createHash("sha256").update("123456").digest("hex");
 const passes: Record<string, unknown>[] = [
   {
@@ -64,6 +70,8 @@ const mockSupabase = createServer(async (req, res) => {
     const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
     const ids: Record<string, string> = {
       "resident-token": residentId,
+      "manager-token": managerId,
+      "manager-b-token": managerBId,
       "security-token": securityId,
       "inactive-token": "inactive-resident",
       "other-token": "someone-else",
@@ -81,6 +89,10 @@ const mockSupabase = createServer(async (req, res) => {
     const [operator, ...rest] = value.split(".");
     const expected = rest.join(".");
     if (operator === "is") return expected === "null" ? row[key] === null || row[key] === undefined : String(row[key]) === expected;
+    if (operator === "in") {
+      const allowed = expected.replace(/^\\(/, "").replace(/\\)$/, "").split(",").map((item) => item.replace(/^"|"$/g, ""));
+      return allowed.includes(String(row[key]));
+    }
     if (operator !== "eq") return true;
     return String(row[key]) === expected;
   });
@@ -120,6 +132,12 @@ const mockSupabase = createServer(async (req, res) => {
   }
   if ((req.method === "GET" || req.method === "HEAD") && table === "units") {
     return sendJson(res, 200, units.filter(matches), objectResponse);
+  }
+  if (table === "resident_units" && req.method === "POST") {
+    const body = await readBody(req);
+    const row = { id: "assignment-" + (assignments.length + 1), created_at: new Date().toISOString(), end_date: null, ...body };
+    assignments.push(row);
+    return sendJson(res, 201, row, objectResponse);
   }
   if (table === "visitor_passes" && req.method === "POST") {
     const body = await readBody(req);
@@ -348,4 +366,33 @@ test("maintenance submission requires active membership in the same enabled esta
     priority: "high",
   });
   assert.equal(disabled.status, 423);
+});
+
+
+test("unit assignment endpoint allows only estate managers for active residents in their own estate", async () => {
+  const assigned = await request(`/v1/estates/${estateA}/units/unit-a/assignments`, "manager-token", "POST", {
+    residentUserId: residentId,
+    startDate: "2026-10-28",
+  });
+  assert.equal(assigned.status, 201);
+  assert.equal(assigned.body.assignment.estate_id, estateA);
+  assert.equal(assigned.body.assignment.resident_user_id, residentId);
+
+  const crossEstate = await request(`/v1/estates/${estateB}/units/unit-b/assignments`, "manager-token", "POST", {
+    residentUserId: "security-b",
+  });
+  assert.equal(crossEstate.status, 403);
+  assert.equal(crossEstate.body.error, "estate_manager_access_required");
+
+  const resident = await request(`/v1/estates/${estateA}/units/unit-a/assignments`, "resident-token", "POST", {
+    residentUserId: residentId,
+  });
+  assert.equal(resident.status, 403);
+  assert.equal(resident.body.error, "estate_manager_access_required");
+
+  const disabled = await request("/v1/estates/disabled-estate/units/unit-a/assignments", "manager-token", "POST", {
+    residentUserId: residentId,
+  });
+  assert.equal(disabled.status, 423);
+  assert.equal(disabled.body.error, "estate_subscription_inactive");
 });
