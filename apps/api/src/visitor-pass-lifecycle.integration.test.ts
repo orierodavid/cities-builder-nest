@@ -92,6 +92,25 @@ test("PostgreSQL enforces visitor pass lifecycle, estate boundaries, and single 
     const consumed = await pool.query("SELECT status FROM public.visitor_passes WHERE id = $1", [passA]);
     assert.equal(consumed.rows[0]?.status, "used");
 
+    const visitA = "21111111-1111-4111-8111-111111111111";
+    const crossEstateCheckout = await pool.query(
+      "UPDATE public.visitor_visits SET checked_out_by = $1, checked_out_at = now() WHERE id = $2 AND estate_id = $3 AND checked_out_at IS NULL RETURNING id",
+      [securityUser, visitA, estateB],
+    );
+    assert.equal(crossEstateCheckout.rowCount, 0, "A visit cannot be checked out through another estate.");
+
+    const firstCheckout = await pool.query(
+      "UPDATE public.visitor_visits SET checked_out_by = $1, checked_out_at = now() WHERE id = $2 AND estate_id = $3 AND checked_out_at IS NULL RETURNING id",
+      [securityUser, visitA, estateA],
+    );
+    assert.equal(firstCheckout.rowCount, 1, "An open visit can be checked out once.");
+
+    const repeatedCheckout = await pool.query(
+      "UPDATE public.visitor_visits SET checked_out_by = $1, checked_out_at = now() WHERE id = $2 AND estate_id = $3 AND checked_out_at IS NULL RETURNING id",
+      [securityUser, visitA, estateA],
+    );
+    assert.equal(repeatedCheckout.rowCount, 0, "A checked-out visit cannot be checked out again.");
+
     await expectSqlState(
       () => insertVisit("31111111-1111-4111-8111-111111111111", estateA, passA),
       "23505",
