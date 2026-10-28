@@ -236,8 +236,8 @@ app.post("/v1/estates/:estateId/staff", requireAuth, async (req, res) => {
 
   const userId = typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
   const role = req.body?.role;
-  if (!userId || !["facility_manager", "security"].includes(role)) {
-    res.status(400).json({ error: "invalid_staff_assignment", message: "Provide an existing user ID and role facility_manager or security." });
+  if (!userId || !["estate_admin", "estate_manager", "facility_manager", "security"].includes(role)) {
+    res.status(400).json({ error: "invalid_staff_assignment", message: "Provide an existing user ID and role estate_admin, estate_manager, facility_manager, or security." });
     return;
   }
 
@@ -528,7 +528,8 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = req.params.estateId;
 
-  // Verify the caller has an active membership before returning estate-scoped data.
+  // Platform admins can inspect estate dashboards without being estate members.
+  const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
   const { data: membership, error: membershipError } = await authenticated.userSupabase
     .from("estate_memberships")
     .select("estate_id, membership_role")
@@ -541,7 +542,7 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
     res.status(403).json({ error: "estate_membership_check_failed" });
     return;
   }
-  if (!membership) {
+  if (!membership && !platformAdmin) {
     res.status(403).json({ error: "active_estate_membership_required" });
     return;
   }
@@ -599,7 +600,7 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
     const units = unitsResult.data ?? [];
     const requests = maintenanceResult.data ?? [];
     res.status(200).json({
-      estate: { ...estateResult.data, membershipRole: membership.membership_role },
+      estate: { ...estateResult.data, membershipRole: membership?.membership_role ?? (platformAdmin ? "platform_admin" : null) },
       summary: {
         units: units.length,
         occupiedUnits: units.filter((unit) => unit.status === "occupied").length,
