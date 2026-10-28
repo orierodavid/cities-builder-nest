@@ -8,7 +8,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 
 type Estate = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; country_code?: string | null; is_enabled?: boolean; disabled_reason?: string | null; membershipRole: string | null };
-type ProfileResponse = { profile?: { id: string; full_name: string | null; is_active: boolean } | null; profilePending?: boolean; error?: string };
+type ProfileResponse = { profile?: { id: string; full_name: string | null; is_active: boolean } | null; globalRoles?: string[]; profilePending?: boolean; error?: string };
 type EstatesResponse = { estates?: Estate[]; error?: string };
 type Building = { id: string; name: string };
 type Unit = { id: string; unit_code: string; unit_type: string | null; status: string };
@@ -379,7 +379,7 @@ export default function HomeScreen() {
   }
 
   const selectedEstate = estates.find((e) => e.id === selectedEstateId);
-  const isPlatformAdmin = estates.some((estate) => estate.membershipRole === "platform_admin");
+  const isPlatformAdmin = Boolean(profile?.globalRoles?.includes("platform_admin")) || estates.some((estate) => estate.membershipRole === "platform_admin");
   const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
   const isSecurity = selectedEstate?.membershipRole === "security";
 
