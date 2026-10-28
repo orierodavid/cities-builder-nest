@@ -114,8 +114,6 @@ export default function HomeScreen() {
   const [managementUnitCode, setManagementUnitCode] = useState("");
   const [managementUnitType, setManagementUnitType] = useState("");
   const [managementResidentId, setManagementResidentId] = useState("");
-  const [managementStaffId, setManagementStaffId] = useState("");
-  const [managementStaffRole, setManagementStaffRole] = useState<"facility_manager" | "security" | "resident">("facility_manager");
   const [accountFullName, setAccountFullName] = useState("");
   const [accountEmail, setAccountEmail] = useState("");
   const [accountRole, setAccountRole] = useState<"resident" | "facility_manager" | "security">("resident");
@@ -299,25 +297,6 @@ export default function HomeScreen() {
     catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not create unit."); } finally { setManagementBusy(false); }
   }
 
-  async function assignStaff() {
-    if (!selectedEstateId || !managementStaffId.trim()) { setManagementMessage("Enter the user ID of an existing registered staff account."); return; }
-    setManagementBusy(true); setManagementMessage("");
-    try {
-      await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/staff", "POST", { userId: managementStaffId.trim(), role: managementStaffRole });
-      setManagementStaffId("");
-      setManagementMessage("Role assigned to the selected estate.");
-      await loadEstates(session!.access_token);
-    } catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not assign estate role."); }
-    finally { setManagementBusy(false); }
-  }
-
-  async function addResident() {
-    if (!selectedEstateId || !managementResidentId.trim()) { setManagementMessage("Enter an existing resident user ID."); return; }
-    setManagementBusy(true); setManagementMessage("");
-    try { await managementRequest("/v1/estates/" + encodeURIComponent(selectedEstateId) + "/residents", "POST", { userId: managementResidentId.trim() }); setManagementResidentId(""); setManagementMessage("Resident added to the selected estate."); await loadManagementDirectory(); }
-    catch (e) { setManagementMessage(e instanceof Error ? e.message : "Could not add resident."); } finally { setManagementBusy(false); }
-  }
-
   async function loadManagementDirectory() {
     if (!session?.access_token || !selectedEstateId || !apiUrl) return;
     setDirectoryLoading(true);
@@ -488,9 +467,9 @@ export default function HomeScreen() {
                   <Text style={styles.welcomeFoot}>BUILT AROUND YOUR COMMUNITY</Text>
                 </View>
                 <View style={[styles.authCard, wide && styles.authCardWide]}>
-                  <Text style={styles.formEyebrow}>"WELCOME BACK"</Text>
-                  <Text style={styles.formTitle}>"Sign in to your space"</Text>
-                  <Text style={styles.formIntro}>"Use the email address your estate administrator invited."</Text>
+                  <Text style={styles.formEyebrow}>WELCOME BACK</Text>
+                  <Text style={styles.formTitle}>Sign in to your space</Text>
+                  <Text style={styles.formIntro}>Use the email address your estate administrator invited.</Text>
                   
                   <Text style={styles.fieldLabel}>Email address</Text>
                   <TextInput accessibilityLabel="Email address" returnKeyType="next" style={styles.input} value={email} onChangeText={setEmail} placeholder="you@example.com" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" editable={!busy}/>
@@ -498,7 +477,7 @@ export default function HomeScreen() {
                   <TextInput accessibilityLabel="Password" returnKeyType="go" style={styles.input} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry={!showPassword} autoComplete="current-password" editable={!busy} onSubmitEditing={() => void submitAuth()}/>
                   {!!message && <Text style={message.toLowerCase().includes("success") || message.toLowerCase().includes("submitted") ? styles.successMessage : styles.errorMessage}>{message}</Text>}
                   {!supabaseConfigured && <Text style={styles.warningMessage}>Supabase setup is required. Check your local mobile environment file.</Text>}
-                  <TouchableOpacity style={[styles.button,styles.authButton,busy && styles.disabled]} onPress={() => void submitAuth()} disabled={busy}>{busy ? <ActivityIndicator color="#fff"/> : <Text style={styles.buttonText}>"Sign in securely  →"</Text>}</TouchableOpacity>
+                  <TouchableOpacity style={[styles.button,styles.authButton,busy && styles.disabled]} onPress={() => void submitAuth()} disabled={busy}>{busy ? <ActivityIndicator color="#fff"/> : <Text style={styles.buttonText}>Sign in securely  →</Text>}</TouchableOpacity>
                   <TouchableOpacity style={styles.switchMode} onPress={() => void requestPasswordReset()} disabled={busy}><Text style={styles.switchText}><Text style={styles.switchStrong}>Forgot your password?</Text></Text></TouchableOpacity>
                   <Text style={styles.secureNote}>Your account is protected by Supabase authentication.</Text>
                 </View>
@@ -528,7 +507,7 @@ export default function HomeScreen() {
                 {visitorPassesLoading ? <View style={styles.inlineLoading}><ActivityIndicator color={green}/><Text style={styles.bodyText}>Loading your visitor passes…</Text></View> : visitorPasses.length === 0 ? <View style={styles.simpleCard}><Text style={styles.simpleCardTitle}>No visitor passes yet</Text><Text style={styles.bodyText}>Passes you create will appear here.</Text></View> : visitorPasses.map((pass) => <View key={pass.id} style={styles.directoryItem}><View style={styles.directoryCopy}><Text style={styles.estateCardName}>{pass.visitor_name}</Text><Text style={styles.estateCardPlace}>Valid until {new Date(pass.valid_until).toLocaleString()}</Text><Text style={styles.helperText}>Created {new Date(pass.created_at).toLocaleDateString()} · {pass.status.replace(/_/g," ")}</Text>{!!pass.visitor_phone && <Text style={styles.helperText}>{pass.visitor_phone}</Text>}</View><View style={[styles.profilePill,{marginTop:0}]}><Text style={styles.profilePillText}>{new Date(pass.valid_until).getTime() <= Date.now() ? "EXPIRED" : pass.status.toUpperCase()}</Text></View></View>)}
               </>}
               </View>}
-                {tab === "profile" && <View style={styles.panel}><SectionTitle title="Your profile" subtitle="Your account and sign-in details."/><View style={styles.profileHero}><View style={styles.profileAvatar}><Text style={styles.profileAvatarText}>{firstName.slice(0,1).toUpperCase()}</Text></View><Text style={styles.profileName}>{profile?.profile?.full_name || firstName}</Text><Text style={styles.bodyText}>{session.user.email}</Text><View style={styles.profilePill}><Text style={styles.profilePillText}>{profile?.profile?.is_active ? "ACTIVE ACCOUNT" : "SIGNED IN"}</Text></View></View>{(profile?.estateMemberships || []).map((membership) => <View key={membership.id} style={styles.contentCard}><Text style={styles.announcementTitle}>{membership.membership_role.replace(/_/g," ").replace(/\\b\\w/g,(letter) => letter.toUpperCase())}</Text><Text style={styles.bodyText}>{membership.estates?.name || "Assigned estate"}</Text><Text style={styles.helperText}>{[membership.estates?.address,membership.estates?.city,membership.estates?.state].filter(Boolean).join(", ")}</Text><Text style={styles.profilePillText}>{membership.status.toUpperCase()} MEMBERSHIP</Text></View>)}{(profile?.residentUnits || []).map((assignment) => <View key={assignment.unit_id} style={styles.contentCard}><Text style={styles.announcementTitle}>Resident apartment</Text><Text style={styles.bodyText}>{assignment.units?.buildings?.estates?.name || "Estate"} · {assignment.units?.buildings?.name || "Building"} · {assignment.units?.unit_code || "Unit"}</Text><Text style={styles.helperText}>{assignment.units?.unit_type || "Residential unit"}</Text></View>)}{!!profile?.error && <Text style={styles.errorMessage}>{profile.error}</Text>}<Button title="Refresh profile" secondary onPress={() => void loadProfile(session.access_token)}/><Button title={busy ? "Signing out…" : "Sign out"} onPress={() => void signOut()} disabled={busy}/></View>}
+                {tab === "profile" && <View style={styles.panel}><SectionTitle title="Your profile" subtitle="Your account and sign-in details."/><View style={styles.profileHero}><View style={styles.profileAvatar}><Text style={styles.profileAvatarText}>{firstName.slice(0,1).toUpperCase()}</Text></View><Text style={styles.profileName}>{profile?.profile?.full_name || firstName}</Text><Text style={styles.bodyText}>{session.user.email}</Text><View style={styles.profilePill}><Text style={styles.profilePillText}>{profile?.profile?.is_active ? "ACTIVE ACCOUNT" : "SIGNED IN"}</Text></View></View>{(profile?.estateMemberships || []).map((membership) => <View key={membership.id} style={styles.contentCard}><Text style={styles.announcementTitle}>{membership.membership_role.replace(/_/g," ").replace(/\b\w/g,(letter) => letter.toUpperCase())}</Text><Text style={styles.bodyText}>{membership.estates?.name || "Assigned estate"}</Text><Text style={styles.helperText}>{[membership.estates?.address,membership.estates?.city,membership.estates?.state].filter(Boolean).join(", ")}</Text><Text style={styles.profilePillText}>{membership.status.toUpperCase()} MEMBERSHIP</Text></View>)}{(profile?.residentUnits || []).map((assignment) => <View key={assignment.unit_id} style={styles.contentCard}><Text style={styles.announcementTitle}>Resident apartment</Text><Text style={styles.bodyText}>{assignment.units?.buildings?.estates?.name || "Estate"} · {assignment.units?.buildings?.name || "Building"} · {assignment.units?.unit_code || "Unit"}</Text><Text style={styles.helperText}>{assignment.units?.unit_type || "Residential unit"}</Text></View>)}{!!profile?.error && <Text style={styles.errorMessage}>{profile.error}</Text>}<Button title="Refresh profile" secondary onPress={() => void loadProfile(session.access_token)}/><Button title={busy ? "Signing out…" : "Sign out"} onPress={() => void signOut()} disabled={busy}/></View>}
                 <View style={styles.footer}><Text style={styles.footerBrand}>CITIES BUILDER NEST</Text><Text style={styles.footerText}>One platform · Many estates</Text></View>
               </>
             )}
