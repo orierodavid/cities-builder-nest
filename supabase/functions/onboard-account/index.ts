@@ -21,6 +21,8 @@ async function rollbackOnboarding(
   userId: string,
   estateId: string,
   unitId?: string,
+  createdUnitId?: string,
+  createdBuildingId?: string,
 ): Promise<boolean> {
   let clean = true;
 
@@ -55,6 +57,24 @@ async function rollbackOnboarding(
       const { error: restoreError } = await unitsTable.update({ status: "available" })
         .eq("id", unitId).eq("estate_id", estateId).eq("status", "occupied");
       if (restoreError) clean = false;
+    }
+  }
+
+  if (createdUnitId) {
+    const { error: createdUnitDeleteError } = await admin.from("units").delete()
+      .eq("id", createdUnitId).eq("estate_id", estateId);
+    if (createdUnitDeleteError) clean = false;
+  }
+
+  if (createdBuildingId) {
+    const { data: remainingUnits, error: remainingUnitsError } = await admin.from("units")
+      .select("id").eq("building_id", createdBuildingId).limit(1);
+    if (remainingUnitsError) {
+      clean = false;
+    } else if (!remainingUnits?.length) {
+      const { error: buildingDeleteError } = await admin.from("buildings").delete()
+        .eq("id", createdBuildingId).eq("estate_id", estateId);
+      if (buildingDeleteError) clean = false;
     }
   }
 
@@ -97,15 +117,24 @@ Deno.serve(async (req: Request) => {
   const fullName = typeof input.fullName === "string" ? input.fullName.trim() : "";
   const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
   const role = input.role;
-  const unitId = typeof input.unitId === "string" ? input.unitId.trim() : "";
+  const requestedUnitId = typeof input.unitId === "string" ? input.unitId.trim() : "";
+  const buildingId = typeof input.buildingId === "string" ? input.buildingId.trim() : "";
+  const buildingName = typeof input.buildingName === "string" ? input.buildingName.trim() : "";
+  const unitCode = typeof input.unitCode === "string" ? input.unitCode.trim() : "";
+  const unitType = typeof input.unitType === "string" ? input.unitType.trim() : "";
   const supportedRoles = ["estate_admin", "resident", "facility_manager", "security"];
+  const residentDetailsProvided = Boolean(requestedUnitId || buildingId || buildingName || unitCode || unitType);
+  const residentDetailsValid = requestedUnitId
+    ? !buildingId && !buildingName && !unitCode && !unitType
+    : Boolean(unitCode && (buildingId || buildingName) && !(buildingId && buildingName));
 
   if (!estateId || estateId.length > 100 ||
       fullName.length < 2 || fullName.length > 120 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
       typeof role !== "string" || !supportedRoles.includes(role) ||
-      (role === "resident" && !unitId) || (role !== "resident" && unitId)) {
-    return json(400, { error: "invalid_account_input", message: "Provide an estate, full name, valid email, supported role, and a unit for residents only." });
+      (role === "resident" && (!residentDetailsProvided || !residentDetailsValid)) ||
+      (role !== "resident" && residentDetailsProvided)) {
+    return json(400, { error: "invalid_account_input", message: "Provide an estate, full name, valid email and supported role. Residents also need a building and apartment number." });
   }
 
   const userId = authData.user.id;
@@ -127,17 +156,34 @@ Deno.serve(async (req: Request) => {
   if (!estate) return json(404, { error: "estate_not_found_or_unavailable" });
   if (estate.is_enabled !== true) return json(403, { error: "estate_subscription_inactive" });
 
-  if (role === "resident") {
-    const { data: unit, error: unitError } = await admin.from("units")
-      .select("id, estate_id, status").eq("id", unitId).maybeSingle();
-    if (unitError) return json(500, { error: "unit_validation_failed" });
-    if (!unit || unit.estate_id !== estateId) {
-      return json(400, { error: "unit_not_in_selected_estate", message: "Select a unit belonging to this estate." });
-    }
-    if (unit.status !== "available") return json(409, { error: "unit_not_available", message: "The selected unit is not available for a new resident." });
+  let residentUnitId = requestedUnitId || "";
+  let createdUnitId = "";
+  let createdBuildingId = "";
 
+  if (role === "resident" && !requestedUnitId) {
+    if (buildingId) {
+      const { data: building, error: buildingError } = await admin.from("buildings")
+        .select("id").eq("id", buildingId).eq("estate_id", estateId).maybeSingle();
+      if (buildingError) return json(500, { error: "building_validation_failed" });
+      if (!building) return json(400, { error: "building_not_in_selected_estate", message: "Select a building belonging to this estate." });
+      const { data: duplicateUnit, error: duplicateUnitError } = await admin.from("units")
+        .select("id").eq("building_id", buildingId).eq("unit_code", unitCode).maybeSingle();
+      if (duplicateUnitError) return json(500, { error: "apartment_validation_failed" });
+      if (duplicateUnit) return json(409, { error: "apartment_number_already_exists", message: "That apartment number already exists in the selected building." });
+    } else if (buildingName.length < 2 || buildingName.length > 120) {
+      return json(400, { error: "invalid_building_name", message: "Enter a valid building name." });
+    }
+    if (unitCode.length < 1 || unitCode.length > 80 || unitType.length > 80) {
+      return json(400, { error: "invalid_apartment_details", message: "Enter a valid apartment number and apartment type." });
+    }
+  } else if (role === "resident" && requestedUnitId) {
+    const { data: unit, error: unitError } = await admin.from("units")
+      .select("id, estate_id, status").eq("id", requestedUnitId).maybeSingle();
+    if (unitError) return json(500, { error: "unit_validation_failed" });
+    if (!unit || unit.estate_id !== estateId) return json(400, { error: "unit_not_in_selected_estate", message: "The selected unit does not belong to this estate." });
+    if (unit.status !== "available") return json(409, { error: "unit_not_available", message: "The selected unit is not available for a new resident." });
     const { data: assignment, error: assignmentCheckError } = await admin.from("resident_units")
-      .select("id").eq("unit_id", unitId).eq("estate_id", estateId).is("end_date", null).maybeSingle();
+      .select("id").eq("unit_id", requestedUnitId).eq("estate_id", estateId).is("end_date", null).maybeSingle();
     if (assignmentCheckError) return json(500, { error: "unit_assignment_check_failed" });
     if (assignment) return json(409, { error: "unit_already_assigned" });
   }
@@ -156,10 +202,35 @@ Deno.serve(async (req: Request) => {
   }
 
   const invitedUserId = invited.user.id;
+
+  if (role === "resident" && !requestedUnitId) {
+    let targetBuildingId = buildingId;
+    if (!targetBuildingId) {
+      const { data: createdBuilding, error: createBuildingError } = await admin.from("buildings")
+        .insert({ estate_id: estateId, name: buildingName }).select("id").single();
+      if (createBuildingError || !createdBuilding) {
+        await rollbackOnboarding(admin, invitedUserId, estateId);
+        return json(500, { error: "apartment_building_creation_failed", message: "The invitation could not be completed because the building could not be created." });
+      }
+      targetBuildingId = createdBuilding.id;
+      createdBuildingId = targetBuildingId;
+    }
+
+    const { data: createdUnit, error: createUnitError } = await admin.from("units")
+      .insert({ estate_id: estateId, building_id: targetBuildingId, unit_code: unitCode, unit_type: unitType || null, status: "available" })
+      .select("id").single();
+    if (createUnitError || !createdUnit) {
+      await rollbackOnboarding(admin, invitedUserId, estateId, undefined, undefined, createdBuildingId || undefined);
+      return json(500, { error: "apartment_creation_failed", message: "The invitation could not be completed because the apartment could not be created. Check the apartment number and building." });
+    }
+    createdUnitId = createdUnit.id;
+    residentUnitId = createdUnit.id;
+  }
+
   const { error: profileError } = await admin.from("users")
     .upsert({ id: invitedUserId, full_name: fullName, phone_e164: null, is_active: true }, { onConflict: "id" });
   if (profileError) {
-    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? unitId : undefined);
+    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? residentUnitId : undefined, createdUnitId || undefined, createdBuildingId || undefined);
     return json(500, {
       error: "account_profile_setup_failed",
       message: rolledBack ? "Profile setup failed and the pending account was rolled back. You can retry the invitation." : "Profile setup failed and automatic cleanup was incomplete. Review the pending account before retrying.",
@@ -170,7 +241,7 @@ Deno.serve(async (req: Request) => {
     .insert({ estate_id: estateId, user_id: invitedUserId, membership_role: role, status: "active" })
     .select("id, estate_id, user_id, membership_role, status, created_at").single();
   if (membershipError || !membership) {
-    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? unitId : undefined);
+    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? residentUnitId : undefined, createdUnitId || undefined, createdBuildingId || undefined);
     return json(500, {
       error: "account_membership_setup_failed",
       message: rolledBack ? "Estate access setup failed and the pending account was rolled back. You can retry the invitation." : "Estate access setup failed and automatic cleanup was incomplete. Review the pending account before retrying.",
@@ -179,9 +250,9 @@ Deno.serve(async (req: Request) => {
 
   if (role === "resident") {
     const { error: residentUnitError } = await admin.from("resident_units")
-      .insert({ unit_id: unitId, estate_id: estateId, resident_user_id: invitedUserId });
+      .insert({ unit_id: residentUnitId, estate_id: estateId, resident_user_id: invitedUserId });
     if (residentUnitError) {
-      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, unitId);
+      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, residentUnitId || undefined, createdUnitId || undefined, createdBuildingId || undefined);
       return json(500, {
         error: "resident_unit_assignment_failed",
         message: rolledBack ? "Unit assignment failed and the pending account was rolled back. You can retry the invitation." : "Unit assignment failed and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
@@ -191,10 +262,10 @@ Deno.serve(async (req: Request) => {
     // same unit after both have passed the initial availability check.
     const { data: updatedUnit, error: unitUpdateError } = await admin.from("units")
       .update({ status: "occupied" })
-      .eq("id", unitId).eq("estate_id", estateId).eq("status", "available")
+      .eq("id", residentUnitId).eq("estate_id", estateId).eq("status", "available")
       .select("id").maybeSingle();
     if (unitUpdateError || !updatedUnit) {
-      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, unitId);
+      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, residentUnitId || undefined, createdUnitId || undefined, createdBuildingId || undefined);
       return json(unitUpdateError ? 500 : 409, {
         error: unitUpdateError ? "unit_status_update_failed" : "unit_no_longer_available",
         message: rolledBack
@@ -205,7 +276,7 @@ Deno.serve(async (req: Request) => {
   }
 
   return json(201, {
-    account: { id: invitedUserId, fullName, email, role, estateId, unitId: role === "resident" ? unitId : null, invitationSent: true },
+    account: { id: invitedUserId, fullName, email, role, estateId, unitId: role === "resident" ? residentUnitId : null, invitationSent: true },
     membership,
   });
 });
