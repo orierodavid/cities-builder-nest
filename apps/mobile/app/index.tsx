@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "../lib/supabase";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Estate = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; country_code?: string | null; is_enabled?: boolean; disabled_reason?: string | null; membershipRole: string | null };
 type ProfileResponse = { profile?: { id: string; full_name: string | null; is_active: boolean } | null; globalRoles?: string[]; estateMemberships?: { id: string; estate_id: string; membership_role: string; status: string; estates?: { name?: string; address?: string; city?: string; state?: string } | null }[]; residentUnits?: { unit_id: string; units?: { unit_code?: string; unit_type?: string | null; buildings?: { name?: string; estate_id?: string; estates?: { name?: string } | null } | null } | null }[]; profilePending?: boolean; error?: string };
@@ -80,6 +81,7 @@ const green = "#071A3A"; // Official deep navy
 const gold = "#FFC400"; // Official bright yellow
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const wide = Platform.OS === "web" && width >= 900;
   const [session, setSession] = useState<Session | null>(null);
@@ -489,7 +491,7 @@ export default function HomeScreen() {
           </View>
         )}
         <View style={styles.main}>
-          <View style={styles.topbar}>
+          <View style={[styles.topbar, { paddingTop: 14 + (Platform.OS === "web" ? 0 : Math.max(insets.top, Platform.OS === "android" ? (Constants.statusBarHeight || 0) : 0)) }]}>
             <View style={styles.brandRow}>{(!session || !wide) && <View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View>}<View><Text style={styles.brandName}>Cities Builder Nest</Text><Text style={styles.brandCaption}>{session ? "YOUR COMMUNITY, CONNECTED" : "ONE PLATFORM · MANY ESTATES"}</Text></View></View>
             {session && <View style={styles.avatar}><Text style={styles.avatarText}>{firstName.slice(0,1).toUpperCase()}</Text></View>}
           </View>
@@ -552,7 +554,7 @@ export default function HomeScreen() {
               </>
             )}
           </ScrollView>
-          {session && !wide && <View style={styles.bottomNav}>{([["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintain"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Manage"] as const] : []),["profile","person-circle-outline","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Ionicons name={icon} size={22} color={tab === key ? green : "#8290A5"}/><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive]}>{label}</Text>{tab === key && <View style={styles.bottomNavActiveMark}/>}</TouchableOpacity>)}</View>}
+          {session && !wide && <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, Platform.OS === "android" ? 0 : 0) + 6 }]}>{([["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintain"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Manage"] as const] : []),["profile","person-circle-outline","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Ionicons name={icon} size={22} color={tab === key ? green : "#8290A5"}/><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive]}>{label}</Text>{tab === key && <View style={styles.bottomNavActiveMark}/>}</TouchableOpacity>)}</View>}
         </View>
       </View>
     </KeyboardAvoidingView>
