@@ -235,7 +235,7 @@ export default function HomeScreen() {
       setManagementMessage("Choose an estate and confirm Supabase is configured.");
       return;
     }
-    if (accountFullName.trim().length < 2 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(accountEmail.trim())) {
+    if (accountFullName.trim().length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountEmail.trim())) {
       setManagementMessage("Enter the person's full name and a valid email address.");
       return;
     }
