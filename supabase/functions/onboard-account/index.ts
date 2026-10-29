@@ -241,7 +241,7 @@ Deno.serve(async (req: Request) => {
     .insert({ estate_id: estateId, user_id: invitedUserId, membership_role: role, status: "active" })
     .select("id, estate_id, user_id, membership_role, status, created_at").single();
   if (membershipError || !membership) {
-    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? unitId : undefined);
+    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? residentUnitId : undefined, createdUnitId || undefined, createdBuildingId || undefined);
     return json(500, {
       error: "account_membership_setup_failed",
       message: rolledBack ? "Estate access setup failed and the pending account was rolled back. You can retry the invitation." : "Estate access setup failed and automatic cleanup was incomplete. Review the pending account before retrying.",
@@ -252,7 +252,7 @@ Deno.serve(async (req: Request) => {
     const { error: residentUnitError } = await admin.from("resident_units")
       .insert({ unit_id: residentUnitId, estate_id: estateId, resident_user_id: invitedUserId });
     if (residentUnitError) {
-      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, unitId);
+      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, residentUnitId || undefined, createdUnitId || undefined, createdBuildingId || undefined);
       return json(500, {
         error: "resident_unit_assignment_failed",
         message: rolledBack ? "Unit assignment failed and the pending account was rolled back. You can retry the invitation." : "Unit assignment failed and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
@@ -265,7 +265,7 @@ Deno.serve(async (req: Request) => {
       .eq("id", residentUnitId).eq("estate_id", estateId).eq("status", "available")
       .select("id").maybeSingle();
     if (unitUpdateError || !updatedUnit) {
-      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, unitId);
+      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, residentUnitId || undefined, createdUnitId || undefined, createdBuildingId || undefined);
       return json(unitUpdateError ? 500 : 409, {
         error: unitUpdateError ? "unit_status_update_failed" : "unit_no_longer_available",
         message: rolledBack
