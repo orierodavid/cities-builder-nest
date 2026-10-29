@@ -6,13 +6,17 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.citiesbuilder.nest"
     },
     "android": {
-      "package": "com.citiesbuilder.nest"
+      "package": "com.citiesbuilder.nest",
+      "statusBarColor": "#FFFFFF",
+      "statusBarStyle": "dark"
     }
   }
 }
