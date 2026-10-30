@@ -1099,6 +1099,57 @@ app.delete("/v1/estates/:estateId/events/:eventId/guests/:guestId", requireAuth,
   res.status(200).json({ removed: true, guestId: data.id });
 });
 
+app.get("/v1/estates/:estateId/events/:eventId/invitations", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const { data, error } = await authenticated.userSupabase.from("estate_event_invitations")
+    .select("id, guest_id, status, created_at, estate_event_guests!inner(guest_name, email, phone)")
+    .eq("estate_id", estateId).eq("event_id", eventId).order("created_at", { ascending: false });
+  if (error) { res.status(403).json({ error: "event_invitations_load_failed" }); return; }
+  res.status(200).json({ invitations: data ?? [] });
+});
+
+app.post("/v1/estates/:estateId/events/:eventId/guests/:guestId/invitations", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const guestId = Array.isArray(req.params.guestId) ? req.params.guestId[0] : req.params.guestId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const { data: guest, error: guestError } = await authenticated.userSupabase.from("estate_event_guests")
+    .select("id, guest_name, email, phone").eq("id", guestId).eq("estate_id", estateId).eq("event_id", eventId).maybeSingle();
+  if (guestError || !guest) { res.status(404).json({ error: "event_guest_not_found" }); return; }
+  const { data: event, error: eventError } = await authenticated.userSupabase.from("estate_events")
+    .select("id, title, venue, starts_at, ends_at").eq("id", eventId).eq("estate_id", estateId).maybeSingle();
+  if (eventError || !event) { res.status(404).json({ error: "estate_event_not_found" }); return; }
+  const code = String(randomInt(100000, 1000000));
+  const codeHash = createHash("sha256").update(code).digest("hex");
+  const { error: revokeError } = await authenticated.userSupabase.from("estate_event_invitations")
+    .update({ status: "revoked", revoked_at: new Date().toISOString() })
+    .eq("estate_id", estateId).eq("event_id", eventId).eq("guest_id", guestId).eq("status", "active");
+  if (revokeError) { res.status(400).json({ error: "previous_invitation_revoke_failed" }); return; }
+  const { data, error } = await authenticated.userSupabase.from("estate_event_invitations")
+    .insert({ estate_id: estateId, event_id: eventId, guest_id: guestId, code_hash: codeHash, created_by: authenticated.authUser.id })
+    .select("id, guest_id, status, created_at").single();
+  if (error || !data) { res.status(400).json({ error: "event_invitation_create_failed" }); return; }
+  res.status(201).json({ invitation: data, code, guest, event });
+});
+
+app.post("/v1/estates/:estateId/events/:eventId/invitations/:invitationId/revoke", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const invitationId = Array.isArray(req.params.invitationId) ? req.params.invitationId[0] : req.params.invitationId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const { data, error } = await authenticated.userSupabase.from("estate_event_invitations")
+    .update({ status: "revoked", revoked_at: new Date().toISOString() })
+    .eq("id", invitationId).eq("estate_id", estateId).eq("event_id", eventId).eq("status", "active")
+    .select("id, status, revoked_at").maybeSingle();
+  if (error || !data) { res.status(404).json({ error: "active_event_invitation_not_found" }); return; }
+  res.status(200).json({ invitation: data });
+});
+
 app.get("/v1/me", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   try {
