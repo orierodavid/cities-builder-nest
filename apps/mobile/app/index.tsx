@@ -17,6 +17,7 @@ type Building = { id: string; name: string };
 type Unit = { id: string; unit_code: string; unit_type: string | null; status: string };
 type Resident = { id: string; full_name: string | null; phone_e164?: string | null };
 type VisitorPass = { id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string; created_at: string };
+type EstateEvent = { id: string; title: string; description: string; venue: string; starts_at: string; ends_at: string; status: "draft" | "published" | "cancelled" };
 type GateVisitorLookup = { visitor: { name: string; phone: string | null }; host: { name: string | null }; pass: { id: string; validFrom: string; validUntil: string; status: string }; availabilityError: string | null };
 type DirectoryResponse<T> = { buildings?: T[]; units?: T[]; residents?: T[]; error?: string; message?: string };
 
@@ -99,6 +100,17 @@ export default function HomeScreen() {
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
   const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management">("home");
+  const [eventTitle, setEventTitle] = useState("");
+  const [eventDescription, setEventDescription] = useState("");
+  const [eventVenue, setEventVenue] = useState("");
+  const [eventStartsAt, setEventStartsAt] = useState("");
+  const [eventEndsAt, setEventEndsAt] = useState("");
+  const [eventStatus, setEventStatus] = useState<"draft" | "published">("draft");
+  const [estateEvents, setEstateEvents] = useState<EstateEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventBusy, setEventBusy] = useState(false);
+  const [eventMessage, setEventMessage] = useState("");
+
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
   const [requestPriority, setRequestPriority] = useState("normal");
@@ -451,6 +463,45 @@ export default function HomeScreen() {
     finally { setManagementBusy(false); }
   }
 
+  async function loadEstateEvents() {
+    if (!session?.access_token || !selectedEstateId || !apiUrl) return;
+    setEventsLoading(true); setEventMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events", {
+        headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" },
+      });
+      const result = await response.json() as { events?: EstateEvent[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not load events.");
+      setEstateEvents(result.events || []);
+    } catch (e) { setEventMessage(e instanceof Error ? e.message : "Could not load events."); }
+    finally { setEventsLoading(false); }
+  }
+
+  async function createEstateEvent() {
+    if (!session?.access_token || !selectedEstateId || !apiUrl) { setEventMessage("Select your estate and confirm the API is configured."); return; }
+    if (eventTitle.trim().length < 3 || eventVenue.trim().length < 2 || !eventStartsAt.trim() || !eventEndsAt.trim()) {
+      setEventMessage("Complete the event title, venue, start and end date/time."); return;
+    }
+    const start = new Date(eventStartsAt), end = new Date(eventEndsAt);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      setEventMessage("Use valid date/time values and ensure the end is after the start."); return;
+    }
+    setEventBusy(true); setEventMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ title: eventTitle.trim(), description: eventDescription.trim(), venue: eventVenue.trim(), startsAt: start.toISOString(), endsAt: end.toISOString(), status: eventStatus }),
+      });
+      const result = await response.json() as { event?: EstateEvent; error?: string; message?: string };
+      if (!response.ok) throw new Error(result.message || result.error || "Event could not be saved.");
+      setEventTitle(""); setEventDescription(""); setEventVenue(""); setEventStartsAt(""); setEventEndsAt(""); setEventStatus("draft");
+      setEventMessage("Event details saved successfully.");
+      await loadEstateEvents();
+    } catch (e) { setEventMessage(e instanceof Error ? e.message : "Event could not be saved."); }
+    finally { setEventBusy(false); }
+  }
+
   async function submitMaintenance() {
     if (!session?.access_token || !selectedEstateId || !apiUrl) return;
     if (requestTitle.trim().length < 3 || requestDescription.trim().length < 5) {
@@ -475,7 +526,10 @@ export default function HomeScreen() {
   const isPlatformAdmin = Boolean(profile?.globalRoles?.includes("platform_admin")) || estates.some((estate) => estate.membershipRole === "platform_admin");
   const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
   const isSecurity = selectedEstate?.membershipRole === "security";
+  const isEventOrganiser = selectedEstate?.membershipRole === "event_organiser";
   const isResident = selectedEstate?.membershipRole === "resident" || (!selectedEstate && (profile?.residentUnits?.length || 0) > 0);
+
+  useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) void loadEstateEvents(); }, [isEventOrganiser, selectedEstateId, session?.access_token]);
 
   useEffect(() => {
     if (tab === "management" && selectedEstateId && session?.access_token && (isEstateManager || isPlatformAdmin)) void loadManagementDirectory();
@@ -543,7 +597,35 @@ export default function HomeScreen() {
               </View>
             ) : (
               <>
-                {isResident && !wide && tab === "home" ? (
+                {isEventOrganiser && !wide && tab === "home" ? (
+                  <View style={styles.eventOrganiserHome}>
+                    <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text>
+                    <Text style={styles.eventHeading}>Event Details</Text>
+                    <Text style={styles.eventSubheading}>{selectedEstate?.name || "Select your assigned estate"} · Create and manage estate events</Text>
+                    <View style={styles.eventForm}>
+                      <Text style={styles.eventSectionTitle}>NEW EVENT</Text>
+                      <Text style={styles.eventLabel}>Event title</Text>
+                      <TextInput style={styles.eventInput} value={eventTitle} onChangeText={setEventTitle} placeholder="e.g. Annual Residents’ Meeting" placeholderTextColor="#888" maxLength={160}/>
+                      <Text style={styles.eventLabel}>Description</Text>
+                      <TextInput style={[styles.eventInput,styles.eventDescription]} value={eventDescription} onChangeText={setEventDescription} placeholder="What is the event about?" placeholderTextColor="#888" multiline textAlignVertical="top" maxLength={5000}/>
+                      <Text style={styles.eventLabel}>Venue</Text>
+                      <TextInput style={styles.eventInput} value={eventVenue} onChangeText={setEventVenue} placeholder="Event location" placeholderTextColor="#888" maxLength={240}/>
+                      <Text style={styles.eventLabel}>Start date and time</Text>
+                      <TextInput style={styles.eventInput} value={eventStartsAt} onChangeText={setEventStartsAt} placeholder="2026-11-15T10:00" placeholderTextColor="#888" autoCapitalize="none"/>
+                      <Text style={styles.eventHint}>Use YYYY-MM-DDTHH:mm (estate local time).</Text>
+                      <Text style={styles.eventLabel}>End date and time</Text>
+                      <TextInput style={styles.eventInput} value={eventEndsAt} onChangeText={setEventEndsAt} placeholder="2026-11-15T14:00" placeholderTextColor="#888" autoCapitalize="none"/>
+                      <Text style={styles.eventLabel}>Publication</Text>
+                      <View style={styles.eventStatusRow}>
+                        {(["draft","published"] as const).map((status) => <TouchableOpacity key={status} onPress={() => setEventStatus(status)} style={[styles.eventStatusChip,eventStatus === status && styles.eventStatusChipActive]}><Text style={[styles.eventStatusText,eventStatus === status && styles.eventStatusTextActive]}>{status.toUpperCase()}</Text></TouchableOpacity>)}
+                      </View>
+                      {!!eventMessage && <Text style={eventMessage.includes("successfully") ? styles.eventSuccess : styles.eventError}>{eventMessage}</Text>}
+                      <TouchableOpacity style={[styles.eventSaveButton,eventBusy && styles.disabled]} onPress={() => void createEstateEvent()} disabled={eventBusy}>{eventBusy ? <ActivityIndicator color="#17130B"/> : <Text style={styles.eventSaveText}>Save event details</Text>}</TouchableOpacity>
+                    </View>
+                    <View style={styles.eventListHeader}><Text style={styles.eventSectionTitle}>ESTATE EVENTS</Text><TouchableOpacity onPress={() => void loadEstateEvents()}><Text style={styles.eventRefresh}>REFRESH</Text></TouchableOpacity></View>
+                    {eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? estateEvents.map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue}</Text><Text style={styles.eventCardMeta}>{new Date(event.starts_at).toLocaleString()} – {new Date(event.ends_at).toLocaleString()}</Text><Text style={styles.eventCardStatus}>{event.status.toUpperCase()}</Text>{!!event.description && <Text style={styles.eventCardDescription}>{event.description}</Text>}</View>) : <Text style={styles.eventEmpty}>No events have been created for this estate yet.</Text>}
+                  </View>
+                ) : {isResident && !wide && tab === "home" ? (
                   <View style={styles.residentHome}>
                     <View style={styles.residentGreeting}>
                       <Text style={styles.residentEyebrow}>WELCOME HOME</Text>
@@ -620,7 +702,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  residentBottomNav:{backgroundColor:"#080808",borderTopColor:"#30291D"},residentBottomNavText:{color:"#AFAFAF"},residentBottomNavTextActive:{color:"#D4A84B"},residentBottomNavActiveMark:{backgroundColor:"#D4A84B"},residentMain:{backgroundColor:"#080808"},residentTopbar:{backgroundColor:"#080808",paddingTop:18,paddingBottom:12},residentBrandName:{color:"#FFFFFF",fontSize:19,letterSpacing:.2},residentBrandCaption:{color:"#D4A84B",letterSpacing:1.1},residentAvatar:{backgroundColor:"#D4A84B",borderWidth:2,borderColor:"#F1D28A"},residentContent:{backgroundColor:"#080808",paddingHorizontal:16,paddingTop:18,paddingBottom:28,gap:18},residentHome:{gap:17},residentGreeting:{gap:5},residentEyebrow:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1.7},residentGreetingTitle:{fontSize:25,lineHeight:32,color:"#FFFFFF",fontWeight:"900",letterSpacing:-.5},residentMuted:{fontSize:12,lineHeight:18,color:"#B9B9B9"},residentWelcomeCard:{backgroundColor:"#171717",borderRadius:20,borderWidth:1,borderColor:"#3A3020",padding:17,gap:8,overflow:"hidden"},residentWelcomeIcon:{width:62,height:62,borderRadius:18,backgroundColor:"#282116",borderWidth:1,borderColor:"#5A4828",alignItems:"center",justifyContent:"center",marginBottom:5},residentWelcomeTitle:{fontSize:23,lineHeight:28,color:"#FFFFFF",fontWeight:"900"},residentWelcomeCopy:{fontSize:13,lineHeight:20,color:"#E2E2E2"},residentStatusPill:{alignSelf:"flex-start",flexDirection:"row",alignItems:"center",gap:7,backgroundColor:"#2A241A",borderRadius:20,paddingHorizontal:11,paddingVertical:8,marginTop:5},residentStatusDot:{width:7,height:7,borderRadius:4,backgroundColor:"#D4A84B"},residentStatusText:{fontSize:9,color:"#F5D58D",fontWeight:"900",letterSpacing:1},residentSectionHeading:{marginTop:2},residentSectionTitle:{fontSize:12,color:"#D4A84B",fontWeight:"900",letterSpacing:1.8},residentShortcutGrid:{flexDirection:"row",flexWrap:"wrap",gap:10},residentShortcut:{width:"31.5%",minHeight:112,flexGrow:1,flexBasis:"29%",backgroundColor:"#171717",borderWidth:1,borderColor:"#38332A",borderRadius:15,padding:10,alignItems:"center",justifyContent:"center",gap:8},residentShortcutDisabled:{opacity:.55},residentShortcutIcon:{width:43,height:43,borderRadius:14,backgroundColor:"#282116",alignItems:"center",justifyContent:"center"},residentShortcutLabel:{fontSize:10,color:"#FFFFFF",fontWeight:"800",textAlign:"center",lineHeight:14},residentComingSoon:{fontSize:7,color:"#D4A84B",fontWeight:"900",letterSpacing:.5},residentErrorCard:{padding:14,backgroundColor:"#241919",borderWidth:1,borderColor:"#633333",borderRadius:14,gap:7},residentRetry:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1,marginTop:4},
+  eventOrganiserHome:{gap:15,backgroundColor:"#080808",minHeight:500,padding:15},eventEyebrow:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1.8},eventHeading:{fontSize:27,color:"#FFFFFF",fontWeight:"900"},eventSubheading:{fontSize:12,lineHeight:19,color:"#B9B9B9"},eventForm:{backgroundColor:"#171717",borderWidth:1,borderColor:"#3A3020",borderRadius:17,padding:15,gap:5},eventSectionTitle:{fontSize:11,color:"#D4A84B",fontWeight:"900",letterSpacing:1.5},eventLabel:{fontSize:11,color:"#F1D28A",fontWeight:"800",marginTop:9},eventInput:{minHeight:47,borderWidth:1,borderColor:"#494133",borderRadius:10,paddingHorizontal:12,paddingVertical:10,color:"#FFFFFF",backgroundColor:"#101010",fontSize:13},eventDescription:{minHeight:90},eventHint:{fontSize:10,color:"#999"},eventStatusRow:{flexDirection:"row",gap:9,marginTop:5},eventStatusChip:{paddingHorizontal:15,paddingVertical:10,borderRadius:22,borderWidth:1,borderColor:"#5A4A2B"},eventStatusChipActive:{backgroundColor:"#D4A84B"},eventStatusText:{fontSize:10,color:"#D4A84B",fontWeight:"900"},eventStatusTextActive:{color:"#17130B"},eventSaveButton:{minHeight:48,backgroundColor:"#D4A84B",borderRadius:11,alignItems:"center",justifyContent:"center",marginTop:14},eventSaveText:{fontSize:13,color:"#17130B",fontWeight:"900"},eventSuccess:{fontSize:12,color:"#7DDAA2",marginTop:10},eventError:{fontSize:12,color:"#FF9292",marginTop:10},eventListHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:10},eventRefresh:{fontSize:10,color:"#D4A84B",fontWeight:"900"},eventCard:{backgroundColor:"#171717",borderWidth:1,borderColor:"#3A3020",borderRadius:14,padding:14,gap:6},eventCardTitle:{fontSize:16,color:"#FFFFFF",fontWeight:"900"},eventCardMeta:{fontSize:11,color:"#C5C5C5"},eventCardStatus:{alignSelf:"flex-start",fontSize:9,color:"#F1D28A",fontWeight:"900",letterSpacing:1,backgroundColor:"#302718",paddingHorizontal:9,paddingVertical:5,borderRadius:12},eventCardDescription:{fontSize:12,lineHeight:18,color:"#B9B9B9"},eventEmpty:{fontSize:12,color:"#B9B9B9",padding:12},
+    residentBottomNav:{backgroundColor:"#080808",borderTopColor:"#30291D"},residentBottomNavText:{color:"#AFAFAF"},residentBottomNavTextActive:{color:"#D4A84B"},residentBottomNavActiveMark:{backgroundColor:"#D4A84B"},residentMain:{backgroundColor:"#080808"},residentTopbar:{backgroundColor:"#080808",paddingTop:18,paddingBottom:12},residentBrandName:{color:"#FFFFFF",fontSize:19,letterSpacing:.2},residentBrandCaption:{color:"#D4A84B",letterSpacing:1.1},residentAvatar:{backgroundColor:"#D4A84B",borderWidth:2,borderColor:"#F1D28A"},residentContent:{backgroundColor:"#080808",paddingHorizontal:16,paddingTop:18,paddingBottom:28,gap:18},residentHome:{gap:17},residentGreeting:{gap:5},residentEyebrow:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1.7},residentGreetingTitle:{fontSize:25,lineHeight:32,color:"#FFFFFF",fontWeight:"900",letterSpacing:-.5},residentMuted:{fontSize:12,lineHeight:18,color:"#B9B9B9"},residentWelcomeCard:{backgroundColor:"#171717",borderRadius:20,borderWidth:1,borderColor:"#3A3020",padding:17,gap:8,overflow:"hidden"},residentWelcomeIcon:{width:62,height:62,borderRadius:18,backgroundColor:"#282116",borderWidth:1,borderColor:"#5A4828",alignItems:"center",justifyContent:"center",marginBottom:5},residentWelcomeTitle:{fontSize:23,lineHeight:28,color:"#FFFFFF",fontWeight:"900"},residentWelcomeCopy:{fontSize:13,lineHeight:20,color:"#E2E2E2"},residentStatusPill:{alignSelf:"flex-start",flexDirection:"row",alignItems:"center",gap:7,backgroundColor:"#2A241A",borderRadius:20,paddingHorizontal:11,paddingVertical:8,marginTop:5},residentStatusDot:{width:7,height:7,borderRadius:4,backgroundColor:"#D4A84B"},residentStatusText:{fontSize:9,color:"#F5D58D",fontWeight:"900",letterSpacing:1},residentSectionHeading:{marginTop:2},residentSectionTitle:{fontSize:12,color:"#D4A84B",fontWeight:"900",letterSpacing:1.8},residentShortcutGrid:{flexDirection:"row",flexWrap:"wrap",gap:10},residentShortcut:{width:"31.5%",minHeight:112,flexGrow:1,flexBasis:"29%",backgroundColor:"#171717",borderWidth:1,borderColor:"#38332A",borderRadius:15,padding:10,alignItems:"center",justifyContent:"center",gap:8},residentShortcutDisabled:{opacity:.55},residentShortcutIcon:{width:43,height:43,borderRadius:14,backgroundColor:"#282116",alignItems:"center",justifyContent:"center"},residentShortcutLabel:{fontSize:10,color:"#FFFFFF",fontWeight:"800",textAlign:"center",lineHeight:14},residentComingSoon:{fontSize:7,color:"#D4A84B",fontWeight:"900",letterSpacing:.5},residentErrorCard:{padding:14,backgroundColor:"#241919",borderWidth:1,borderColor:"#633333",borderRadius:14,gap:7},residentRetry:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1,marginTop:4},
   root:{flex:1,backgroundColor:"#F4F6FA"},appFrame:{flex:1,width:"100%",alignSelf:"center",maxWidth:480,flexDirection:"row"},appFrameWide:{padding:0,gap:0},
   sidebar:{width:238,backgroundColor:"#071A3A",borderRadius:24,padding:20,justifyContent:"flex-start"},main:{flex:1,minWidth:0,backgroundColor:"#FFFFFF",overflow:"hidden"},
   topbar:{minHeight:76,paddingHorizontal:20,paddingVertical:14,backgroundColor:"#FFFFFF",borderBottomWidth:0,borderBottomColor:"#FFFFFF",flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:10},
