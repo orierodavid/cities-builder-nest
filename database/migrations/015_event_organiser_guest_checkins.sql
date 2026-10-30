@@ -1,6 +1,9 @@
 -- Event organiser guest check-in and attendance records.
 BEGIN;
 
+ALTER TABLE public.estate_event_invitations
+  ADD CONSTRAINT estate_event_invitations_id_estate_event_unique UNIQUE (id, estate_id, event_id);
+
 CREATE TABLE public.estate_event_checkins (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   estate_id uuid NOT NULL,
