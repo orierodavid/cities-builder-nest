@@ -140,7 +140,7 @@ Deno.serve(async (req: Request) => {
   const userId = authData.user.id;
   const [{ data: platformAdmin, error: platformRoleError }, { data: estateMembership, error: membershipCheckError }, { data: estate, error: estateError }] = await Promise.all([
     admin.from("user_roles").select("role").eq("user_id", userId).eq("role", "platform_admin").maybeSingle(),
-    admin.from("estate_memberships").select("membership_role").eq("estate_id", estateId).eq("user_id", userId).eq("status", "active").in("membership_role", ["estate_manager", "estate_admin"]).maybeSingle(),
+    admin.from("estate_memberships").select("membership_role").eq("estate_id", estateId).eq("user_id", userId).eq("status", "active").in("membership_role", ["facility_manager", "estate_manager", "estate_admin"]).maybeSingle(),
     admin.from("estates").select("is_enabled").eq("id", estateId).maybeSingle(),
   ]);
   if (platformRoleError || membershipCheckError) return json(500, { error: "authorization_check_failed" });
@@ -149,7 +149,7 @@ Deno.serve(async (req: Request) => {
   if (!isPlatformAdmin && !estateMembership) {
     return json(403, { error: "estate_admin_access_required", message: "Only a platform administrator or an estate manager/administrator for this estate can create accounts." });
   }
-  if (role === "estate_admin" && !isPlatformAdmin) {
+  if (["estate_admin", "facility_manager"].includes(role as string) && !isPlatformAdmin) {
     return json(403, { error: "platform_admin_required", message: "Only a platform administrator can invite an estate administrator." });
   }
   if (estateError) return json(500, { error: "estate_lookup_failed" });
