@@ -132,6 +132,7 @@ Deno.serve(async (req: Request) => {
   if (!estateId || estateId.length > 100 ||
       fullName.length < 2 || fullName.length > 120 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      password.length < 8 || password.length > 128 ||
       typeof role !== "string" || !supportedRoles.includes(role) ||
       (role === "resident" && (!residentDetailsProvided || !residentDetailsValid)) ||
       (role !== "resident" && residentDetailsProvided)) {
