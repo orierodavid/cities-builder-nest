@@ -18,7 +18,8 @@ type Unit = { id: string; unit_code: string; unit_type: string | null; status: s
 type Resident = { id: string; full_name: string | null; phone_e164?: string | null };
 type VisitorPass = { id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string; created_at: string };
 type EstateEvent = { id: string; title: string; description: string; venue: string; starts_at: string; ends_at: string; status: "draft" | "published" | "cancelled" };
-type EventGuest = { id: string; guest_name: string; email: string | null; phone: string | null; notes: string; created_at: string };\ntype EventInvitation = { id: string; guest_id: string; status: "active" | "revoked"; created_at: string; estate_event_guests: { guest_name: string; email: string | null; phone: string | null } };
+type EventGuest = { id: string; guest_name: string; email: string | null; phone: string | null; notes: string; created_at: string };
+type EventInvitation = { id: string; guest_id: string; status: "active" | "revoked"; created_at: string; estate_event_guests: { guest_name: string; email: string | null; phone: string | null } };
 type GateVisitorLookup = { visitor: { name: string; phone: string | null }; host: { name: string | null }; pass: { id: string; validFrom: string; validUntil: string; status: string }; availabilityError: string | null };
 type DirectoryResponse<T> = { buildings?: T[]; units?: T[]; residents?: T[]; error?: string; message?: string };
 
@@ -119,7 +120,13 @@ export default function HomeScreen() {
   const [guestNotes, setGuestNotes] = useState("");
   const [guestLoading, setGuestLoading] = useState(false);
   const [guestBusy, setGuestBusy] = useState(false);
-  const [guestMessage, setGuestMessage] = useState("");\n  const [invitationEvent, setInvitationEvent] = useState<EstateEvent | null>(null);\n  const [eventInvitations, setEventInvitations] = useState<EventInvitation[]>([]);\n  const [invitationLoading, setInvitationLoading] = useState(false);\n  const [invitationBusy, setInvitationBusy] = useState(false);\n  const [invitationMessage, setInvitationMessage] = useState("");\n  const [generatedInvitation, setGeneratedInvitation] = useState<{ guestId: string; code: string; message: string } | null>(null);
+  const [guestMessage, setGuestMessage] = useState("");
+  const [invitationEvent, setInvitationEvent] = useState<EstateEvent | null>(null);
+  const [eventInvitations, setEventInvitations] = useState<EventInvitation[]>([]);
+  const [invitationLoading, setInvitationLoading] = useState(false);
+  const [invitationBusy, setInvitationBusy] = useState(false);
+  const [invitationMessage, setInvitationMessage] = useState("");
+  const [generatedInvitation, setGeneratedInvitation] = useState<{ guestId: string; code: string; message: string } | null>(null);
 
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
