@@ -18,7 +18,7 @@ type Unit = { id: string; unit_code: string; unit_type: string | null; status: s
 type Resident = { id: string; full_name: string | null; phone_e164?: string | null };
 type VisitorPass = { id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string; created_at: string };
 type EstateEvent = { id: string; title: string; description: string; venue: string; starts_at: string; ends_at: string; status: "draft" | "published" | "cancelled" };
-type EventGuest = { id: string; guest_name: string; email: string | null; phone: string | null; notes: string; created_at: string };
+type EventGuest = { id: string; guest_name: string; email: string | null; phone: string | null; notes: string; created_at: string };\ntype EventInvitation = { id: string; guest_id: string; status: "active" | "revoked"; created_at: string; estate_event_guests: { guest_name: string; email: string | null; phone: string | null } };
 type GateVisitorLookup = { visitor: { name: string; phone: string | null }; host: { name: string | null }; pass: { id: string; validFrom: string; validUntil: string; status: string }; availabilityError: string | null };
 type DirectoryResponse<T> = { buildings?: T[]; units?: T[]; residents?: T[]; error?: string; message?: string };
 
@@ -119,7 +119,7 @@ export default function HomeScreen() {
   const [guestNotes, setGuestNotes] = useState("");
   const [guestLoading, setGuestLoading] = useState(false);
   const [guestBusy, setGuestBusy] = useState(false);
-  const [guestMessage, setGuestMessage] = useState("");
+  const [guestMessage, setGuestMessage] = useState("");\n  const [invitationEvent, setInvitationEvent] = useState<EstateEvent | null>(null);\n  const [eventInvitations, setEventInvitations] = useState<EventInvitation[]>([]);\n  const [invitationLoading, setInvitationLoading] = useState(false);\n  const [invitationBusy, setInvitationBusy] = useState(false);\n  const [invitationMessage, setInvitationMessage] = useState("");\n  const [generatedInvitation, setGeneratedInvitation] = useState<{ guestId: string; code: string; message: string } | null>(null);
 
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
@@ -551,6 +551,52 @@ export default function HomeScreen() {
     finally { setGuestBusy(false); }
   }
 
+  async function loadEventInvitations(eventId: string) {
+    if (!session?.access_token || !selectedEstateId || !apiUrl) return;
+    setInvitationLoading(true); setInvitationMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(eventId) + "/invitations", { headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" } });
+      const result = await response.json() as { invitations?: EventInvitation[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not load invitations.");
+      setEventInvitations(result.invitations || []);
+    } catch (e) { setInvitationMessage(e instanceof Error ? e.message : "Could not load invitations."); }
+    finally { setInvitationLoading(false); }
+  }
+
+  async function generateAndCopyInvitation(guest: EventGuest) {
+    if (!session?.access_token || !selectedEstateId || !invitationEvent || !apiUrl) return;
+    setInvitationBusy(true); setInvitationMessage(""); setGeneratedInvitation(null);
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(invitationEvent.id) + "/guests/" + encodeURIComponent(guest.id) + "/invitations", {
+        method: "POST", headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({}),
+      });
+      const result = await response.json() as { code?: string; error?: string; event?: { title: string; venue: string; starts_at: string }; guest?: { guest_name: string } };
+      if (!response.ok || !result.code || !result.event || !result.guest) throw new Error(result.error || "Could not generate this invitation code.");
+      const message = "You're invited to " + result.event.title + "\nGuest: " + result.guest.guest_name + "\nVenue: " + result.event.venue + "\nDate: " + new Date(result.event.starts_at).toLocaleString() + "\nInvitation code: " + result.code + "\nPlease present this code at the gate.";
+      setGeneratedInvitation({ guestId: guest.id, code: result.code, message });
+      try {
+        await Clipboard.setStringAsync(message);
+        setInvitationMessage("Invitation copied. Paste it wherever you want to send it. It has not been sent.");
+      } catch {
+        setInvitationMessage("Code generated. Clipboard copy failed; copy the invitation text shown below. It has not been sent.");
+      }
+      await loadEventInvitations(invitationEvent.id);
+    } catch (e) { setInvitationMessage(e instanceof Error ? e.message : "Could not generate this invitation."); }
+    finally { setInvitationBusy(false); }
+  }
+
+  async function revokeEventInvitation(invitationId: string) {
+    if (!session?.access_token || !selectedEstateId || !invitationEvent || !apiUrl) return;
+    setInvitationBusy(true); setInvitationMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(invitationEvent.id) + "/invitations/" + encodeURIComponent(invitationId) + "/revoke", { method: "POST", headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" } });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not revoke this invitation.");
+      setInvitationMessage("Invitation code revoked."); setGeneratedInvitation(null); await loadEventInvitations(invitationEvent.id);
+    } catch (e) { setInvitationMessage(e instanceof Error ? e.message : "Could not revoke this invitation."); }
+    finally { setInvitationBusy(false); }
+  }
+
   async function submitMaintenance() {
     if (!session?.access_token || !selectedEstateId || !apiUrl) return;
     if (requestTitle.trim().length < 3 || requestDescription.trim().length < 5) {
@@ -604,7 +650,7 @@ export default function HomeScreen() {
           <View style={styles.sidebar}>
             <View style={styles.brandRow}><View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View><View><Text style={styles.brandName}>Cities Builder</Text><Text style={styles.brandCaption}>NEST COMMUNITY</Text></View></View>
             <Text style={styles.navLabel}>YOUR SPACE</Text>
-            {(isEventOrganiser ? [["home","calendar-outline","Event Details"],["guests","people-outline","Guest List"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintenance"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Management"] as const] : []),["profile","person-circle-outline","My profile"]] as const).map(([key,icon,label]) => (
+            {(isEventOrganiser ? [["home","calendar-outline","Event Details"],["guests","people-outline","Guest List"],["invitations","mail-outline","Invitations"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintenance"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Management"] as const] : []),["profile","person-circle-outline","My profile"]] as const).map(([key,icon,label]) => (
               <TouchableOpacity key={key} onPress={() => setTab(key)} style={[styles.navItem, tab === key && styles.navItemActive]}><Ionicons name={icon} size={20} color={tab === key ? "#071A3A" : "#B8C5DA"} style={styles.navIcon}/><Text style={[styles.navText,tab === key && styles.navTextActive]}>{label}</Text></TouchableOpacity>
             ))}
             <View style={styles.sidebarBottom}><Text style={styles.sidebarHint}>One platform. Many estates.</Text><Text style={styles.sidebarVersion}>RESIDENT PORTAL · PREVIEW</Text></View>
@@ -664,6 +710,26 @@ export default function HomeScreen() {
                       {guestLoading ? <ActivityIndicator color="#D4A84B"/> : eventGuests.length ? eventGuests.map((guest) => <View key={guest.id} style={styles.eventCard}><View style={styles.guestCardTop}><Text style={styles.eventCardTitle}>{guest.guest_name}</Text><TouchableOpacity onPress={() => void removeEventGuest(guest.id)} disabled={guestBusy}><Text style={styles.guestRemove}>REMOVE</Text></TouchableOpacity></View>{!!guest.email && <Text style={styles.eventCardMeta}>{guest.email}</Text>}{!!guest.phone && <Text style={styles.eventCardMeta}>{guest.phone}</Text>}{!!guest.notes && <Text style={styles.eventCardDescription}>{guest.notes}</Text>}</View>) : <Text style={styles.eventEmpty}>No guests added to this event yet.</Text>}
                     </> : <Text style={styles.eventEmpty}>Go to Event Details and choose an event to open its guest list.</Text>}
                   </View>
+                ) : isEventOrganiser && tab === "invitations" ? (
+                  <View style={styles.eventOrganiserHome}>
+                    <TouchableOpacity onPress={() => setTab("home")} style={styles.eventBack}><Text style={styles.eventRefresh}>← BACK TO EVENT DETAILS</Text></TouchableOpacity>
+                    <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text>
+                    <Text style={styles.eventHeading}>Invitations</Text>
+                    <Text style={styles.eventSubheading}>{invitationEvent?.title || "Choose an event to prepare invitation codes."}</Text>
+                    {!invitationEvent ? (
+                      eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? estateEvents.map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue} · {new Date(event.starts_at).toLocaleString()}</Text><TouchableOpacity style={styles.guestOpenButton} onPress={() => { setInvitationEvent(event); setGeneratedInvitation(null); void loadEventGuests(event.id); void loadEventInvitations(event.id); }}><Text style={styles.guestOpenText}>PREPARE INVITATIONS →</Text></TouchableOpacity></View>) : <Text style={styles.eventEmpty}>Create an event first in Event Details.</Text>
+                    ) : <>
+                      <TouchableOpacity onPress={() => { setInvitationEvent(null); setGeneratedInvitation(null); }} style={styles.eventBack}><Text style={styles.eventRefresh}>← CHOOSE ANOTHER EVENT</Text></TouchableOpacity>
+                      <Text style={styles.eventSectionTitle}>GUESTS · {eventGuests.length}</Text>
+                      {guestLoading || invitationLoading ? <ActivityIndicator color="#D4A84B"/> : eventGuests.length ? eventGuests.map((guest) => {
+                        const active = eventInvitations.find((item) => item.guest_id === guest.id && item.status === "active");
+                        return <View key={guest.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{guest.guest_name}</Text>{!!guest.email && <Text style={styles.eventCardMeta}>{guest.email}</Text>}{!!guest.phone && <Text style={styles.eventCardMeta}>{guest.phone}</Text>}<Text style={styles.eventCardStatus}>{active ? "CODE ACTIVE · NOT SENT" : "NO ACTIVE CODE"}</Text><TouchableOpacity style={styles.guestOpenButton} disabled={invitationBusy} onPress={() => void generateAndCopyInvitation(guest)}><Text style={styles.guestOpenText}>{active ? "REGENERATE & COPY INVITATION" : "GENERATE & COPY INVITATION"}</Text></TouchableOpacity>{active && <TouchableOpacity onPress={() => void revokeEventInvitation(active.id)} disabled={invitationBusy} style={styles.eventBack}><Text style={styles.guestRemove}>REVOKE CODE</Text></TouchableOpacity>}{generatedInvitation?.guestId === guest.id && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Invitation code</Text><Text style={styles.eventHeading}>{generatedInvitation.code}</Text><Text style={styles.bodyText}>{generatedInvitation.message}</Text><TouchableOpacity style={styles.guestOpenButton} onPress={() => void Clipboard.setStringAsync(generatedInvitation.message)}><Text style={styles.guestOpenText}>COPY INVITATION TEXT</Text></TouchableOpacity></View>}</View>;
+                      }) : <Text style={styles.eventEmpty}>Add guests in Guest List before creating invitations.</Text>}
+                      {!!invitationMessage && <Text style={invitationMessage.includes("copied") || invitationMessage.includes("revoked") ? styles.eventSuccess : styles.eventError}>{invitationMessage}</Text>}
+                      <TouchableOpacity style={styles.eventBack} onPress={() => void loadEventInvitations(invitationEvent.id)}><Text style={styles.eventRefresh}>REFRESH INVITATIONS</Text></TouchableOpacity>
+                      <Text style={styles.eventHint}>Copying does not send the invitation or mark it as sent. You decide where to paste the message.</Text>
+                    </>}
+                  </View>
                 ) : isEventOrganiser && tab === "home" ? (
                   <View style={styles.eventOrganiserHome}>
                     <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text>
@@ -690,7 +756,7 @@ export default function HomeScreen() {
                       <TouchableOpacity style={[styles.eventSaveButton,eventBusy && styles.disabled]} onPress={() => void createEstateEvent()} disabled={eventBusy}>{eventBusy ? <ActivityIndicator color="#17130B"/> : <Text style={styles.eventSaveText}>Save event details</Text>}</TouchableOpacity>
                     </View>
                     <View style={styles.eventListHeader}><Text style={styles.eventSectionTitle}>ESTATE EVENTS</Text><TouchableOpacity onPress={() => void loadEstateEvents()}><Text style={styles.eventRefresh}>REFRESH</Text></TouchableOpacity></View>
-                    {eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? estateEvents.map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue}</Text><Text style={styles.eventCardMeta}>{new Date(event.starts_at).toLocaleString()} – {new Date(event.ends_at).toLocaleString()}</Text><Text style={styles.eventCardStatus}>{event.status.toUpperCase()}</Text>{!!event.description && <Text style={styles.eventCardDescription}>{event.description}</Text>}<TouchableOpacity style={styles.guestOpenButton} onPress={() => { setGuestEvent(event); setTab("guests"); void loadEventGuests(event.id); }}><Text style={styles.guestOpenText}>MANAGE GUEST LIST →</Text></TouchableOpacity></View>) : <Text style={styles.eventEmpty}>No events have been created for this estate yet.</Text>}
+                    {eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? estateEvents.map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue}</Text><Text style={styles.eventCardMeta}>{new Date(event.starts_at).toLocaleString()} – {new Date(event.ends_at).toLocaleString()}</Text><Text style={styles.eventCardStatus}>{event.status.toUpperCase()}</Text>{!!event.description && <Text style={styles.eventCardDescription}>{event.description}</Text>}<TouchableOpacity style={styles.guestOpenButton} onPress={() => { setGuestEvent(event); setTab("guests"); void loadEventGuests(event.id); }}><Text style={styles.guestOpenText}>MANAGE GUEST LIST →</Text></TouchableOpacity><TouchableOpacity style={styles.guestOpenButton} onPress={() => { setInvitationEvent(event); setTab("invitations"); setGeneratedInvitation(null); void loadEventGuests(event.id); void loadEventInvitations(event.id); }}><Text style={styles.guestOpenText}>MANAGE INVITATIONS →</Text></TouchableOpacity></View>) : <Text style={styles.eventEmpty}>No events have been created for this estate yet.</Text>}
                   </View>
                 ) : isResident && !wide && tab === "home" ? (
                   <View style={styles.residentHome}>
@@ -761,7 +827,7 @@ export default function HomeScreen() {
               </>
             )}
           </ScrollView>
-          {session && !wide && <View style={[styles.bottomNav, isResident && tab === "home" && styles.residentBottomNav]}>{(isEventOrganiser ? [["home","calendar-outline","Events"],["guests","people-outline","Guests"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintain"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Manage"] as const] : []),["profile","person-circle-outline","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Ionicons name={icon} size={22} color={isResident && tab === "home" ? (tab === key ? "#D4A84B" : "#8C8C8C") : (tab === key ? green : "#8290A5")}/><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive,isResident && tab === "home" && styles.residentBottomNavText,isResident && tab === "home" && tab === key && styles.residentBottomNavTextActive]}>{label}</Text>{tab === key && <View style={[styles.bottomNavActiveMark,isResident && tab === "home" && styles.residentBottomNavActiveMark]}/>}</TouchableOpacity>)}</View>}
+          {session && !wide && <View style={[styles.bottomNav, isResident && tab === "home" && styles.residentBottomNav]}>{(isEventOrganiser ? [["home","calendar-outline","Events"],["guests","people-outline","Guests"],["invitations","mail-outline","Invites"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintain"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Manage"] as const] : []),["profile","person-circle-outline","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Ionicons name={icon} size={22} color={isResident && tab === "home" ? (tab === key ? "#D4A84B" : "#8C8C8C") : (tab === key ? green : "#8290A5")}/><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive,isResident && tab === "home" && styles.residentBottomNavText,isResident && tab === "home" && tab === key && styles.residentBottomNavTextActive]}>{label}</Text>{tab === key && <View style={[styles.bottomNavActiveMark,isResident && tab === "home" && styles.residentBottomNavActiveMark]}/>}</TouchableOpacity>)}</View>}
         </View>
       </View>
     </KeyboardAvoidingView>
