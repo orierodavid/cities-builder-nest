@@ -253,8 +253,17 @@ export default function HomeScreen() {
     if (password.length < 8) { setMessage("Your password must contain at least 8 characters."); return; }
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+      const { data, error } = await supabase.functions.invoke("account-login", { body: { email: cleanEmail, password } });
       if (error) throw error;
+      if (data?.error) {
+        const retry = Number(data.retry_after_seconds || 0);
+        throw new Error(data.error === "account_locked"
+          ? (data.message || "Account locked. Try again in " + Math.ceil(retry / 60) + " minutes.")
+          : (data.message || "Email or password is incorrect."));
+      }
+      if (!data?.session) throw new Error("Authentication service returned no session. Please try again.");
+      const { error: sessionError } = await supabase.auth.setSession(data.session);
+      if (sessionError) throw sessionError;
       setMessage("Signed in successfully.");
     } catch (e) { setMessage(e instanceof Error ? e.message : "Authentication failed. Please try again."); }
     finally { setBusy(false); }
