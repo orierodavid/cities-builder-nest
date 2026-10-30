@@ -964,6 +964,92 @@ app.post("/v1/estates/:estateId/gate/visits/:visitId/check-out", requireAuth, as
   res.status(200).json({ visit: data });
 });
 
+async function requireEventOrganiser(req: import("express").Request, res: import("express").Response, estateId: string): Promise<AuthenticatedRequest | null> {
+  const authenticated = req as AuthenticatedRequest;
+  const { data: membership, error } = await authenticated.userSupabase
+    .from("estate_memberships")
+    .select("membership_role")
+    .eq("estate_id", estateId)
+    .eq("user_id", authenticated.authUser.id)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error) { res.status(403).json({ error: "event_organiser_access_check_failed" }); return null; }
+  if (membership?.membership_role !== "event_organiser") {
+    res.status(403).json({ error: "event_organiser_membership_required" }); return null;
+  }
+  const enabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return null; }
+  if (!enabled) { rejectInactiveEstate(res); return null; }
+  return authenticated;
+}
+
+app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const { data: membership, error: membershipError } = await authenticated.userSupabase
+    .from("estate_memberships").select("membership_role").eq("estate_id", estateId)
+    .eq("user_id", authenticated.authUser.id).eq("status", "active").maybeSingle();
+  const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
+  if (membershipError || (!membership && !platformAdmin)) { res.status(403).json({ error: "active_estate_membership_required" }); return; }
+  const enabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!enabled) { rejectInactiveEstate(res); return; }
+  const { data, error } = await authenticated.userSupabase.from("estate_events")
+    .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at")
+    .eq("estate_id", estateId).order("starts_at", { ascending: true });
+  if (error) { res.status(403).json({ error: "estate_events_load_failed" }); return; }
+  res.status(200).json({ events: data ?? [] });
+});
+
+app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
+  const venue = typeof req.body?.venue === "string" ? req.body.venue.trim() : "";
+  const startsAt = typeof req.body?.startsAt === "string" ? req.body.startsAt : "";
+  const endsAt = typeof req.body?.endsAt === "string" ? req.body.endsAt : "";
+  const startDate = new Date(startsAt), endDate = new Date(endsAt);
+  const status = req.body?.status === "published" ? "published" : "draft";
+  if (title.length < 3 || title.length > 160 || description.length > 5000 ||
+      venue.length < 2 || venue.length > 240 ||
+      !startsAt || !endsAt || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) ||
+      endDate.getTime() <= startDate.getTime()) {
+    res.status(400).json({ error: "invalid_event_details", message: "Enter an event title, venue, valid start and end date/time, and ensure the end is after the start." }); return;
+  }
+  const { data, error } = await authenticated.userSupabase.from("estate_events")
+    .insert({ estate_id: estateId, title, description, venue, starts_at: startDate.toISOString(), ends_at: endDate.toISOString(), status, created_by: authenticated.authUser.id })
+    .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at").single();
+  if (error || !data) { res.status(400).json({ error: "estate_event_create_failed" }); return; }
+  res.status(201).json({ event: data });
+});
+
+app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
+  const venue = typeof req.body?.venue === "string" ? req.body.venue.trim() : "";
+  const startsAt = typeof req.body?.startsAt === "string" ? req.body.startsAt : "";
+  const endsAt = typeof req.body?.endsAt === "string" ? req.body.endsAt : "";
+  const startDate = new Date(startsAt), endDate = new Date(endsAt);
+  const status = ["draft", "published", "cancelled"].includes(req.body?.status) ? req.body.status : "draft";
+  if (title.length < 3 || title.length > 160 || description.length > 5000 ||
+      venue.length < 2 || venue.length > 240 || Number.isNaN(startDate.getTime()) ||
+      Number.isNaN(endDate.getTime()) || endDate.getTime() <= startDate.getTime()) {
+    res.status(400).json({ error: "invalid_event_details" }); return;
+  }
+  const { data, error } = await authenticated.userSupabase.from("estate_events")
+    .update({ title, description, venue, starts_at: startDate.toISOString(), ends_at: endDate.toISOString(), status, updated_at: new Date().toISOString() })
+    .eq("estate_id", estateId).eq("id", eventId)
+    .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at").maybeSingle();
+  if (error || !data) { res.status(404).json({ error: "estate_event_not_found_or_update_failed" }); return; }
+  res.status(200).json({ event: data });
+});
+
 app.get("/v1/me", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   try {

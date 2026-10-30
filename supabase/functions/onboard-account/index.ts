@@ -122,7 +122,7 @@ Deno.serve(async (req: Request) => {
   const buildingName = typeof input.buildingName === "string" ? input.buildingName.trim() : "";
   const unitCode = typeof input.unitCode === "string" ? input.unitCode.trim() : "";
   const unitType = typeof input.unitType === "string" ? input.unitType.trim() : "";
-  const supportedRoles = ["estate_admin", "resident", "facility_manager", "security"];
+  const supportedRoles = ["estate_admin", "resident", "facility_manager", "security", "event_organiser"];
   const residentDetailsProvided = Boolean(requestedUnitId || buildingId || buildingName || unitCode || unitType);
   const residentDetailsValid = requestedUnitId
     ? !buildingId && !buildingName && !unitCode && !unitType
