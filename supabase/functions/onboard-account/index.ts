@@ -190,7 +190,19 @@ Deno.serve(async (req: Request) => {
     if (assignment) return json(409, { error: "unit_already_assigned" });
   }
 
-  const redirectTo = Deno.env.get("AUTH_INVITE_REDIRECT_URL") ?? "https://cities-builder-nest.vercel.app/invitation/accepted";
+  // Build the callback from the domain currently hosting the web portal.
+  // Supabase Auth must allow the matching domain (prefer a wildcard for Vercel
+  // preview domains plus the production/custom domain).
+  const requestOrigin = req.headers.get("origin");
+  let redirectTo: string;
+  try {
+    if (!requestOrigin) throw new Error("missing_origin");
+    const originUrl = new URL(requestOrigin);
+    if (originUrl.protocol !== "https:" && originUrl.hostname !== "localhost") throw new Error("invalid_origin");
+    redirectTo = new URL("/invitation/accepted", originUrl.origin).toString();
+  } catch {
+    return json(400, { error: "invalid_portal_origin", message: "The invitation must be created from the active Cities Builder Nest web portal domain." });
+  }
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
     ...(redirectTo ? { redirectTo } : {}),
