@@ -20,6 +20,7 @@ type VisitorPass = { id: string; visitor_name: string; visitor_phone: string | n
 type EstateEvent = { id: string; title: string; description: string; venue: string; starts_at: string; ends_at: string; status: "draft" | "published" | "cancelled" };
 type EventGuest = { id: string; guest_name: string; email: string | null; phone: string | null; notes: string; created_at: string };
 type EventInvitation = { id: string; guest_id: string; status: "active" | "revoked"; created_at: string; estate_event_guests: { guest_name: string; email: string | null; phone: string | null } };
+type EventCheckIn = { id: string; guest_id: string; invitation_id: string; checked_in_at: string; estate_event_guests: { guest_name: string; email: string | null; phone: string | null } };
 type GateVisitorLookup = { visitor: { name: string; phone: string | null }; host: { name: string | null }; pass: { id: string; validFrom: string; validUntil: string; status: string }; availabilityError: string | null };
 type DirectoryResponse<T> = { buildings?: T[]; units?: T[]; residents?: T[]; error?: string; message?: string };
 
@@ -101,7 +102,7 @@ export default function HomeScreen() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
-  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "guests" | "invitations">("home");
+  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "guests" | "invitations" | "checkin">("home");
   const [eventTitle, setEventTitle] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [eventVenue, setEventVenue] = useState("");
@@ -127,6 +128,12 @@ export default function HomeScreen() {
   const [invitationBusy, setInvitationBusy] = useState(false);
   const [invitationMessage, setInvitationMessage] = useState("");
   const [generatedInvitation, setGeneratedInvitation] = useState<{ guestId: string; code: string; message: string } | null>(null);
+  const [checkInEvent, setCheckInEvent] = useState<EstateEvent | null>(null);
+  const [checkInCode, setCheckInCode] = useState("");
+  const [eventCheckIns, setEventCheckIns] = useState<EventCheckIn[]>([]);
+  const [checkInLoading, setCheckInLoading] = useState(false);
+  const [checkInBusy, setCheckInBusy] = useState(false);
+  const [checkInMessage, setCheckInMessage] = useState("");
 
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
@@ -604,6 +611,33 @@ export default function HomeScreen() {
     finally { setInvitationBusy(false); }
   }
 
+  async function loadEventCheckIns(eventId: string) {
+    if (!session?.access_token || !selectedEstateId || !apiUrl) return;
+    setCheckInLoading(true); setCheckInMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(eventId) + "/check-ins", { headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" } });
+      const result = await response.json() as { checkIns?: EventCheckIn[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not load event attendance.");
+      setEventCheckIns(result.checkIns || []);
+    } catch (e) { setCheckInMessage(e instanceof Error ? e.message : "Could not load event attendance."); }
+    finally { setCheckInLoading(false); }
+  }
+
+  async function submitEventCheckIn() {
+    if (!session?.access_token || !selectedEstateId || !checkInEvent || !apiUrl) return;
+    const code = checkInCode.trim();
+    if (!/^\\d{6}$/.test(code)) { setCheckInMessage("Enter the six-digit invitation code."); return; }
+    setCheckInBusy(true); setCheckInMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(checkInEvent.id) + "/check-in", { method: "POST", headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+      const result = await response.json() as { guest?: { guest_name: string }; error?: string };
+      if (!response.ok) throw new Error(result.error === "event_guest_already_checked_in" ? "This guest has already been checked in." : result.error || "Could not check in this guest.");
+      setCheckInCode(""); setCheckInMessage((result.guest?.guest_name || "Guest") + " checked in successfully.");
+      await loadEventCheckIns(checkInEvent.id);
+    } catch (e) { setCheckInMessage(e instanceof Error ? e.message : "Could not check in this guest."); }
+    finally { setCheckInBusy(false); }
+  }
+
   async function submitMaintenance() {
     if (!session?.access_token || !selectedEstateId || !apiUrl) return;
     if (requestTitle.trim().length < 3 || requestDescription.trim().length < 5) {
@@ -657,7 +691,7 @@ export default function HomeScreen() {
           <View style={styles.sidebar}>
             <View style={styles.brandRow}><View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View><View><Text style={styles.brandName}>Cities Builder</Text><Text style={styles.brandCaption}>NEST COMMUNITY</Text></View></View>
             <Text style={styles.navLabel}>YOUR SPACE</Text>
-            {(isEventOrganiser ? [["home","calendar-outline","Event Details"],["guests","people-outline","Guest List"],["invitations","mail-outline","Invitations"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintenance"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Management"] as const] : []),["profile","person-circle-outline","My profile"]] as const).map(([key,icon,label]) => (
+            {(isEventOrganiser ? [["home","calendar-outline","Event Details"],["guests","people-outline","Guest List"],["invitations","mail-outline","Invitations"],["checkin","scan-outline","Check-in"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintenance"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Management"] as const] : []),["profile","person-circle-outline","My profile"]] as const).map(([key,icon,label]) => (
               <TouchableOpacity key={key} onPress={() => setTab(key)} style={[styles.navItem, tab === key && styles.navItemActive]}><Ionicons name={icon} size={20} color={tab === key ? "#071A3A" : "#B8C5DA"} style={styles.navIcon}/><Text style={[styles.navText,tab === key && styles.navTextActive]}>{label}</Text></TouchableOpacity>
             ))}
             <View style={styles.sidebarBottom}><Text style={styles.sidebarHint}>One platform. Many estates.</Text><Text style={styles.sidebarVersion}>RESIDENT PORTAL · PREVIEW</Text></View>
@@ -735,6 +769,27 @@ export default function HomeScreen() {
                       {!!invitationMessage && <Text style={invitationMessage.includes("copied") || invitationMessage.includes("revoked") ? styles.eventSuccess : styles.eventError}>{invitationMessage}</Text>}
                       <TouchableOpacity style={styles.eventBack} onPress={() => void loadEventInvitations(invitationEvent.id)}><Text style={styles.eventRefresh}>REFRESH INVITATIONS</Text></TouchableOpacity>
                       <Text style={styles.eventHint}>Copying does not send the invitation or mark it as sent. You decide where to paste the message.</Text>
+                    </>}
+                  </View>
+                ) : isEventOrganiser && tab === "checkin" ? (
+                  <View style={styles.eventOrganiserHome}>
+                    <TouchableOpacity onPress={() => setTab("home")} style={styles.eventBack}><Text style={styles.eventRefresh}>← BACK TO EVENT DETAILS</Text></TouchableOpacity>
+                    <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text>
+                    <Text style={styles.eventHeading}>Guest Check-in</Text>
+                    <Text style={styles.eventSubheading}>{checkInEvent?.title || "Select an event, then verify each guest's six-digit invitation code at the entrance."}</Text>
+                    {!checkInEvent ? (
+                      eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? estateEvents.map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue} · {new Date(event.starts_at).toLocaleString()}</Text><TouchableOpacity style={styles.guestOpenButton} onPress={() => { setCheckInEvent(event); setCheckInCode(""); setCheckInMessage(""); void loadEventCheckIns(event.id); }}><Text style={styles.guestOpenText}>OPEN EVENT CHECK-IN →</Text></TouchableOpacity></View>) : <Text style={styles.eventEmpty}>Create an event first in Event Details.</Text>
+                    ) : <>
+                      <TouchableOpacity onPress={() => { setCheckInEvent(null); setCheckInCode(""); setEventCheckIns([]); setCheckInMessage(""); }} style={styles.eventBack}><Text style={styles.eventRefresh}>← CHOOSE ANOTHER EVENT</Text></TouchableOpacity>
+                      <View style={styles.eventForm}>
+                        <Text style={styles.eventSectionTitle}>VERIFY INVITATION</Text>
+                        <Text style={styles.eventLabel}>Six-digit guest code</Text>
+                        <TextInput style={styles.eventInput} value={checkInCode} onChangeText={(value) => setCheckInCode(value.replace(/\\D/g, "").slice(0, 6))} placeholder="Enter invitation code" placeholderTextColor="#888" keyboardType="number-pad" maxLength={6}/>
+                        <TouchableOpacity style={[styles.eventSaveButton,checkInBusy && styles.disabled]} onPress={() => void submitEventCheckIn()} disabled={checkInBusy || !/^\\d{6}$/.test(checkInCode)}>{checkInBusy ? <ActivityIndicator color="#17130B"/> : <Text style={styles.eventSaveText}>VERIFY CODE & CHECK IN</Text>}</TouchableOpacity>
+                        {!!checkInMessage && <Text style={checkInMessage.includes("successfully") ? styles.eventSuccess : styles.eventError}>{checkInMessage}</Text>}
+                      </View>
+                      <View style={styles.eventListHeader}><Text style={styles.eventSectionTitle}>ATTENDANCE · {eventCheckIns.length}</Text><TouchableOpacity onPress={() => void loadEventCheckIns(checkInEvent.id)}><Text style={styles.eventRefresh}>REFRESH</Text></TouchableOpacity></View>
+                      {checkInLoading ? <ActivityIndicator color="#D4A84B"/> : eventCheckIns.length ? eventCheckIns.map((item) => <View key={item.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{item.estate_event_guests?.guest_name || "Guest"}</Text>{!!item.estate_event_guests?.email && <Text style={styles.eventCardMeta}>{item.estate_event_guests.email}</Text>}{!!item.estate_event_guests?.phone && <Text style={styles.eventCardMeta}>{item.estate_event_guests.phone}</Text>}<Text style={styles.eventCardStatus}>CHECKED IN · {new Date(item.checked_in_at).toLocaleTimeString()}</Text></View>) : <Text style={styles.eventEmpty}>No guests have checked in for this event yet.</Text>}
                     </>}
                   </View>
                 ) : isEventOrganiser && tab === "home" ? (
@@ -834,7 +889,7 @@ export default function HomeScreen() {
               </>
             )}
           </ScrollView>
-          {session && !wide && <View style={[styles.bottomNav, isResident && tab === "home" && styles.residentBottomNav]}>{(isEventOrganiser ? [["home","calendar-outline","Events"],["guests","people-outline","Guests"],["invitations","mail-outline","Invites"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintain"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Manage"] as const] : []),["profile","person-circle-outline","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Ionicons name={icon} size={22} color={isResident && tab === "home" ? (tab === key ? "#D4A84B" : "#8C8C8C") : (tab === key ? green : "#8290A5")}/><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive,isResident && tab === "home" && styles.residentBottomNavText,isResident && tab === "home" && tab === key && styles.residentBottomNavTextActive]}>{label}</Text>{tab === key && <View style={[styles.bottomNavActiveMark,isResident && tab === "home" && styles.residentBottomNavActiveMark]}/>}</TouchableOpacity>)}</View>}
+          {session && !wide && <View style={[styles.bottomNav, isResident && tab === "home" && styles.residentBottomNav]}>{(isEventOrganiser ? [["home","calendar-outline","Events"],["guests","people-outline","Guests"],["invitations","mail-outline","Invites"],["checkin","scan-outline","Check-in"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintain"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Manage"] as const] : []),["profile","person-circle-outline","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Ionicons name={icon} size={22} color={isResident && tab === "home" ? (tab === key ? "#D4A84B" : "#8C8C8C") : (tab === key ? green : "#8290A5")}/><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive,isResident && tab === "home" && styles.residentBottomNavText,isResident && tab === "home" && tab === key && styles.residentBottomNavTextActive]}>{label}</Text>{tab === key && <View style={[styles.bottomNavActiveMark,isResident && tab === "home" && styles.residentBottomNavActiveMark]}/>}</TouchableOpacity>)}</View>}
         </View>
       </View>
     </KeyboardAvoidingView>

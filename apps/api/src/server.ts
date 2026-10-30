@@ -1150,6 +1150,45 @@ app.post("/v1/estates/:estateId/events/:eventId/invitations/:invitationId/revoke
   res.status(200).json({ invitation: data });
 });
 
+app.get("/v1/estates/:estateId/events/:eventId/check-ins", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const { data, error } = await authenticated.userSupabase.from("estate_event_checkins")
+    .select("id, guest_id, invitation_id, checked_in_at, estate_event_guests!inner(guest_name, email, phone)")
+    .eq("estate_id", estateId).eq("event_id", eventId).order("checked_in_at", { ascending: false });
+  if (error) { res.status(400).json({ error: "event_checkins_load_failed" }); return; }
+  res.status(200).json({ checkIns: data ?? [], total: data?.length ?? 0 });
+});
+
+app.post("/v1/estates/:estateId/events/:eventId/check-in", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+  if (!/^\\d{6}$/.test(code)) { res.status(400).json({ error: "invalid_event_invitation_code" }); return; }
+  const codeHash = createHash("sha256").update(code).digest("hex");
+  const { data: invitation, error: invitationError } = await authenticated.userSupabase.from("estate_event_invitations")
+    .select("id, guest_id, status, estate_event_guests!inner(id, guest_name, email, phone)")
+    .eq("estate_id", estateId).eq("event_id", eventId).eq("code_hash", codeHash).eq("status", "active").maybeSingle();
+  if (invitationError || !invitation) { res.status(404).json({ error: "event_invitation_not_found_or_inactive" }); return; }
+  const guest = Array.isArray(invitation.estate_event_guests) ? invitation.estate_event_guests[0] : invitation.estate_event_guests;
+  if (!guest) { res.status(404).json({ error: "event_invitation_guest_not_found" }); return; }
+  const { data: existing } = await authenticated.userSupabase.from("estate_event_checkins")
+    .select("id, checked_in_at").eq("estate_id", estateId).eq("event_id", eventId).eq("guest_id", invitation.guest_id).maybeSingle();
+  if (existing) { res.status(409).json({ error: "event_guest_already_checked_in", checkIn: existing, guest }); return; }
+  const { data: checkIn, error } = await authenticated.userSupabase.from("estate_event_checkins")
+    .insert({ estate_id: estateId, event_id: eventId, guest_id: invitation.guest_id, invitation_id: invitation.id, checked_in_by: authenticated.authUser.id })
+    .select("id, guest_id, invitation_id, checked_in_at").single();
+  if (error || !checkIn) {
+    if (error?.code === "23505") { res.status(409).json({ error: "event_guest_already_checked_in" }); return; }
+    res.status(400).json({ error: "event_guest_checkin_failed" }); return;
+  }
+  res.status(201).json({ checkIn, guest });
+});
+
 app.get("/v1/me", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   try {
