@@ -21,7 +21,7 @@ export default function InvitationAcceptedPage() {
 
       if (authError) {
         if (active) {
-          setMessage(decodeURIComponent(authError.replace(/\+/g, " ")));
+          setMessage(authError.replace(/\+/g, " "));
           setState("invalid");
         }
         return;
