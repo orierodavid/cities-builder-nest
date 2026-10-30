@@ -48,6 +48,7 @@ function UsersPage() {
  const [success,setSuccess]=useState("");
  const [fullName,setFullName]=useState("");
  const [email,setEmail]=useState("");
+ const [password,setPassword]=useState("");
  const [role,setRole]=useState<Role>("resident");
  const [buildingName,setBuildingName]=useState("");
  const [unitCode,setUnitCode]=useState("");
@@ -96,13 +97,13 @@ function UsersPage() {
  const allowedRoles:Role[]=isAdmin?["facility_manager","resident","security","event_organiser"]:["resident","security","event_organiser"];
  async function createUser(e:FormEvent){
   e.preventDefault();setSaving(true);setError("");setSuccess("");
-  const payload:Record<string,string>={estateId:selectedEstate,fullName:fullName.trim(),email:email.trim().toLowerCase(),role};
+  const payload:Record<string,string>={estateId:selectedEstate,fullName:fullName.trim(),email:email.trim().toLowerCase(),password,role};
   if(role==="resident"){payload.buildingName=buildingName.trim();payload.unitCode=unitCode.trim();if(unitType.trim())payload.unitType=unitType.trim();}
   const {data,error:invokeError}=await supabase.functions.invoke("onboard-account",{body:payload});
   if(invokeError){setError(invokeError.message||"Invitation could not be sent.");setSaving(false);return;}
   if(data?.error){setError(data.message||"Invitation could not be completed.");setSaving(false);return;}
-  setSuccess("Invitation sent. The user will receive an email to finish setting up their account.");
-  setFullName("");setEmail("");setBuildingName("");setUnitCode("");setUnitType("");setShowForm(false);
+  setSuccess("Invitation sent. The user can accept the link and sign in with the email and password you created.");
+  setFullName("");setEmail("");setPassword("");setBuildingName("");setUnitCode("");setUnitType("");setShowForm(false);
   await load();setSaving(false);
  }
  return <PortalFrame title="User Management" description="Invite people, assign roles and manage access within your estate.">
@@ -111,10 +112,11 @@ function UsersPage() {
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">{success}</div>}
    {showForm&&<form className="user-form" onSubmit={createUser}>
-    <div className="user-form-heading"><strong>Invite a new user</strong><span>They will receive an email invitation to activate their account.</span></div>
+    <div className="user-form-heading"><strong>Invite a new user</strong><span>Create their login password here. They will receive a separate email link to accept the invitation.</span></div>
     <div className="user-form-grid">
      <label>Full name<input required minLength={2} maxLength={120} value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Enter full name"/></label>
      <label>Email address<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com"/></label>
+     <label>Initial password<input required type="password" minLength={8} autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password (8+ characters)"/><span className="optional-label">Share this password with the user securely, separately from the invitation email.</span></label>
      <label>Estate<select required value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
      <label>Role<select value={role} onChange={e=>setRole(e.target.value as Role)}>{allowedRoles.map(x=><option key={x} value={x}>{roleLabels[x]}</option>)}</select></label>
      {role==="resident"&&<><label>Building name<input required value={buildingName} onChange={e=>setBuildingName(e.target.value)} placeholder="e.g. Block A"/></label><label>Apartment / unit number<input required value={unitCode} onChange={e=>setUnitCode(e.target.value)} placeholder="e.g. A-04"/></label><label>Apartment type <span className="optional-label">Optional</span><input value={unitType} onChange={e=>setUnitType(e.target.value)} placeholder="e.g. 3-bedroom"/></label></>}
