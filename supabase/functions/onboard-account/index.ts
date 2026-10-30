@@ -190,7 +190,7 @@ Deno.serve(async (req: Request) => {
     if (assignment) return json(409, { error: "unit_already_assigned" });
   }
 
-  const redirectTo = Deno.env.get("AUTH_INVITE_REDIRECT_URL");
+  const redirectTo = Deno.env.get("AUTH_INVITE_REDIRECT_URL") ?? "https://cities-builder-nest.vercel.app/invitation/accepted";
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
     ...(redirectTo ? { redirectTo } : {}),
