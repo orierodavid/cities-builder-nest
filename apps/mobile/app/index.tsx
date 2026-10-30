@@ -20,6 +20,7 @@ type VisitorPass = { id: string; visitor_name: string; visitor_phone: string | n
 type EstateEvent = { id: string; title: string; description: string; venue: string; starts_at: string; ends_at: string; status: "draft" | "published" | "cancelled" };
 type EventGuest = { id: string; guest_name: string; email: string | null; phone: string | null; notes: string; created_at: string };
 type EventInvitation = { id: string; guest_id: string; status: "active" | "revoked"; created_at: string; estate_event_guests: { guest_name: string; email: string | null; phone: string | null } };
+type EventCheckIn = { id: string; guest_id: string; invitation_id: string; checked_in_at: string; estate_event_guests: { guest_name: string; email: string | null; phone: string | null } };
 type GateVisitorLookup = { visitor: { name: string; phone: string | null }; host: { name: string | null }; pass: { id: string; validFrom: string; validUntil: string; status: string }; availabilityError: string | null };
 type DirectoryResponse<T> = { buildings?: T[]; units?: T[]; residents?: T[]; error?: string; message?: string };
 
@@ -101,7 +102,7 @@ export default function HomeScreen() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
-  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "guests" | "invitations">("home");
+  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "guests" | "invitations" | "checkin">("home");
   const [eventTitle, setEventTitle] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [eventVenue, setEventVenue] = useState("");
@@ -127,6 +128,12 @@ export default function HomeScreen() {
   const [invitationBusy, setInvitationBusy] = useState(false);
   const [invitationMessage, setInvitationMessage] = useState("");
   const [generatedInvitation, setGeneratedInvitation] = useState<{ guestId: string; code: string; message: string } | null>(null);
+  const [checkInEvent, setCheckInEvent] = useState<EstateEvent | null>(null);
+  const [checkInCode, setCheckInCode] = useState("");
+  const [eventCheckIns, setEventCheckIns] = useState<EventCheckIn[]>([]);
+  const [checkInLoading, setCheckInLoading] = useState(false);
+  const [checkInBusy, setCheckInBusy] = useState(false);
+  const [checkInMessage, setCheckInMessage] = useState("");
 
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
@@ -602,6 +609,33 @@ export default function HomeScreen() {
       setInvitationMessage("Invitation code revoked."); setGeneratedInvitation(null); await loadEventInvitations(invitationEvent.id);
     } catch (e) { setInvitationMessage(e instanceof Error ? e.message : "Could not revoke this invitation."); }
     finally { setInvitationBusy(false); }
+  }
+
+  async function loadEventCheckIns(eventId: string) {
+    if (!session?.access_token || !selectedEstateId || !apiUrl) return;
+    setCheckInLoading(true); setCheckInMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(eventId) + "/check-ins", { headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" } });
+      const result = await response.json() as { checkIns?: EventCheckIn[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not load event attendance.");
+      setEventCheckIns(result.checkIns || []);
+    } catch (e) { setCheckInMessage(e instanceof Error ? e.message : "Could not load event attendance."); }
+    finally { setCheckInLoading(false); }
+  }
+
+  async function submitEventCheckIn() {
+    if (!session?.access_token || !selectedEstateId || !checkInEvent || !apiUrl) return;
+    const code = checkInCode.trim();
+    if (!/^\\d{6}$/.test(code)) { setCheckInMessage("Enter the six-digit invitation code."); return; }
+    setCheckInBusy(true); setCheckInMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(checkInEvent.id) + "/check-in", { method: "POST", headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+      const result = await response.json() as { guest?: { guest_name: string }; error?: string };
+      if (!response.ok) throw new Error(result.error === "event_guest_already_checked_in" ? "This guest has already been checked in." : result.error || "Could not check in this guest.");
+      setCheckInCode(""); setCheckInMessage((result.guest?.guest_name || "Guest") + " checked in successfully.");
+      await loadEventCheckIns(checkInEvent.id);
+    } catch (e) { setCheckInMessage(e instanceof Error ? e.message : "Could not check in this guest."); }
+    finally { setCheckInBusy(false); }
   }
 
   async function submitMaintenance() {
