@@ -398,7 +398,6 @@ export default function HomeScreen() {
     if (!response.ok) throw new Error(visitorApiErrorMessage(result.error));
     return result;
   }
-
   async function createVisitorPass() {
     setManagementBusy(true); setManagementMessage(""); setIssuedVisitorCode("");
     try {
@@ -625,7 +624,7 @@ export default function HomeScreen() {
                     <View style={styles.eventListHeader}><Text style={styles.eventSectionTitle}>ESTATE EVENTS</Text><TouchableOpacity onPress={() => void loadEstateEvents()}><Text style={styles.eventRefresh}>REFRESH</Text></TouchableOpacity></View>
                     {eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? estateEvents.map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue}</Text><Text style={styles.eventCardMeta}>{new Date(event.starts_at).toLocaleString()} – {new Date(event.ends_at).toLocaleString()}</Text><Text style={styles.eventCardStatus}>{event.status.toUpperCase()}</Text>{!!event.description && <Text style={styles.eventCardDescription}>{event.description}</Text>}</View>) : <Text style={styles.eventEmpty}>No events have been created for this estate yet.</Text>}
                   </View>
-                ) : {isResident && !wide && tab === "home" ? (
+                ) : isResident && !wide && tab === "home" ? (
                   <View style={styles.residentHome}>
                     <View style={styles.residentGreeting}>
                       <Text style={styles.residentEyebrow}>WELCOME HOME</Text>
