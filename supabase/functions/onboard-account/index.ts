@@ -116,6 +116,7 @@ Deno.serve(async (req: Request) => {
   const estateId = typeof input.estateId === "string" ? input.estateId.trim() : "";
   const fullName = typeof input.fullName === "string" ? input.fullName.trim() : "";
   const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
+  const password = typeof input.password === "string" ? input.password : "";
   const role = input.role;
   const requestedUnitId = typeof input.unitId === "string" ? input.unitId.trim() : "";
   const buildingId = typeof input.buildingId === "string" ? input.buildingId.trim() : "";
@@ -134,7 +135,7 @@ Deno.serve(async (req: Request) => {
       typeof role !== "string" || !supportedRoles.includes(role) ||
       (role === "resident" && (!residentDetailsProvided || !residentDetailsValid)) ||
       (role !== "resident" && residentDetailsProvided)) {
-    return json(400, { error: "invalid_account_input", message: "Provide an estate, full name, valid email and supported role. Residents also need a building and apartment number." });
+    return json(400, { error: "invalid_account_input", message: "Provide an estate, full name, valid email, a password of at least 8 characters and a supported role. Residents also need a building and apartment number." });
   }
 
   const userId = authData.user.id;
@@ -202,6 +203,18 @@ Deno.serve(async (req: Request) => {
   }
 
   const invitedUserId = invited.user.id;
+
+  // Set the administrator-created initial password while the account is still
+  // awaiting email invitation acceptance. The password is never added to
+  // user metadata, database profile rows, or the invitation URL.
+  const { error: passwordError } = await admin.auth.admin.updateUserById(invitedUserId, { password });
+  if (passwordError) {
+    await rollbackOnboarding(admin, invitedUserId, estateId);
+    return json(500, {
+      error: "initial_password_setup_failed",
+      message: "The initial password could not be set. The pending invitation was rolled back; please retry.",
+    });
+  }
 
   if (role === "resident" && !requestedUnitId) {
     let targetBuildingId = buildingId;
