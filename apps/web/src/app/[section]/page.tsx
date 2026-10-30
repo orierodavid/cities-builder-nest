@@ -3,6 +3,8 @@ import PortalFrame from "@/components/PortalFrame";
 import { useParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import SettingsPage from "./SettingsPage";
+import ProfilePage from "./ProfilePage";
 
 type Estate = { id: string; name: string };
 type Membership = {
@@ -206,6 +208,8 @@ function UsersPage() {
 export default function SectionPage(){
  const params=useParams<{section:string}>();const section=Array.isArray(params.section)?params.section[0]:params.section;
  if(section==="users")return <UsersPage/>;
+ if(section==="settings")return <SettingsPage/>;
+ if(section==="profile")return <ProfilePage/>;
  if(section==="estates")return <EstatesPage/>;
  const item=config[section]||{title:"Page not found",description:"This section is not available.",columns:[],intro:"The requested section could not be found."};
  return <PortalFrame title={item.title} description={item.description}><section className="panel module-panel"><div className="module-toolbar"><div><h3>{item.title} overview</h3><p>{item.intro}</p></div></div><div className="table-wrap"><table className="data-table"><thead><tr>{item.columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody><tr><td colSpan={Math.max(item.columns.length,1)} className="empty-cell"><span className="empty-mark">▤</span><strong>No records to display</strong><small>Records will appear here after the data connection and module workflow are implemented.</small></td></tr></tbody></table></div></section></PortalFrame>;
