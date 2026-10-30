@@ -59,3 +59,19 @@ jobs:
           deno-version: v2.x
       - name: Type-check onboarding Edge Function
         run: deno check supabase/functions/onboard-account/index.ts
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package.json
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run build
