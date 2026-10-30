@@ -457,6 +457,7 @@ export default function HomeScreen() {
   const isPlatformAdmin = Boolean(profile?.globalRoles?.includes("platform_admin")) || estates.some((estate) => estate.membershipRole === "platform_admin");
   const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
   const isSecurity = selectedEstate?.membershipRole === "security";
+  const isResident = selectedEstate?.membershipRole === "resident" || (!selectedEstate && (profile?.residentUnits?.length || 0) > 0);
 
   useEffect(() => {
     if (tab === "management" && selectedEstateId && session?.access_token && (isEstateManager || isPlatformAdmin)) void loadManagementDirectory();
@@ -488,13 +489,13 @@ export default function HomeScreen() {
             <View style={styles.sidebarBottom}><Text style={styles.sidebarHint}>One platform. Many estates.</Text><Text style={styles.sidebarVersion}>RESIDENT PORTAL · PREVIEW</Text></View>
           </View>
         )}
-        <View style={styles.main}>
-          <View style={styles.topbar}>
-            <View style={styles.brandRow}>{(!session || !wide) && <View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View>}<View><Text style={styles.brandName}>Cities Builder Nest</Text><Text style={styles.brandCaption}>{session ? "YOUR COMMUNITY, CONNECTED" : "ONE PLATFORM · MANY ESTATES"}</Text></View></View>
-            {session && <View style={styles.avatar}><Text style={styles.avatarText}>{firstName.slice(0,1).toUpperCase()}</Text></View>}
+        <View style={[styles.main, isResident && !wide && tab === "home" && styles.residentMain]}>
+          <View style={[styles.topbar, isResident && !wide && tab === "home" && styles.residentTopbar]}>
+            <View style={styles.brandRow}>{(!session || !wide) && <View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View>}<View><Text style={[styles.brandName, isResident && !wide && tab === "home" && styles.residentBrandName]}>CB NEST</Text><Text style={[styles.brandCaption, isResident && !wide && tab === "home" && styles.residentBrandCaption]}>{session ? "BUILDING YOUR FUTURE" : "ONE PLATFORM · MANY ESTATES"}</Text></View></View>
+            {session && <View style={[styles.avatar, isResident && !wide && tab === "home" && styles.residentAvatar]}><Text style={styles.avatarText}>{firstName.slice(0,1).toUpperCase()}</Text></View>}
           </View>
 
-          <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide]} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide, isResident && !wide && tab === "home" && styles.residentContent]} keyboardShouldPersistTaps="handled">
             {restoring ? (
               <View style={styles.loadingPage}><ActivityIndicator size="large" color={green}/><Text style={styles.bodyText}>Getting your space ready…</Text></View>
             ) : !session ? (
@@ -524,6 +525,45 @@ export default function HomeScreen() {
               </View>
             ) : (
               <>
+                {isResident && !wide && tab === "home" ? (
+                  <View style={styles.residentHome}>
+                    <View style={styles.residentGreeting}>
+                      <Text style={styles.residentEyebrow}>WELCOME HOME</Text>
+                      <Text style={styles.residentGreetingTitle}>Hello, {profile?.profile?.full_name || firstName}</Text>
+                      <Text style={styles.residentMuted}>{profile?.residentUnits?.[0]?.units?.buildings?.name ? profile.residentUnits[0].units.buildings.name + " · " : ""}{profile?.residentUnits?.[0]?.units?.unit_code ? "Unit " + profile.residentUnits[0].units.unit_code : selectedEstate?.name || "Your resident account"}</Text>
+                    </View>
+                    <View style={styles.residentWelcomeCard}>
+                      <View style={styles.residentWelcomeIcon}><Ionicons name="home" size={35} color="#D4A84B"/></View>
+                      <Text style={styles.residentEyebrow}>YOUR COMMUNITY</Text>
+                      <Text style={styles.residentWelcomeTitle}>Welcome to CB Nest</Text>
+                      <Text style={styles.residentMuted}>{selectedEstate?.name || "Your estate"}{location ? " · " + location : ""}</Text>
+                      <Text style={styles.residentWelcomeCopy}>A safer, smarter and more connected community.</Text>
+                      <View style={styles.residentStatusPill}><View style={[styles.residentStatusDot, selectedEstate?.is_enabled === false && {backgroundColor:"#E05252"}]}/><Text style={styles.residentStatusText}>{selectedEstate?.is_enabled === false ? "ESTATE UNAVAILABLE" : selectedEstate ? "COMMUNITY CONNECTED" : "AWAITING ESTATE"}</Text></View>
+                    </View>
+                    <View style={styles.residentSectionHeading}><Text style={styles.residentSectionTitle}>YOUR SERVICES</Text></View>
+                    <View style={styles.residentShortcutGrid}>
+                      {([
+                        ["home-outline","My Property","profile",true],
+                        ["people-outline","Visitor Management","management",true],
+                        ["qr-code-outline","Generate Access Code","management",true],
+                        ["calendar-outline","Events","",false],
+                        ["receipt-outline","Service Charges","",false],
+                        ["card-outline","Make Payment","",false],
+                        ["time-outline","Payment History","",false],
+                        ["construct-outline","Maintenance Requests","maintenance",true],
+                        ["megaphone-outline","Announcements","community",true],
+                      ] as const).map(([icon,label,destination,enabled]) => (
+                        <TouchableOpacity key={label} accessibilityRole="button" accessibilityState={{disabled:!enabled}} disabled={!enabled} onPress={() => destination && setTab(destination)} style={[styles.residentShortcut,!enabled && styles.residentShortcutDisabled]}>
+                          <View style={styles.residentShortcutIcon}><Ionicons name={icon} size={23} color="#D4A84B"/></View>
+                          <Text style={styles.residentShortcutLabel}>{label}</Text>
+                          {!enabled && <Text style={styles.residentComingSoon}>COMING SOON</Text>}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    {!!estatesError && <View style={styles.residentErrorCard}><Text style={styles.residentShortcutLabel}>Estate connection issue</Text><Text style={styles.residentMuted}>{estatesError}</Text><TouchableOpacity onPress={() => void loadEstates(session.access_token)}><Text style={styles.residentRetry}>RETRY CONNECTION</Text></TouchableOpacity></View>}
+                  </View>
+                ) : (
+                  <>
                 <View style={styles.greetingRow}><View><Text style={styles.greetingEyebrow}>YOUR RESIDENT DASHBOARD</Text><Text style={styles.greetingTitle}>Good to see you, {firstName}.</Text><Text style={styles.greetingSub}>Here’s what’s happening in your community.</Text></View><View style={styles.datePill}><Ionicons name="shield-checkmark-outline" size={14} color={green}/><Text style={styles.datePillText}> RESIDENT SPACE</Text></View></View>
                 <View style={styles.heroCard}><View style={styles.heroGlow}/><View style={styles.heroCopy}><Text style={styles.heroEyebrow}>YOUR PLACE. YOUR PEOPLE.</Text><Text style={styles.heroTitle}>{selectedEstate?.name || "Your community awaits"}</Text><Text style={styles.heroSubtitle}>{location || (selectedEstate ? selectedEstate.address || "Your selected estate" : "Select an estate to see your community dashboard.")}</Text><View style={styles.heroStatus}><View style={[styles.liveDot, selectedEstate?.is_enabled === false && { backgroundColor: "#E05252" }]}/><Text style={styles.heroStatusText}>{selectedEstate?.is_enabled === false ? "SUBSCRIPTION INACTIVE" : selectedEstate ? "COMMUNITY SELECTED" : "READY TO CONNECT"}</Text></View></View><View style={styles.heroSymbol}><Ionicons name="business-outline" size={38} color={gold}/></View></View><View>{selectedEstate?.is_enabled === false && <View style={styles.warningBanner}><Text style={styles.warningBannerTitle}>Estate temporarily unavailable</Text><Text style={styles.warningBannerText}>{selectedEstate.disabled_reason || "The estate subscription is inactive. Please contact your estate administrator."}</Text></View>}</View>
                 {tab === "home" && <>
@@ -547,8 +587,11 @@ export default function HomeScreen() {
                 {visitorPassesLoading ? <View style={styles.inlineLoading}><ActivityIndicator color={green}/><Text style={styles.bodyText}>Loading your visitor passes…</Text></View> : visitorPasses.length === 0 ? <View style={styles.simpleCard}><Text style={styles.simpleCardTitle}>No visitor passes yet</Text><Text style={styles.bodyText}>Passes you create will appear here.</Text></View> : visitorPasses.map((pass) => <View key={pass.id} style={styles.directoryItem}><View style={styles.directoryCopy}><Text style={styles.estateCardName}>{pass.visitor_name}</Text><Text style={styles.estateCardPlace}>Valid until {new Date(pass.valid_until).toLocaleString()}</Text><Text style={styles.helperText}>Created {new Date(pass.created_at).toLocaleDateString()} · {pass.status.replace(/_/g," ")}</Text>{!!pass.visitor_phone && <Text style={styles.helperText}>{pass.visitor_phone}</Text>}</View><View style={[styles.profilePill,{marginTop:0}]}><Text style={styles.profilePillText}>{new Date(pass.valid_until).getTime() <= Date.now() ? "EXPIRED" : pass.status.toUpperCase()}</Text></View></View>)}
               </>}
               </View>}
+                {isResident && !wide && tab === "home" ? null : null}
                 {tab === "profile" && <View style={styles.panel}><SectionTitle title="Your profile" subtitle="Your account and sign-in details."/><View style={styles.profileHero}><View style={styles.profileAvatar}><Text style={styles.profileAvatarText}>{firstName.slice(0,1).toUpperCase()}</Text></View><Text style={styles.profileName}>{profile?.profile?.full_name || firstName}</Text><Text style={styles.bodyText}>{session.user.email}</Text><View style={styles.profilePill}><Text style={styles.profilePillText}>{profile?.profile?.is_active ? "ACTIVE ACCOUNT" : "SIGNED IN"}</Text></View></View>{(profile?.estateMemberships || []).map((membership) => <View key={membership.id} style={styles.contentCard}><Text style={styles.announcementTitle}>{membership.membership_role.replace(/_/g," ").replace(/\b\w/g,(letter) => letter.toUpperCase())}</Text><Text style={styles.bodyText}>{membership.estates?.name || "Assigned estate"}</Text><Text style={styles.helperText}>{[membership.estates?.address,membership.estates?.city,membership.estates?.state].filter(Boolean).join(", ")}</Text><Text style={styles.profilePillText}>{membership.status.toUpperCase()} MEMBERSHIP</Text></View>)}{(profile?.residentUnits || []).map((assignment) => <View key={assignment.unit_id} style={styles.contentCard}><Text style={styles.announcementTitle}>Resident apartment</Text><Text style={styles.bodyText}>{assignment.units?.buildings?.estates?.name || "Estate"} · {assignment.units?.buildings?.name || "Building"} · {assignment.units?.unit_code || "Unit"}</Text><Text style={styles.helperText}>{assignment.units?.unit_type || "Residential unit"}</Text></View>)}{!!profile?.error && <Text style={styles.errorMessage}>{profile.error}</Text>}<Button title="Refresh profile" secondary onPress={() => void loadProfile(session.access_token)}/><Button title={busy ? "Signing out…" : "Sign out"} onPress={() => void signOut()} disabled={busy}/></View>}
                 <View style={styles.footer}><Text style={styles.footerBrand}>CITIES BUILDER NEST</Text><Text style={styles.footerText}>One platform · Many estates</Text></View>
+                  </>
+                )}
               </>
             )}
           </ScrollView>
@@ -560,6 +603,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  residentMain:{backgroundColor:"#080808"},residentTopbar:{backgroundColor:"#080808",paddingTop:18,paddingBottom:12},residentBrandName:{color:"#FFFFFF",fontSize:19,letterSpacing:.2},residentBrandCaption:{color:"#D4A84B",letterSpacing:1.1},residentAvatar:{backgroundColor:"#D4A84B",borderWidth:2,borderColor:"#F1D28A"},residentContent:{backgroundColor:"#080808",paddingHorizontal:16,paddingTop:18,paddingBottom:28,gap:18},residentHome:{gap:17},residentGreeting:{gap:5},residentEyebrow:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1.7},residentGreetingTitle:{fontSize:25,lineHeight:32,color:"#FFFFFF",fontWeight:"900",letterSpacing:-.5},residentMuted:{fontSize:12,lineHeight:18,color:"#B9B9B9"},residentWelcomeCard:{backgroundColor:"#171717",borderRadius:20,borderWidth:1,borderColor:"#3A3020",padding:17,gap:8,overflow:"hidden"},residentWelcomeIcon:{width:62,height:62,borderRadius:18,backgroundColor:"#282116",borderWidth:1,borderColor:"#5A4828",alignItems:"center",justifyContent:"center",marginBottom:5},residentWelcomeTitle:{fontSize:23,lineHeight:28,color:"#FFFFFF",fontWeight:"900"},residentWelcomeCopy:{fontSize:13,lineHeight:20,color:"#E2E2E2"},residentStatusPill:{alignSelf:"flex-start",flexDirection:"row",alignItems:"center",gap:7,backgroundColor:"#2A241A",borderRadius:20,paddingHorizontal:11,paddingVertical:8,marginTop:5},residentStatusDot:{width:7,height:7,borderRadius:4,backgroundColor:"#D4A84B"},residentStatusText:{fontSize:9,color:"#F5D58D",fontWeight:"900",letterSpacing:1},residentSectionHeading:{marginTop:2},residentSectionTitle:{fontSize:12,color:"#D4A84B",fontWeight:"900",letterSpacing:1.8},residentShortcutGrid:{flexDirection:"row",flexWrap:"wrap",gap:10},residentShortcut:{width:"31.5%",minHeight:112,flexGrow:1,flexBasis:"29%",backgroundColor:"#171717",borderWidth:1,borderColor:"#38332A",borderRadius:15,padding:10,alignItems:"center",justifyContent:"center",gap:8},residentShortcutDisabled:{opacity:.55},residentShortcutIcon:{width:43,height:43,borderRadius:14,backgroundColor:"#282116",alignItems:"center",justifyContent:"center"},residentShortcutLabel:{fontSize:10,color:"#FFFFFF",fontWeight:"800",textAlign:"center",lineHeight:14},residentComingSoon:{fontSize:7,color:"#D4A84B",fontWeight:"900",letterSpacing:.5},residentErrorCard:{padding:14,backgroundColor:"#241919",borderWidth:1,borderColor:"#633333",borderRadius:14,gap:7},residentRetry:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1,marginTop:4},
   root:{flex:1,backgroundColor:"#F4F6FA"},appFrame:{flex:1,width:"100%",alignSelf:"center",maxWidth:480,flexDirection:"row"},appFrameWide:{padding:0,gap:0},
   sidebar:{width:238,backgroundColor:"#071A3A",borderRadius:24,padding:20,justifyContent:"flex-start"},main:{flex:1,minWidth:0,backgroundColor:"#FFFFFF",overflow:"hidden"},
   topbar:{minHeight:76,paddingHorizontal:20,paddingVertical:14,backgroundColor:"#FFFFFF",borderBottomWidth:0,borderBottomColor:"#FFFFFF",flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:10},
