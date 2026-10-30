@@ -18,6 +18,7 @@ type Unit = { id: string; unit_code: string; unit_type: string | null; status: s
 type Resident = { id: string; full_name: string | null; phone_e164?: string | null };
 type VisitorPass = { id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string; created_at: string };
 type EstateEvent = { id: string; title: string; description: string; venue: string; starts_at: string; ends_at: string; status: "draft" | "published" | "cancelled" };
+type EventGuest = { id: string; guest_name: string; email: string | null; phone: string | null; notes: string; created_at: string };
 type GateVisitorLookup = { visitor: { name: string; phone: string | null }; host: { name: string | null }; pass: { id: string; validFrom: string; validUntil: string; status: string }; availabilityError: string | null };
 type DirectoryResponse<T> = { buildings?: T[]; units?: T[]; residents?: T[]; error?: string; message?: string };
 
@@ -99,7 +100,7 @@ export default function HomeScreen() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
-  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management">("home");
+  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "guests">("home");
   const [eventTitle, setEventTitle] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [eventVenue, setEventVenue] = useState("");
@@ -110,6 +111,15 @@ export default function HomeScreen() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventBusy, setEventBusy] = useState(false);
   const [eventMessage, setEventMessage] = useState("");
+  const [guestEvent, setGuestEvent] = useState<EstateEvent | null>(null);
+  const [eventGuests, setEventGuests] = useState<EventGuest[]>([]);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [guestNotes, setGuestNotes] = useState("");
+  const [guestLoading, setGuestLoading] = useState(false);
+  const [guestBusy, setGuestBusy] = useState(false);
+  const [guestMessage, setGuestMessage] = useState("");
 
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
@@ -397,8 +407,7 @@ export default function HomeScreen() {
     const result = await response.json() as {error?:string;accessCode?:string;visits?:typeof gateVisits;visit?:{id:string};visitorPasses?:VisitorPass[];visitorPass?:VisitorPass};
     if (!response.ok) throw new Error(visitorApiErrorMessage(result.error));
     return result;
-  }
-  async function createVisitorPass() {
+  }  async function createVisitorPass() {
     setManagementBusy(true); setManagementMessage(""); setIssuedVisitorCode("");
     try {
       const result = await visitorRequest("/visitor-passes", "POST", { visitorName: visitorName.trim() });
@@ -501,6 +510,47 @@ export default function HomeScreen() {
     finally { setEventBusy(false); }
   }
 
+  async function loadEventGuests(eventId: string) {
+    if (!session?.access_token || !selectedEstateId || !apiUrl) return;
+    setGuestLoading(true); setGuestMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(eventId) + "/guests", { headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" } });
+      const result = await response.json() as { guests?: EventGuest[]; error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not load the guest list.");
+      setEventGuests(result.guests || []);
+    } catch (e) { setGuestMessage(e instanceof Error ? e.message : "Could not load the guest list."); }
+    finally { setGuestLoading(false); }
+  }
+
+  async function addEventGuest() {
+    if (!session?.access_token || !selectedEstateId || !guestEvent || !apiUrl) return;
+    if (guestName.trim().length < 2) { setGuestMessage("Enter the guest's full name."); return; }
+    setGuestBusy(true); setGuestMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(guestEvent.id) + "/guests", {
+        method: "POST", headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ guestName: guestName.trim(), email: guestEmail.trim(), phone: guestPhone.trim(), notes: guestNotes.trim() }),
+      });
+      const result = await response.json() as { guest?: EventGuest; error?: string; message?: string };
+      if (!response.ok) throw new Error(result.message || result.error || "Could not add this guest.");
+      setGuestName(""); setGuestEmail(""); setGuestPhone(""); setGuestNotes("");
+      setGuestMessage("Guest added to the list."); await loadEventGuests(guestEvent.id);
+    } catch (e) { setGuestMessage(e instanceof Error ? e.message : "Could not add this guest."); }
+    finally { setGuestBusy(false); }
+  }
+
+  async function removeEventGuest(guestId: string) {
+    if (!session?.access_token || !selectedEstateId || !guestEvent || !apiUrl) return;
+    setGuestBusy(true); setGuestMessage("");
+    try {
+      const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(guestEvent.id) + "/guests/" + encodeURIComponent(guestId), { method: "DELETE", headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" } });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not remove this guest.");
+      setGuestMessage("Guest removed from the list."); await loadEventGuests(guestEvent.id);
+    } catch (e) { setGuestMessage(e instanceof Error ? e.message : "Could not remove this guest."); }
+    finally { setGuestBusy(false); }
+  }
+
   async function submitMaintenance() {
     if (!session?.access_token || !selectedEstateId || !apiUrl) return;
     if (requestTitle.trim().length < 3 || requestDescription.trim().length < 5) {
@@ -554,7 +604,7 @@ export default function HomeScreen() {
           <View style={styles.sidebar}>
             <View style={styles.brandRow}><View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View><View><Text style={styles.brandName}>Cities Builder</Text><Text style={styles.brandCaption}>NEST COMMUNITY</Text></View></View>
             <Text style={styles.navLabel}>YOUR SPACE</Text>
-            {(isEventOrganiser ? [["home","calendar-outline","Event Details"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintenance"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Management"] as const] : []),["profile","person-circle-outline","My profile"]] as const).map(([key,icon,label]) => (
+            {(isEventOrganiser ? [["home","calendar-outline","Event Details"],["guests","people-outline","Guest List"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintenance"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Management"] as const] : []),["profile","person-circle-outline","My profile"]] as const).map(([key,icon,label]) => (
               <TouchableOpacity key={key} onPress={() => setTab(key)} style={[styles.navItem, tab === key && styles.navItemActive]}><Ionicons name={icon} size={20} color={tab === key ? "#071A3A" : "#B8C5DA"} style={styles.navIcon}/><Text style={[styles.navText,tab === key && styles.navTextActive]}>{label}</Text></TouchableOpacity>
             ))}
             <View style={styles.sidebarBottom}><Text style={styles.sidebarHint}>One platform. Many estates.</Text><Text style={styles.sidebarVersion}>RESIDENT PORTAL · PREVIEW</Text></View>
@@ -596,7 +646,25 @@ export default function HomeScreen() {
               </View>
             ) : (
               <>
-                {isEventOrganiser && tab === "home" ? (
+                {isEventOrganiser && tab === "guests" ? (
+                  <View style={styles.eventOrganiserHome}>
+                    <TouchableOpacity onPress={() => setTab("home")} style={styles.eventBack}><Text style={styles.eventRefresh}>← BACK TO EVENT DETAILS</Text></TouchableOpacity>
+                    <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text><Text style={styles.eventHeading}>Guest List</Text>
+                    <Text style={styles.eventSubheading}>{guestEvent?.title || "Select an event from Event Details to manage its guests."}</Text>
+                    {guestEvent ? <>
+                      <View style={styles.eventForm}><Text style={styles.eventSectionTitle}>ADD GUEST</Text>
+                        <Text style={styles.eventLabel}>Full name *</Text><TextInput style={styles.eventInput} value={guestName} onChangeText={setGuestName} placeholder="Guest full name" placeholderTextColor="#888" maxLength={160}/>
+                        <Text style={styles.eventLabel}>Email address (optional)</Text><TextInput style={styles.eventInput} value={guestEmail} onChangeText={setGuestEmail} placeholder="guest@example.com" placeholderTextColor="#888" keyboardType="email-address" autoCapitalize="none" maxLength={254}/>
+                        <Text style={styles.eventLabel}>Phone number (optional)</Text><TextInput style={styles.eventInput} value={guestPhone} onChangeText={setGuestPhone} placeholder="Phone number" placeholderTextColor="#888" keyboardType="phone-pad" maxLength={32}/>
+                        <Text style={styles.eventLabel}>Notes (optional)</Text><TextInput style={[styles.eventInput,styles.eventDescription]} value={guestNotes} onChangeText={setGuestNotes} placeholder="Additional guest details" placeholderTextColor="#888" multiline textAlignVertical="top" maxLength={1000}/>
+                        {!!guestMessage && <Text style={guestMessage.includes("added") || guestMessage.includes("removed") ? styles.eventSuccess : styles.eventError}>{guestMessage}</Text>}
+                        <TouchableOpacity style={[styles.eventSaveButton,guestBusy && styles.disabled]} onPress={() => void addEventGuest()} disabled={guestBusy}>{guestBusy ? <ActivityIndicator color="#17130B"/> : <Text style={styles.eventSaveText}>Add guest</Text>}</TouchableOpacity>
+                      </View>
+                      <View style={styles.eventListHeader}><Text style={styles.eventSectionTitle}>GUESTS · {eventGuests.length}</Text><TouchableOpacity onPress={() => void loadEventGuests(guestEvent.id)}><Text style={styles.eventRefresh}>REFRESH</Text></TouchableOpacity></View>
+                      {guestLoading ? <ActivityIndicator color="#D4A84B"/> : eventGuests.length ? eventGuests.map((guest) => <View key={guest.id} style={styles.eventCard}><View style={styles.guestCardTop}><Text style={styles.eventCardTitle}>{guest.guest_name}</Text><TouchableOpacity onPress={() => void removeEventGuest(guest.id)} disabled={guestBusy}><Text style={styles.guestRemove}>REMOVE</Text></TouchableOpacity></View>{!!guest.email && <Text style={styles.eventCardMeta}>{guest.email}</Text>}{!!guest.phone && <Text style={styles.eventCardMeta}>{guest.phone}</Text>}{!!guest.notes && <Text style={styles.eventCardDescription}>{guest.notes}</Text>}</View>) : <Text style={styles.eventEmpty}>No guests added to this event yet.</Text>}
+                    </> : <Text style={styles.eventEmpty}>Go to Event Details and choose an event to open its guest list.</Text>}
+                  </View>
+                ) : isEventOrganiser && tab === "home" ? (
                   <View style={styles.eventOrganiserHome}>
                     <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text>
                     <Text style={styles.eventHeading}>Event Details</Text>
@@ -622,7 +690,7 @@ export default function HomeScreen() {
                       <TouchableOpacity style={[styles.eventSaveButton,eventBusy && styles.disabled]} onPress={() => void createEstateEvent()} disabled={eventBusy}>{eventBusy ? <ActivityIndicator color="#17130B"/> : <Text style={styles.eventSaveText}>Save event details</Text>}</TouchableOpacity>
                     </View>
                     <View style={styles.eventListHeader}><Text style={styles.eventSectionTitle}>ESTATE EVENTS</Text><TouchableOpacity onPress={() => void loadEstateEvents()}><Text style={styles.eventRefresh}>REFRESH</Text></TouchableOpacity></View>
-                    {eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? estateEvents.map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue}</Text><Text style={styles.eventCardMeta}>{new Date(event.starts_at).toLocaleString()} – {new Date(event.ends_at).toLocaleString()}</Text><Text style={styles.eventCardStatus}>{event.status.toUpperCase()}</Text>{!!event.description && <Text style={styles.eventCardDescription}>{event.description}</Text>}</View>) : <Text style={styles.eventEmpty}>No events have been created for this estate yet.</Text>}
+                    {eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? estateEvents.map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue}</Text><Text style={styles.eventCardMeta}>{new Date(event.starts_at).toLocaleString()} – {new Date(event.ends_at).toLocaleString()}</Text><Text style={styles.eventCardStatus}>{event.status.toUpperCase()}</Text>{!!event.description && <Text style={styles.eventCardDescription}>{event.description}</Text>}<TouchableOpacity style={styles.guestOpenButton} onPress={() => { setGuestEvent(event); setTab("guests"); void loadEventGuests(event.id); }}><Text style={styles.guestOpenText}>MANAGE GUEST LIST →</Text></TouchableOpacity></View>) : <Text style={styles.eventEmpty}>No events have been created for this estate yet.</Text>}
                   </View>
                 ) : isResident && !wide && tab === "home" ? (
                   <View style={styles.residentHome}>
@@ -693,7 +761,7 @@ export default function HomeScreen() {
               </>
             )}
           </ScrollView>
-          {session && !wide && <View style={[styles.bottomNav, isResident && tab === "home" && styles.residentBottomNav]}>{(isEventOrganiser ? [["home","calendar-outline","Events"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintain"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Manage"] as const] : []),["profile","person-circle-outline","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Ionicons name={icon} size={22} color={isResident && tab === "home" ? (tab === key ? "#D4A84B" : "#8C8C8C") : (tab === key ? green : "#8290A5")}/><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive,isResident && tab === "home" && styles.residentBottomNavText,isResident && tab === "home" && tab === key && styles.residentBottomNavTextActive]}>{label}</Text>{tab === key && <View style={[styles.bottomNavActiveMark,isResident && tab === "home" && styles.residentBottomNavActiveMark]}/>}</TouchableOpacity>)}</View>}
+          {session && !wide && <View style={[styles.bottomNav, isResident && tab === "home" && styles.residentBottomNav]}>{(isEventOrganiser ? [["home","calendar-outline","Events"],["guests","people-outline","Guests"]] as const : [["home","home-outline","Home"],["community","business-outline","Community"],["maintenance","construct-outline","Maintain"],...(isPlatformAdmin || isEstateManager || isSecurity ? [["management","grid-outline","Manage"] as const] : []),["profile","person-circle-outline","Profile"]] as const).map(([key,icon,label]) => <TouchableOpacity key={key} onPress={() => setTab(key)} style={styles.bottomNavItem}><Ionicons name={icon} size={22} color={isResident && tab === "home" ? (tab === key ? "#D4A84B" : "#8C8C8C") : (tab === key ? green : "#8290A5")}/><Text style={[styles.bottomNavText,tab === key && styles.bottomNavTextActive,isResident && tab === "home" && styles.residentBottomNavText,isResident && tab === "home" && tab === key && styles.residentBottomNavTextActive]}>{label}</Text>{tab === key && <View style={[styles.bottomNavActiveMark,isResident && tab === "home" && styles.residentBottomNavActiveMark]}/>}</TouchableOpacity>)}</View>}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -701,7 +769,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  eventOrganiserHome:{gap:15,backgroundColor:"#080808",minHeight:500,padding:15},eventEyebrow:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1.8},eventHeading:{fontSize:27,color:"#FFFFFF",fontWeight:"900"},eventSubheading:{fontSize:12,lineHeight:19,color:"#B9B9B9"},eventForm:{backgroundColor:"#171717",borderWidth:1,borderColor:"#3A3020",borderRadius:17,padding:15,gap:5},eventSectionTitle:{fontSize:11,color:"#D4A84B",fontWeight:"900",letterSpacing:1.5},eventLabel:{fontSize:11,color:"#F1D28A",fontWeight:"800",marginTop:9},eventInput:{minHeight:47,borderWidth:1,borderColor:"#494133",borderRadius:10,paddingHorizontal:12,paddingVertical:10,color:"#FFFFFF",backgroundColor:"#101010",fontSize:13},eventDescription:{minHeight:90},eventHint:{fontSize:10,color:"#999"},eventStatusRow:{flexDirection:"row",gap:9,marginTop:5},eventStatusChip:{paddingHorizontal:15,paddingVertical:10,borderRadius:22,borderWidth:1,borderColor:"#5A4A2B"},eventStatusChipActive:{backgroundColor:"#D4A84B"},eventStatusText:{fontSize:10,color:"#D4A84B",fontWeight:"900"},eventStatusTextActive:{color:"#17130B"},eventSaveButton:{minHeight:48,backgroundColor:"#D4A84B",borderRadius:11,alignItems:"center",justifyContent:"center",marginTop:14},eventSaveText:{fontSize:13,color:"#17130B",fontWeight:"900"},eventSuccess:{fontSize:12,color:"#7DDAA2",marginTop:10},eventError:{fontSize:12,color:"#FF9292",marginTop:10},eventListHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:10},eventRefresh:{fontSize:10,color:"#D4A84B",fontWeight:"900"},eventCard:{backgroundColor:"#171717",borderWidth:1,borderColor:"#3A3020",borderRadius:14,padding:14,gap:6},eventCardTitle:{fontSize:16,color:"#FFFFFF",fontWeight:"900"},eventCardMeta:{fontSize:11,color:"#C5C5C5"},eventCardStatus:{alignSelf:"flex-start",fontSize:9,color:"#F1D28A",fontWeight:"900",letterSpacing:1,backgroundColor:"#302718",paddingHorizontal:9,paddingVertical:5,borderRadius:12},eventCardDescription:{fontSize:12,lineHeight:18,color:"#B9B9B9"},eventEmpty:{fontSize:12,color:"#B9B9B9",padding:12},
+  eventOrganiserHome:{gap:15,backgroundColor:"#080808",minHeight:500,padding:15},eventEyebrow:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1.8},eventHeading:{fontSize:27,color:"#FFFFFF",fontWeight:"900"},eventSubheading:{fontSize:12,lineHeight:19,color:"#B9B9B9"},eventForm:{backgroundColor:"#171717",borderWidth:1,borderColor:"#3A3020",borderRadius:17,padding:15,gap:5},eventSectionTitle:{fontSize:11,color:"#D4A84B",fontWeight:"900",letterSpacing:1.5},eventLabel:{fontSize:11,color:"#F1D28A",fontWeight:"800",marginTop:9},eventInput:{minHeight:47,borderWidth:1,borderColor:"#494133",borderRadius:10,paddingHorizontal:12,paddingVertical:10,color:"#FFFFFF",backgroundColor:"#101010",fontSize:13},eventDescription:{minHeight:90},eventHint:{fontSize:10,color:"#999"},eventStatusRow:{flexDirection:"row",gap:9,marginTop:5},eventStatusChip:{paddingHorizontal:15,paddingVertical:10,borderRadius:22,borderWidth:1,borderColor:"#5A4A2B"},eventStatusChipActive:{backgroundColor:"#D4A84B"},eventStatusText:{fontSize:10,color:"#D4A84B",fontWeight:"900"},eventStatusTextActive:{color:"#17130B"},eventSaveButton:{minHeight:48,backgroundColor:"#D4A84B",borderRadius:11,alignItems:"center",justifyContent:"center",marginTop:14},eventSaveText:{fontSize:13,color:"#17130B",fontWeight:"900"},eventSuccess:{fontSize:12,color:"#7DDAA2",marginTop:10},eventError:{fontSize:12,color:"#FF9292",marginTop:10},eventListHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginTop:10},eventRefresh:{fontSize:10,color:"#D4A84B",fontWeight:"900"},eventCard:{backgroundColor:"#171717",borderWidth:1,borderColor:"#3A3020",borderRadius:14,padding:14,gap:6},eventCardTitle:{fontSize:16,color:"#FFFFFF",fontWeight:"900"},eventCardMeta:{fontSize:11,color:"#C5C5C5"},eventCardStatus:{alignSelf:"flex-start",fontSize:9,color:"#F1D28A",fontWeight:"900",letterSpacing:1,backgroundColor:"#302718",paddingHorizontal:9,paddingVertical:5,borderRadius:12},eventCardDescription:{fontSize:12,lineHeight:18,color:"#B9B9B9"},eventEmpty:{fontSize:12,color:"#B9B9B9",padding:12},eventBack:{alignSelf:"flex-start",paddingVertical:5},guestCardTop:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:10},guestRemove:{fontSize:9,color:"#FF9292",fontWeight:"900",letterSpacing:.7},guestOpenButton:{alignSelf:"flex-start",marginTop:7,paddingVertical:8,paddingHorizontal:11,borderWidth:1,borderColor:"#6A552F",borderRadius:9},guestOpenText:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:.5},
     residentBottomNav:{backgroundColor:"#080808",borderTopColor:"#30291D"},residentBottomNavText:{color:"#AFAFAF"},residentBottomNavTextActive:{color:"#D4A84B"},residentBottomNavActiveMark:{backgroundColor:"#D4A84B"},residentMain:{backgroundColor:"#080808"},residentTopbar:{backgroundColor:"#080808",paddingTop:18,paddingBottom:12},residentBrandName:{color:"#FFFFFF",fontSize:19,letterSpacing:.2},residentBrandCaption:{color:"#D4A84B",letterSpacing:1.1},residentAvatar:{backgroundColor:"#D4A84B",borderWidth:2,borderColor:"#F1D28A"},residentContent:{backgroundColor:"#080808",paddingHorizontal:16,paddingTop:18,paddingBottom:28,gap:18},residentHome:{gap:17},residentGreeting:{gap:5},residentEyebrow:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1.7},residentGreetingTitle:{fontSize:25,lineHeight:32,color:"#FFFFFF",fontWeight:"900",letterSpacing:-.5},residentMuted:{fontSize:12,lineHeight:18,color:"#B9B9B9"},residentWelcomeCard:{backgroundColor:"#171717",borderRadius:20,borderWidth:1,borderColor:"#3A3020",padding:17,gap:8,overflow:"hidden"},residentWelcomeIcon:{width:62,height:62,borderRadius:18,backgroundColor:"#282116",borderWidth:1,borderColor:"#5A4828",alignItems:"center",justifyContent:"center",marginBottom:5},residentWelcomeTitle:{fontSize:23,lineHeight:28,color:"#FFFFFF",fontWeight:"900"},residentWelcomeCopy:{fontSize:13,lineHeight:20,color:"#E2E2E2"},residentStatusPill:{alignSelf:"flex-start",flexDirection:"row",alignItems:"center",gap:7,backgroundColor:"#2A241A",borderRadius:20,paddingHorizontal:11,paddingVertical:8,marginTop:5},residentStatusDot:{width:7,height:7,borderRadius:4,backgroundColor:"#D4A84B"},residentStatusText:{fontSize:9,color:"#F5D58D",fontWeight:"900",letterSpacing:1},residentSectionHeading:{marginTop:2},residentSectionTitle:{fontSize:12,color:"#D4A84B",fontWeight:"900",letterSpacing:1.8},residentShortcutGrid:{flexDirection:"row",flexWrap:"wrap",gap:10},residentShortcut:{width:"31.5%",minHeight:112,flexGrow:1,flexBasis:"29%",backgroundColor:"#171717",borderWidth:1,borderColor:"#38332A",borderRadius:15,padding:10,alignItems:"center",justifyContent:"center",gap:8},residentShortcutDisabled:{opacity:.55},residentShortcutIcon:{width:43,height:43,borderRadius:14,backgroundColor:"#282116",alignItems:"center",justifyContent:"center"},residentShortcutLabel:{fontSize:10,color:"#FFFFFF",fontWeight:"800",textAlign:"center",lineHeight:14},residentComingSoon:{fontSize:7,color:"#D4A84B",fontWeight:"900",letterSpacing:.5},residentErrorCard:{padding:14,backgroundColor:"#241919",borderWidth:1,borderColor:"#633333",borderRadius:14,gap:7},residentRetry:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1,marginTop:4},
   root:{flex:1,backgroundColor:"#F4F6FA"},appFrame:{flex:1,width:"100%",alignSelf:"center",maxWidth:480,flexDirection:"row"},appFrameWide:{padding:0,gap:0},
   sidebar:{width:238,backgroundColor:"#071A3A",borderRadius:24,padding:20,justifyContent:"flex-start"},main:{flex:1,minWidth:0,backgroundColor:"#FFFFFF",overflow:"hidden"},
