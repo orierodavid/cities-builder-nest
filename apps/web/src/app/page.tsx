@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 
 type Access = { role: "platform_admin" | "facility_manager"; name: string; email: string; estates: string[] };
-const managerNav = [["⌂","Dashboard"],["▣","Properties"],["♙","Residents"],["⌕","Visitor Management"],["▦","Events"],["▤","Service Charges"],["▣","Payments"],["⚒","Maintenance"],["⌂","Facility Management"],["▤","Communications"],["▥","Reports"],["⚙","Settings"]];
+const managerNav = [["⌂","Dashboard"],["▣","Properties"],["♙","Residents"],["♟","Users"],["⌕","Visitor Management"],["▦","Events"],["▤","Service Charges"],["▣","Payments"],["⚒","Maintenance"],["⌂","Facility Management"],["▤","Communications"],["▥","Reports"],["⚙","Settings"]];
 const adminNav = [["⌂","Dashboard"],["▦","Estates"],["♙","Users"],["⌂","Properties"],["▤","Subscriptions"],["▣","Payments"],["▥","Analytics"],["?","Support"],["☷","System Logs"],["⚙","Settings"]];
 const metrics = [
  ["⌂","TOTAL PROPERTIES"],["♙","REGISTERED RESIDENTS"],["♟","TODAY'S VISITORS"],["▦","EVENTS"],
