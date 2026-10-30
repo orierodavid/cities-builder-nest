@@ -597,7 +597,7 @@ export default function HomeScreen() {
               </View>
             ) : (
               <>
-                {isEventOrganiser && !wide && tab === "home" ? (
+                {isEventOrganiser && tab === "home" ? (
                   <View style={styles.eventOrganiserHome}>
                     <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text>
                     <Text style={styles.eventHeading}>Event Details</Text>
