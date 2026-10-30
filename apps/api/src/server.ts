@@ -839,6 +839,65 @@ app.get("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =>
   res.status(200).json({ visitorPasses: data ?? [] });
 });
 
+app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
+    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id).maybeSingle();
+  if (!canUseGateWorkflow(membership, estateId)) { res.status(403).json({ error: "security_membership_required" }); return; }
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
+  const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
+  if (!isValidVisitorAccessCode(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
+  const hash = createHash("sha256").update(accessCode).digest("hex");
+  const { data: pass, error } = await authenticated.userSupabase.from("visitor_passes")
+    .select("id, host_user_id, visitor_name, visitor_phone, valid_from, valid_until, status")
+    .eq("estate_id", estateId).eq("access_code_hash", hash).maybeSingle();
+  if (error || !pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
+  let hostName: string | null = null;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceKey && process.env.SUPABASE_URL) {
+    const admin = createClient(process.env.SUPABASE_URL, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { data: host } = await admin.from("users").select("full_name").eq("id", pass.host_user_id).maybeSingle();
+    hostName = host?.full_name ?? null;
+  }
+  res.status(200).json({ visitor: { name: pass.visitor_name, phone: pass.visitor_phone }, host: { name: hostName }, pass: { id: pass.id, validFrom: pass.valid_from, validUntil: pass.valid_until, status: pass.status }, availabilityError: visitorPassAvailabilityError(pass) });
+});
+
+app.post("/v1/estates/:estateId/gate/visitor-passes/:passId/deny", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const passId = Array.isArray(req.params.passId) ? req.params.passId[0] : req.params.passId;
+  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
+    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id).maybeSingle();
+  if (!canUseGateWorkflow(membership, estateId)) { res.status(403).json({ error: "security_membership_required" }); return; }
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  if (reason.length > 500) { res.status(400).json({ error: "invalid_denial_reason" }); return; }
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey || !process.env.SUPABASE_URL) { res.status(503).json({ error: "visitor_decision_service_not_configured" }); return; }
+  const admin = createClient(process.env.SUPABASE_URL, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const now = new Date().toISOString();
+  const { data: pass, error: passError } = await admin.from("visitor_passes").update({ status: "revoked" })
+    .eq("id", passId).eq("estate_id", estateId).eq("status", "active")
+    .lte("valid_from", now).gt("valid_until", now)
+    .select("id, status").maybeSingle();
+  if (passError || !pass) { res.status(409).json({ error: "visitor_pass_not_active" }); return; }
+  const { error: auditError } = await admin.from("visitor_pass_denials").insert({
+    estate_id: estateId, visitor_pass_id: passId, denied_by: authenticated.authUser.id,
+    reason: reason || null,
+  });
+  if (auditError) {
+    // Do not leave a denied pass without its audit record.
+    await admin.from("visitor_passes").update({ status: "active" }).eq("id", passId).eq("estate_id", estateId).eq("status", "revoked");
+    res.status(500).json({ error: "visitor_denial_audit_failed" }); return;
+  }
+  res.status(200).json({ pass });
+});
+
 app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
