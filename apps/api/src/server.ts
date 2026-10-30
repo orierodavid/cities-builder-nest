@@ -1050,6 +1050,55 @@ app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res)
   res.status(200).json({ event: data });
 });
 
+app.get("/v1/estates/:estateId/events/:eventId/guests", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const { data, error } = await authenticated.userSupabase.from("estate_event_guests")
+    .select("id, estate_id, event_id, guest_name, email, phone, notes, created_at, updated_at")
+    .eq("estate_id", estateId).eq("event_id", eventId).order("created_at", { ascending: true });
+  if (error) { res.status(403).json({ error: "event_guest_list_load_failed" }); return; }
+  res.status(200).json({ guests: data ?? [] });
+});
+
+app.post("/v1/estates/:estateId/events/:eventId/guests", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const guestName = typeof req.body?.guestName === "string" ? req.body.guestName.trim() : "";
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const phone = typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
+  const notes = typeof req.body?.notes === "string" ? req.body.notes.trim() : "";
+  if (guestName.length < 2 || guestName.length > 160 || email.length > 254 ||
+      (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
+      phone.length > 32 || notes.length > 1000) {
+    res.status(400).json({ error: "invalid_event_guest", message: "Enter a guest name and valid optional contact details." }); return;
+  }
+  const { data: event, error: eventError } = await authenticated.userSupabase.from("estate_events")
+    .select("id").eq("estate_id", estateId).eq("id", eventId).maybeSingle();
+  if (eventError || !event) { res.status(404).json({ error: "estate_event_not_found" }); return; }
+  const { data, error } = await authenticated.userSupabase.from("estate_event_guests")
+    .insert({ estate_id: estateId, event_id: eventId, guest_name: guestName, email: email || null, phone: phone || null, notes, created_by: authenticated.authUser.id })
+    .select("id, estate_id, event_id, guest_name, email, phone, notes, created_at, updated_at").single();
+  if (error || !data) { res.status(400).json({ error: "event_guest_add_failed" }); return; }
+  res.status(201).json({ guest: data });
+});
+
+app.delete("/v1/estates/:estateId/events/:eventId/guests/:guestId", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const guestId = Array.isArray(req.params.guestId) ? req.params.guestId[0] : req.params.guestId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const { data, error } = await authenticated.userSupabase.from("estate_event_guests")
+    .delete().eq("estate_id", estateId).eq("event_id", eventId).eq("id", guestId)
+    .select("id").maybeSingle();
+  if (error || !data) { res.status(404).json({ error: "event_guest_not_found_or_remove_failed" }); return; }
+  res.status(200).json({ removed: true, guestId: data.id });
+});
+
 app.get("/v1/me", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   try {
