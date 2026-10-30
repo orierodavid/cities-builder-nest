@@ -36,6 +36,78 @@ const config:Record<string,{title:string;description:string;columns:string[];int
  reports:{title:"Reports",description:"Review estate operations and performance reports.",columns:["Report","Period","Generated","Owner","Status"],intro:"Reports will appear when verified reporting data is connected."}
 };
 
+
+type EstateRecord = { id:string; name:string; address:string; city:string; state:string; country_code:string; is_enabled:boolean; created_at:string };
+
+function EstatesPage() {
+ const [rows,setRows]=useState<EstateRecord[]>([]);
+ const [loading,setLoading]=useState(true);
+ const [saving,setSaving]=useState(false);
+ const [showForm,setShowForm]=useState(false);
+ const [error,setError]=useState("");
+ const [success,setSuccess]=useState("");
+ const [name,setName]=useState("");
+ const [address,setAddress]=useState("");
+ const [city,setCity]=useState("");
+ const [state,setState]=useState("");
+ const [country,setCountry]=useState("NG");
+
+ const load=useCallback(async()=>{
+  setLoading(true);setError("");
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user){setError("Your session has expired. Sign in again.");setLoading(false);return;}
+  const {data:roles,error:roleError}=await supabase.from("user_roles").select("role").eq("user_id",user.id);
+  if(roleError||!(roles||[]).some((r:{role:string})=>r.role==="platform_admin")){
+   setError("Only Super Administrators can create and manage estates.");setLoading(false);return;
+  }
+  const {data,error:queryError}=await supabase.from("estates").select("id,name,address,city,state,country_code,is_enabled,created_at").order("created_at",{ascending:false});
+  if(queryError)setError("Unable to load estates. Check your platform permissions.");
+  else setRows((data||[]) as EstateRecord[]);
+  setLoading(false);
+ },[]);
+ useEffect(()=>{void load();},[load]);
+
+ async function createEstate(e:FormEvent){
+  e.preventDefault();setSaving(true);setError("");setSuccess("");
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user){setError("Your session has expired. Sign in again.");setSaving(false);return;}
+  const {data:roles,error:roleError}=await supabase.from("user_roles").select("role").eq("user_id",user.id);
+  if(roleError||!(roles||[]).some((r:{role:string})=>r.role==="platform_admin")){
+   setError("Your account is not authorized to create estates.");setSaving(false);return;
+  }
+  const {data,error:insertError}=await supabase.from("estates").insert({
+   name:name.trim(),address:address.trim(),city:city.trim(),state:state.trim(),country_code:country.trim().toUpperCase(),is_enabled:true
+  }).select("id,name,address,city,state,country_code,is_enabled,created_at").single();
+  if(insertError){setError(insertError.message.includes("duplicate")?"An estate with these details may already exist. Please check the estate list.":"Estate could not be created. "+insertError.message);setSaving(false);return;}
+  setRows(current=>[insertedEstate(data),...current]);
+  setSuccess("Estate created successfully. You can now open User Management and assign its Facility Manager.");
+  setName("");setAddress("");setCity("");setState("");setCountry("NG");setShowForm(false);setSaving(false);
+ }
+ return <PortalFrame title="Estates" description="Create and manage estates across the CB Nest platform.">
+  <section className="panel module-panel">
+   <div className="module-toolbar"><div><h3>Estate directory</h3><p>Create an estate first, then assign its Facility Manager from User Management.</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");}}>{showForm?"Close":"＋ Create estate"}</button></div>
+   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
+   {success&&<div className="user-alert user-alert-success" role="status">{success}<div style={{marginTop:8}}><a href="/users" style={{color:"inherit",fontWeight:700,textDecoration:"underline"}}>Continue to User Management →</a></div></div>}
+   {showForm&&<form className="user-form" onSubmit={createEstate}>
+    <div className="user-form-heading"><strong>New estate details</strong><span>Enter the estate's official name and location. It will be enabled immediately.</span></div>
+    <div className="user-form-grid">
+     <label>Estate name<input required minLength={2} maxLength={160} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Cities Builders Estate"/></label>
+     <label>Street address<input required minLength={3} maxLength={240} value={address} onChange={e=>setAddress(e.target.value)} placeholder="Estate street address"/></label>
+     <label>City<input required maxLength={120} value={city} onChange={e=>setCity(e.target.value)} placeholder="City"/></label>
+     <label>State<input required maxLength={120} value={state} onChange={e=>setState(e.target.value)} placeholder="State"/></label>
+     <label>Country code<input required minLength={2} maxLength={2} pattern="[A-Za-z]{2}" value={country} onChange={e=>setCountry(e.target.value.toUpperCase())} placeholder="NG"/></label>
+    </div>
+    <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving}>{saving?"Creating estate…":"Create estate"}</button></div>
+   </form>}
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Address</th><th>City</th><th>State</th><th>Status</th><th>Created</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={6} className="empty-cell">Loading estates…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.address}</td><td>{x.city}</td><td>{x.state}</td><td><span className={"status-pill "+(x.is_enabled?"status-active":"status-suspended")}>{x.is_enabled?"Enabled":"Disabled"}</span></td><td>{new Date(x.created_at).toLocaleDateString()}</td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">▦</span><strong>No estates created yet</strong><small>Create your first estate, then add its Facility Manager under User Management.</small></td></tr>}
+   </tbody></table></div>
+  </section>
+ </PortalFrame>;
+}
+
+function insertedEstate(value:EstateRecord):EstateRecord{return value;}
+
 function UsersPage() {
  const [estates,setEstates]=useState<Estate[]>([]);
  const [memberships,setMemberships]=useState<Membership[]>([]);
@@ -133,7 +205,7 @@ function UsersPage() {
 
 export default function SectionPage(){
  const params=useParams<{section:string}>();const section=Array.isArray(params.section)?params.section[0]:params.section;
- if(section==="users")return <UsersPage/>;
+ if(section==="users")return <UsersPage/>;\n if(section==="estates")return <EstatesPage/>;
  const item=config[section]||{title:"Page not found",description:"This section is not available.",columns:[],intro:"The requested section could not be found."};
  return <PortalFrame title={item.title} description={item.description}><section className="panel module-panel"><div className="module-toolbar"><div><h3>{item.title} overview</h3><p>{item.intro}</p></div></div><div className="table-wrap"><table className="data-table"><thead><tr>{item.columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody><tr><td colSpan={Math.max(item.columns.length,1)} className="empty-cell"><span className="empty-mark">▤</span><strong>No records to display</strong><small>Records will appear here after the data connection and module workflow are implemented.</small></td></tr></tbody></table></div></section></PortalFrame>;
 }
