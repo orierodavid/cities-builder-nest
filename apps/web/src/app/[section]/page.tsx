@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import SettingsPage from "./SettingsPage";
 import ProfilePage from "./ProfilePage";
+import ServiceChargesPage from "./ServiceChargesPage";
 
 type Estate = { id: string; name: string };
 type Membership = {
@@ -211,6 +212,7 @@ export default function SectionPage(){
  if(section==="settings")return <SettingsPage/>;
  if(section==="profile")return <ProfilePage/>;
  if(section==="estates")return <EstatesPage/>;
+  if(section==="service-charges")return <ServiceChargesPage/>;
  const item=config[section]||{title:"Page not found",description:"This section is not available.",columns:[],intro:"The requested section could not be found."};
  return <PortalFrame title={item.title} description={item.description}><section className="panel module-panel"><div className="module-toolbar"><div><h3>{item.title} overview</h3><p>{item.intro}</p></div></div><div className="table-wrap"><table className="data-table"><thead><tr>{item.columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody><tr><td colSpan={Math.max(item.columns.length,1)} className="empty-cell"><span className="empty-mark">▤</span><strong>No records to display</strong><small>Records will appear here after the data connection and module workflow are implemented.</small></td></tr></tbody></table></div></section></PortalFrame>;
 }
