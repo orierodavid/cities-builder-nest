@@ -765,7 +765,7 @@ export default function HomeScreen() {
               <>
                 {isResident && tab === "savings" ? (
                   <RentSavings residentUserId={session.user.id} estateId={selectedEstateId} onBack={() => setTab("home")} />
-                ) : isEventOrganiser && tab === "guests" ? (
+                ) : isResident && tab === "utilities" ? (\n                  <View style={styles.panel}><TouchableOpacity onPress={() => setTab("home")} style={styles.eventBack}><Text style={styles.eventRefresh}>← BACK TO HOME</Text></TouchableOpacity><ResidentUtilities estateId={selectedEstateId || ""} /></View>\n                ) : isEventOrganiser && tab === "guests" ? (
                   <View style={styles.eventOrganiserHome}>
                     <TouchableOpacity onPress={() => setTab("home")} style={styles.eventBack}><Text style={styles.eventRefresh}>← BACK TO EVENT DETAILS</Text></TouchableOpacity>
                     <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text><Text style={styles.eventHeading}>Guest List</Text>
