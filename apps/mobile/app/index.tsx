@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "../lib/supabase";
+import RentSavings from "../components/RentSavings";
 
 type Estate = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; country_code?: string | null; is_enabled?: boolean; disabled_reason?: string | null; membershipRole: string | null };
 type ProfileResponse = { profile?: { id: string; full_name: string | null; is_active: boolean } | null; globalRoles?: string[]; estateMemberships?: { id: string; estate_id: string; membership_role: string; status: string; estates?: { name?: string; address?: string; city?: string; state?: string } | null }[]; residentUnits?: { unit_id: string; units?: { unit_code?: string; unit_type?: string | null; buildings?: { name?: string; estate_id?: string; estates?: { name?: string } | null } | null } | null }[]; profilePending?: boolean; error?: string };
@@ -103,7 +104,7 @@ export default function HomeScreen() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
-  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "guests" | "invitations" | "checkin" | "report">("home");
+  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "guests" | "invitations" | "checkin" | "report" | "savings">("home");
   const [eventTitle, setEventTitle] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [eventVenue, setEventVenue] = useState("");
@@ -761,7 +762,9 @@ export default function HomeScreen() {
               </View>
             ) : (
               <>
-                {isEventOrganiser && tab === "guests" ? (
+                {isResident && tab === "savings" ? (
+                  <RentSavings residentUserId={session.user.id} estateId={selectedEstateId} onBack={() => setTab("home")} />
+                ) : isEventOrganiser && tab === "guests" ? (
                   <View style={styles.eventOrganiserHome}>
                     <TouchableOpacity onPress={() => setTab("home")} style={styles.eventBack}><Text style={styles.eventRefresh}>← BACK TO EVENT DETAILS</Text></TouchableOpacity>
                     <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text><Text style={styles.eventHeading}>Guest List</Text>
@@ -906,7 +909,7 @@ export default function HomeScreen() {
                         ["qr-code-outline","Generate Access Code","management",true],
                         ["calendar-outline","Events","",false],
                         ["receipt-outline","Service Charges","",false],
-                        ["card-outline","Make Payment","",false],
+                        ["wallet-outline","Save for Rent","savings",true],
                         ["time-outline","Payment History","",false],
                         ["construct-outline","Maintenance Requests","maintenance",true],
                         ["megaphone-outline","Announcements","community",true],
