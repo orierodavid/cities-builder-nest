@@ -124,7 +124,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
 }
 
 const styles = StyleSheet.create({
-  page:{gap:13,paddingBottom:24},
+  page:{gap:13,padding:16,paddingBottom:28,backgroundColor:"#080808",minHeight:620,marginHorizontal:-20,marginTop:-18,marginBottom:-30},
   back:{flexDirection:"row",alignItems:"center",gap:8,alignSelf:"flex-start",paddingVertical:5},
   backText:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1},
   eyebrow:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1.8,marginTop:5},
