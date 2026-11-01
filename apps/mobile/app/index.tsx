@@ -913,7 +913,6 @@ export default function HomeScreen() {
                         ["qr-code-outline","Generate Access Code","management",true],
                         ["calendar-outline","Events","",false],
                         ["receipt-outline","Service Charges & Payments","utilities",true],
-                        ["flash-outline","Electricity Meter Recharge","utilities",true],
                         ["wallet-outline","Save for Rent","savings",true],
                         ["time-outline","Payment History","",false],
                         ["construct-outline","Maintenance Requests","maintenance",true],
