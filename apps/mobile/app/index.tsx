@@ -740,8 +740,7 @@ export default function HomeScreen() {
               <View style={[styles.authLayout,wide && styles.authLayoutWide]}>
                 <View style={[styles.welcomePanel, wide && styles.welcomePanelWide]}>
                   <View style={styles.overlinePill}><View style={styles.liveDot}/><Text style={styles.overlineText}>THE RESIDENT EXPERIENCE</Text></View>
-                  <Text style={styles.welcomeTitle}>A better way to{"
-"}feel at <Text style={styles.welcomeAccent}>home.</Text></Text>
+                  <Text style={styles.welcomeTitle}>A better way to{"\\n"}feel at <Text style={styles.welcomeAccent}>home.</Text></Text>
                   <Text style={styles.welcomeBody}>Your estate life, thoughtfully connected. Stay informed, report issues, and keep your community moving.</Text>
                   <View style={styles.welcomeFeatures}><View style={styles.welcomeFeatureRow}><Ionicons name="checkmark-circle" size={18} color={gold}/><Text style={styles.welcomeFeature}>Community updates</Text></View><View style={styles.welcomeFeatureRow}><Ionicons name="checkmark-circle" size={18} color={gold}/><Text style={styles.welcomeFeature}>Simple maintenance reporting</Text></View><View style={styles.welcomeFeatureRow}><Ionicons name="checkmark-circle" size={18} color={gold}/><Text style={styles.welcomeFeature}>One account, many estates</Text></View></View>
                   <Text style={styles.welcomeFoot}>BUILT AROUND YOUR COMMUNITY</Text>
