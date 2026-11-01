@@ -40,19 +40,19 @@ export default function ServiceChargesPage(){
   setLoading(false);
  },[estateId]);
  useEffect(()=>{void load();},[load]);
- async function create(e:FormEvent){
-  e.preventDefault();setSaving(true);setError("");setNotice("");
+ async function create(event:FormEvent){
+  event.preventDefault();setSaving(true);setError("");setNotice("");
   const {data:{user}}=await supabase.auth.getUser();
   if(!user||!estateId){setError("Choose an estate and sign in again.");setSaving(false);return;}
   const naira=Number(amount);
   if(!Number.isFinite(naira)||naira<=0||naira>100000000){setError("Enter a valid service fee in NGN.");setSaving(false);return;}
-  const {error:e}=await supabase.from("estate_service_charges").insert({estate_id:estateId,title:title.trim(),description:description.trim()||null,amount_kobo:Math.round(naira*100),due_date:dueDate||null,created_by:user.id});
-  if(e){setError("Could not save this service charge. "+e.message);setSaving(false);return;}
+  const {error:insertError}=await supabase.from("estate_service_charges").insert({estate_id:estateId,title:title.trim(),description:description.trim()||null,amount_kobo:Math.round(naira*100),due_date:dueDate||null,created_by:user.id});
+  if(insertError){setError("Could not save this service charge. "+insertError.message);setSaving(false);return;}
   setTitle("");setDescription("");setAmount("");setDueDate("");setNotice("Service charge published. Residents in this estate can now see the amount due.");await load();setSaving(false);
  }
  async function toggle(row:Charge){
-  const {error:e}=await supabase.from("estate_service_charges").update({is_active:!row.is_active,updated_at:new Date().toISOString()}).eq("id",row.id);
-  if(e)setError("Could not update this charge. "+e.message);else await load();
+  const {error:updateError}=await supabase.from("estate_service_charges").update({is_active:!row.is_active,updated_at:new Date().toISOString()}).eq("id",row.id);
+  if(updateError)setError("Could not update this charge. "+updateError.message);else await load();
  }
  return <PortalFrame title="Service Charges" description="Set estate service fees and publish the amounts residents need to pay.">
   <section className="panel module-panel">
