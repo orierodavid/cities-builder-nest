@@ -602,7 +602,7 @@ export default function HomeScreen() {
       });
       const result = await response.json() as { code?: string; error?: string; event?: { title: string; venue: string; starts_at: string }; guest?: { guest_name: string } };
       if (!response.ok || !result.code || !result.event || !result.guest) throw new Error(result.error || "Could not generate this invitation code.");
-      const message = "You\'re invited to " + result.event.title + "\\nGuest: " + result.guest.guest_name + "\\nVenue: " + result.event.venue + "\\nDate: " + new Date(result.event.starts_at).toLocaleString() + "\\nInvitation code: " + result.code + "\\nPlease present this code at the gate.";
+      const message = "You\'re invited to " + result.event.title + "\nGuest: " + result.guest.guest_name + "\nVenue: " + result.event.venue + "\nDate: " + new Date(result.event.starts_at).toLocaleString() + "\nInvitation code: " + result.code + "\nPlease present this code at the gate.";
       setGeneratedInvitation({ guestId: guest.id, code: result.code, message });
       try {
         await Clipboard.setStringAsync(message);
