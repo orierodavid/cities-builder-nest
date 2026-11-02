@@ -84,8 +84,8 @@ Deno.serve(async (req: Request) => {
   }
 
   const idempotencyKey = `cbnest-va:${authData.user.id}:${estateId}`;
-  let accountRow = existing;
-  if (!accountRow) {
+  let accountRowId: string | null = existing?.id ?? null;
+  if (!accountRowId) {
     const { data, error } = await admin.from("resident_virtual_accounts").insert({
       resident_user_id: authData.user.id,
       estate_id: estateId,
@@ -101,8 +101,9 @@ Deno.serve(async (req: Request) => {
       if (raced?.status === "pending") return reply(202, { virtualAccount: raced, pending: true });
       return reply(409, { error: "virtual_account_request_conflict" });
     }
-    accountRow = { id: data.id };
+    accountRowId = data.id;
   }
+  if (!accountRowId) return reply(500, { error: "virtual_account_request_id_missing" });
 
   try {
     const created = await provider.createDedicatedAccount({
@@ -129,7 +130,7 @@ Deno.serve(async (req: Request) => {
         failure_code: null,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", accountRow.id)
+      .eq("id", accountRowId)
       .select("id, provider, provider_account_reference, bank_name, account_number, account_name, currency, status")
       .single();
     if (saveError || !saved) throw new Error("virtual_account_persistence_failed");
@@ -137,7 +138,7 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     await admin.from("resident_virtual_accounts")
       .update({ status: "failed", failure_code: "provider_creation_failed", updated_at: new Date().toISOString() })
-      .eq("id", accountRow.id);
+      .eq("id", accountRowId);
     return reply(502, {
       error: "virtual_account_creation_failed",
       message: error instanceof Error ? error.message : "The provider could not create the account.",
