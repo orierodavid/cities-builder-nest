@@ -46,10 +46,18 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
   useEffect(() => {
     let alive = true;
     const check = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (!alive) return;
+      if (sessionError) {
+        setStatus(null);
+        setError("Your sign-in session could not be verified. Please sign in again.");
+        setSessionReady(true);
+        setChecking(false);
+        return;
+      }
       if (!sessionData.session) {
         setStatus(null);
+        setError("");
         setSessionReady(true);
         setChecking(false);
         return;
@@ -104,8 +112,8 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
       <span className="legal-eyebrow">ACTION REQUIRED</span><h1>Review and accept our legal documents</h1>
       <p>You must read and accept the current Terms and Conditions and Privacy Policy before continuing to the management portal.</p>
       <div className="legal-documents">{status.documents.map((document) => <article className="legal-document" key={document.id}>
-        <div className="legal-document-heading"><div><h2>{document.title}</h2><small>Version {document.version}</small></div><a href="#legal-content">Read below</a></div>
-        <pre id="legal-content">{document.content}</pre>
+        <div className="legal-document-heading"><div><h2>{document.title}</h2><small>Version {document.version}</small></div><a href={"#legal-content-" + document.id}>Read below</a></div>
+        <pre id={"legal-content-" + document.id}>{document.content}</pre>
         <label className="legal-check"><input type="checkbox" checked={checked.includes(document.id)} onChange={(event) => setChecked((current) => event.target.checked ? [...current, document.id] : current.filter((id) => id !== document.id))}/><span>I have read and agree to the {document.documentType === "terms" ? "Terms and Conditions" : "Privacy Policy"}.</span></label>
       </article>)}</div>
       {error && <p className="legal-error">{error}</p>}
