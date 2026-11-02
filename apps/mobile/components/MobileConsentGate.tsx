@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, AppState, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { supabase } from "../lib/supabase";
 import LegalConsentScreen, { type MobileLegalDocument } from "./LegalConsentScreen";
 
@@ -56,7 +56,10 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
     const { data: authListener } = supabase.auth.onAuthStateChange(() => {
       setTimeout(() => { if (alive) void check(); }, 0);
     });
-    return () => { alive = false; authListener.subscription.unsubscribe(); };
+    const appStateListener = AppState.addEventListener("change", (state) => {
+      if (state === "active" && alive) void check();
+    });
+    return () => { alive = false; authListener.subscription.unsubscribe(); appStateListener.remove(); };
   }, []);
 
   if (!sessionChecked || checking) return <View style={styles.center}><ActivityIndicator size="large" color="#D4A84B"/><Text style={styles.copy}>Verifying your account…</Text></View>;
