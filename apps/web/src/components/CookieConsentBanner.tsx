@@ -18,6 +18,7 @@ function readPreferences(): Preferences | null {
 
 export default function CookieConsentBanner() {
   const [visible, setVisible] = useState(false);
+  const [hasChoice, setHasChoice] = useState(false);
   const [manage, setManage] = useState(false);
   const [analytics, setAnalytics] = useState(false);
   const [marketing, setMarketing] = useState(false);
@@ -27,6 +28,7 @@ export default function CookieConsentBanner() {
     if (saved) {
       setAnalytics(saved.analytics);
       setMarketing(saved.marketing);
+      setHasChoice(true);
     } else setVisible(true);
 
     const syncForSignedInUser = async () => {
@@ -67,9 +69,11 @@ export default function CookieConsentBanner() {
     setAnalytics(next.analytics);
     setMarketing(next.marketing);
     setVisible(false);
+    setHasChoice(true);
     setManage(false);
   }
 
+  if (!visible && hasChoice) return <button className="cookie-settings-trigger" onClick={() => { setManage(true); setVisible(true); }}>Cookie preferences</button>;
   if (!visible) return null;
   return <aside className="cookie-banner" aria-label="Cookie preferences">
     <div className="cookie-copy"><strong>Privacy and cookie choices</strong><p>Essential storage keeps sign-in and security features working. Optional analytics and marketing cookies stay off unless you choose to allow them. No optional tracking is enabled by this banner alone.</p></div>
