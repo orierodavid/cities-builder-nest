@@ -17,7 +17,7 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) {
       setStatus(null); setError("Your session could not be verified. Please sign in again.");
-      setSessionChecked(true); if (showLoading) setChecking(false); return;
+      setSessionChecked(true); setChecking(false); return;
     }
     if (!sessionData.session) {
       setStatus(null); setSessionChecked(true); setChecking(false); return;
