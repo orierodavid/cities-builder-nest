@@ -28,6 +28,25 @@ export default function CookieConsentBanner() {
       setAnalytics(saved.analytics);
       setMarketing(saved.marketing);
     } else setVisible(true);
+
+    const syncForSignedInUser = async () => {
+      const preferences = readPreferences();
+      if (!preferences) return;
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return;
+      await supabase.from("cookie_preferences").upsert({
+        user_id: userData.user.id,
+        essential: true,
+        analytics: preferences.analytics,
+        marketing: preferences.marketing,
+        policy_version: preferences.policy_version,
+        updated_at: new Date().toISOString(),
+      });
+    };
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      window.setTimeout(() => { void syncForSignedInUser(); }, 0);
+    });
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
   async function save(next: Preferences) {
