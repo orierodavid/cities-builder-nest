@@ -59,6 +59,8 @@ jobs:
           deno-version: v2.x
       - name: Type-check onboarding Edge Function
         run: deno check supabase/functions/onboard-account/index.ts
+      - name: Type-check resident virtual account Edge Function
+        run: deno check supabase/functions/create-resident-virtual-account/index.ts
 
   web:
     runs-on: ubuntu-latest
