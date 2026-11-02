@@ -1,0 +1,77 @@
+import { ReactNode, useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { supabase } from "../lib/supabase";
+import LegalConsentScreen, { type MobileLegalDocument } from "./LegalConsentScreen";
+
+type LegalStatus = { requiresAcceptance: boolean; configurationRequired: boolean; accepted: boolean; documents: MobileLegalDocument[] };
+
+export default function MobileConsentGate({ children }: { children: ReactNode }) {
+  const [status, setStatus] = useState<LegalStatus | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [error, setError] = useState("");
+
+  const refresh = useCallback(async () => {
+    setChecking(true);
+    setError("");
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      setStatus(null); setError("Your session could not be verified. Please sign in again.");
+      setSessionChecked(true); setChecking(false); return;
+    }
+    if (!sessionData.session) {
+      setStatus(null); setSessionChecked(true); setChecking(false); return;
+    }
+    const { data, error: legalError } = await supabase.rpc("get_legal_consent_status");
+    if (legalError || !data) {
+      setStatus(null); setError("Legal acceptance could not be verified. Retry before using the app.");
+    } else setStatus(data as LegalStatus);
+    setSessionChecked(true);
+    setChecking(false);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      if (!alive) return;
+      setChecking(true);
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!alive) return;
+      if (sessionError) {
+        setStatus(null); setError("Your session could not be verified. Please sign in again.");
+        setSessionChecked(true); setChecking(false); return;
+      }
+      if (!sessionData.session) {
+        setStatus(null); setError(""); setSessionChecked(true); setChecking(false); return;
+      }
+      const { data, error: legalError } = await supabase.rpc("get_legal_consent_status");
+      if (!alive) return;
+      if (legalError || !data) {
+        setStatus(null); setError("Legal acceptance could not be verified. Retry before using the app.");
+      } else { setStatus(data as LegalStatus); setError(""); }
+      setSessionChecked(true);
+      setChecking(false);
+    };
+    void check();
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      setTimeout(() => { if (alive) void check(); }, 0);
+    });
+    return () => { alive = false; authListener.subscription.unsubscribe(); };
+  }, []);
+
+  if (!sessionChecked || checking) return <View style={styles.center}><ActivityIndicator size="large" color="#D4A84B"/><Text style={styles.copy}>Verifying your account…</Text></View>;
+  if (error) return <View style={styles.center}><Text style={styles.title}>Verification required</Text><Text style={styles.copy}>{error}</Text><TouchableOpacity onPress={() => void refresh()} style={styles.button}><Text style={styles.buttonText}>Retry</Text></TouchableOpacity><TouchableOpacity onPress={() => void supabase.auth.signOut()} style={styles.secondary}><Text style={styles.secondaryText}>Sign out</Text></TouchableOpacity></View>;
+  if (status?.requiresAcceptance) return <View style={styles.shell}><LegalConsentScreen documents={status.documents || []} onAccepted={() => void refresh()} onSignOut={() => void supabase.auth.signOut()}/></View>;
+  return <>{children}</>;
+}
+
+const styles = StyleSheet.create({
+  center:{flex:1,backgroundColor:"#080808",alignItems:"center",justifyContent:"center",padding:24,gap:13},
+  shell:{flex:1,backgroundColor:"#080808",padding:16,paddingTop:32},
+  title:{fontSize:21,color:"#FFFFFF",fontWeight:"900"},
+  copy:{fontSize:12,lineHeight:18,color:"#C5C5C5",textAlign:"center"},
+  button:{backgroundColor:"#D4A84B",paddingHorizontal:22,paddingVertical:13,borderRadius:10,marginTop:8},
+  buttonText:{fontSize:12,color:"#17130B",fontWeight:"900"},
+  secondary:{padding:12},
+  secondaryText:{fontSize:11,color:"#D4A84B",fontWeight:"800"}
+});
