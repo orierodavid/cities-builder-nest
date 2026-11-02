@@ -76,8 +76,10 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
       if (showLoading) setChecking(false);
     };
     void check(true);
-    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      window.setTimeout(() => { if (alive) void check(true); }, 0);
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED" || event === "PASSWORD_RECOVERY") {
+        window.setTimeout(() => { if (alive) void check(true); }, 0);
+      }
     });
     const onFocus = () => { if (alive) void check(false); };
     window.addEventListener("focus", onFocus);
