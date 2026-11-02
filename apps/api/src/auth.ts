@@ -51,6 +51,16 @@ export async function requireAuth(
       return;
     }
 
+    const { data: legalStatus, error: legalError } = await userSupabase.rpc("get_legal_consent_status");
+    if (legalError) {
+      res.status(503).json({ error: "legal_consent_check_unavailable" });
+      return;
+    }
+    if (legalStatus?.requiresAcceptance === true) {
+      res.status(403).json({ error: "legal_consent_required", legalStatus });
+      return;
+    }
+
     (req as AuthenticatedRequest).authUser = data.user;
     (req as AuthenticatedRequest).userSupabase = userSupabase;
     next();
