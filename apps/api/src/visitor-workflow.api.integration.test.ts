@@ -82,6 +82,17 @@ const mockSupabase = createServer(async (req, res) => {
     return sendJson(res, 200, { id, aud: "authenticated", role: "authenticated", email: id + "@example.test" });
   }
 
+  if (req.method === "POST" && url.pathname === "/rest/v1/rpc/get_legal_consent_status") {
+    return sendJson(res, 200, {
+      requiresAcceptance: false,
+      configurationRequired: false,
+      accepted: true,
+      documents: [],
+      acceptedDocumentIds: [],
+      pendingDocumentIds: [],
+    });
+  }
+
   if (!url.pathname.startsWith("/rest/v1/")) return sendJson(res, 404, { message: "Not found" });
   const table = url.pathname.slice("/rest/v1/".length);
   const filters = [...url.searchParams.entries()].filter(([key]) => key !== "select" && key !== "order" && key !== "limit");
