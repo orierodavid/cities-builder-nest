@@ -103,6 +103,12 @@ Deno.serve(async (req: Request) => {
   const { data: authData, error: authError } = await authClient.auth.getUser(token);
   if (authError || !authData.user) return json(401, { error: "invalid_session" });
 
+  const { data: legalStatus, error: legalStatusError } = await authClient.rpc("get_legal_consent_status");
+  if (legalStatusError) return json(503, { error: "legal_consent_check_unavailable" });
+  if (legalStatus?.requiresAcceptance === true) {
+    return json(403, { error: "legal_consent_required", legalStatus });
+  }
+
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });

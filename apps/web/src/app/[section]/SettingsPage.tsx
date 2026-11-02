@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import PortalFrame from "@/components/PortalFrame";
 import styles from "./SettingsProfile.module.css";
 import { supabase } from "@/lib/supabase";
+import LegalDocumentsPanel from "@/components/LegalDocumentsPanel";
 
 export default function SettingsPage() {
  const [password,setPassword]=useState(""); const [confirm,setConfirm]=useState("");
@@ -22,5 +23,6 @@ export default function SettingsPage() {
    </section>
    <aside className={styles.sideCard}><span className={styles.eyebrow}>SESSION</span><h3>Sign-in session</h3><p>Your current browser is signed in to the CB Nest management portal.</p><button type="button" className={styles.secondaryButton} onClick={signOut}>Sign out of this account</button><a href="/profile">View my profile →</a></aside>
   </div>
+  <LegalDocumentsPanel/>
  </PortalFrame>;
 }

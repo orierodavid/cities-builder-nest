@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Role = "platform_admin" | "facility_manager";
-const adminNav = [["⌂","Dashboard","/"],["▦","Estates","/estates"],["♙","Users","/users"],["⌂","Properties","/properties"],["▤","Subscriptions","/subscriptions"],["▣","Payments","/payments"],["▥","Analytics","/analytics"],["?","Support","/support"],["☷","System Logs","/system-logs"],["⚙","Settings","/settings"],["◉","My Profile","/profile"]];
+const adminNav = [["⌂","Dashboard","/"],["▦","Estates","/estates"],["♙","Users","/users"],["⌂","Properties","/properties"],["▤","Subscriptions","/subscriptions"],["▣","Payments","/payments"],["▥","Analytics","/analytics"],["?","Support","/support"],["☷","System Logs","/system-logs"],["▤","Legal Documents","/legal-documents"],["⚙","Settings","/settings"],["◉","My Profile","/profile"]];
 const managerNav = [["⌂","Dashboard","/"],["▣","Properties","/properties"],["♙","Residents","/residents"],["♟","Estate Users","/users"],["⌕","Visitor Management","/visitor-management"],["▦","Events","/events"],["▤","Service Charges","/service-charges"],["▣","Payments","/payments"],["⚒","Maintenance","/maintenance"],["⌂","Facility Management","/facility-management"],["▤","Communications","/communications"],["▥","Reports","/reports"],["⚙","Settings","/settings"]];
 export default function PortalFrame({children,title,description}:{children:ReactNode;title:string;description:string}) {
  const [role,setRole]=useState<Role|null>(null); const [name,setName]=useState("Management user"); const [email,setEmail]=useState(""); const [ready,setReady]=useState(false); const router=useRouter(); const pathname=usePathname();
