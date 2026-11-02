@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { supabase } from "../lib/supabase";
 import LegalConsentScreen, { type MobileLegalDocument } from "./LegalConsentScreen";
 
@@ -61,13 +61,14 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
 
   if (!sessionChecked || checking) return <View style={styles.center}><ActivityIndicator size="large" color="#D4A84B"/><Text style={styles.copy}>Verifying your account…</Text></View>;
   if (error) return <View style={styles.center}><Text style={styles.title}>Verification required</Text><Text style={styles.copy}>{error}</Text><TouchableOpacity onPress={() => void refresh()} style={styles.button}><Text style={styles.buttonText}>Retry</Text></TouchableOpacity><TouchableOpacity onPress={() => void supabase.auth.signOut()} style={styles.secondary}><Text style={styles.secondaryText}>Sign out</Text></TouchableOpacity></View>;
-  if (status?.requiresAcceptance) return <View style={styles.shell}><LegalConsentScreen documents={status.documents || []} onAccepted={() => void refresh()} onSignOut={() => void supabase.auth.signOut()}/></View>;
+  if (status?.requiresAcceptance) return <ScrollView style={styles.shell} contentContainerStyle={styles.shellContent} keyboardShouldPersistTaps="handled"><LegalConsentScreen documents={status.documents || []} onAccepted={() => void refresh()} onSignOut={() => void supabase.auth.signOut()}/></ScrollView>;
   return <>{children}</>;
 }
 
 const styles = StyleSheet.create({
   center:{flex:1,backgroundColor:"#080808",alignItems:"center",justifyContent:"center",padding:24,gap:13},
-  shell:{flex:1,backgroundColor:"#080808",padding:16,paddingTop:32},
+  shell:{flex:1,backgroundColor:"#080808"},
+  shellContent:{padding:16,paddingTop:32,paddingBottom:40},
   title:{fontSize:21,color:"#FFFFFF",fontWeight:"900"},
   copy:{fontSize:12,lineHeight:18,color:"#C5C5C5",textAlign:"center"},
   button:{backgroundColor:"#D4A84B",paddingHorizontal:22,paddingVertical:13,borderRadius:10,marginTop:8},
