@@ -1,11 +1,12 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import MobileConsentGate from "../components/MobileConsentGate";
 
 export default function RootLayout() {
   return (
     <>
       <StatusBar style="auto" />
-      <Stack screenOptions={{ headerShown: false }} />
+      <MobileConsentGate><Stack screenOptions={{ headerShown: false }} /></MobileConsentGate>
     </>
   );
 }
