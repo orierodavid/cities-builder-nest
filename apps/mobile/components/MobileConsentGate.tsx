@@ -17,7 +17,7 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) {
       setStatus(null); setError("Your session could not be verified. Please sign in again.");
-      setSessionChecked(true); setChecking(false); return;
+      setSessionChecked(true); if (showLoading) setChecking(false); return;
     }
     if (!sessionData.session) {
       setStatus(null); setSessionChecked(true); setChecking(false); return;
@@ -32,9 +32,9 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
 
   useEffect(() => {
     let alive = true;
-    const check = async () => {
+    const check = async (showLoading = true) => {
       if (!alive) return;
-      setChecking(true);
+      if (showLoading) setChecking(true);
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (!alive) return;
       if (sessionError) {
@@ -50,14 +50,14 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
         setStatus(null); setError("Legal acceptance could not be verified. Retry before using the app.");
       } else { setStatus(data as LegalStatus); setError(""); }
       setSessionChecked(true);
-      setChecking(false);
+      if (showLoading) setChecking(false);
     };
-    void check();
+    void check(true);
     const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      setTimeout(() => { if (alive) void check(); }, 0);
+      setTimeout(() => { if (alive) void check(true); }, 0);
     });
     const appStateListener = AppState.addEventListener("change", (state) => {
-      if (state === "active" && alive) void check();
+      if (state === "active" && alive) void check(false);
     });
     return () => { alive = false; authListener.subscription.unsubscribe(); appStateListener.remove(); };
   }, []);
