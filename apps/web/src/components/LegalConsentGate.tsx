@@ -45,24 +45,24 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     let alive = true;
-    const check = async () => {
+    const check = async (showLoading = true) => {
+      if (showLoading) setChecking(true);
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (!alive) return;
       if (sessionError) {
         setStatus(null);
         setError("Your sign-in session could not be verified. Please sign in again.");
         setSessionReady(true);
-        setChecking(false);
+        if (showLoading) setChecking(false);
         return;
       }
       if (!sessionData.session) {
         setStatus(null);
         setError("");
         setSessionReady(true);
-        setChecking(false);
+        if (showLoading) setChecking(false);
         return;
       }
-      setChecking(true);
       const { data, error: statusError } = await supabase.rpc("get_legal_consent_status");
       if (!alive) return;
       if (statusError || !data) {
@@ -73,13 +73,13 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
         setError("");
       }
       setSessionReady(true);
-      setChecking(false);
+      if (showLoading) setChecking(false);
     };
-    void check();
+    void check(true);
     const { data: authListener } = supabase.auth.onAuthStateChange(() => {
-      window.setTimeout(() => { if (alive) void check(); }, 0);
+      window.setTimeout(() => { if (alive) void check(true); }, 0);
     });
-    const onFocus = () => { if (alive) void check(); };
+    const onFocus = () => { if (alive) void check(false); };
     window.addEventListener("focus", onFocus);
     return () => {
       alive = false;
