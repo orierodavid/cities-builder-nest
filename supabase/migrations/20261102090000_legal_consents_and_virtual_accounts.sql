@@ -75,6 +75,7 @@ grant select on public.resident_virtual_accounts to authenticated;
 revoke insert, update, delete on public.legal_documents from anon, authenticated;
 revoke insert, update, delete on public.user_consents from anon, authenticated;
 revoke insert, update, delete on public.resident_virtual_accounts from anon, authenticated;
+grant all on public.resident_virtual_accounts to service_role;
 
 drop policy if exists "Read published legal documents" on public.legal_documents;
 create policy "Read published legal documents"
