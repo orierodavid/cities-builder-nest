@@ -946,7 +946,7 @@ export default function HomeScreen() {
                     ) : <View style={styles.eventForm}><Text style={styles.eventCardTitle}>No events created yet</Text><Text style={styles.eventSubheading}>Create your first estate event to start inviting guests and tracking attendance.</Text></View>}
                     <TouchableOpacity style={styles.eventSaveButton} onPress={() => setTab("create")}><Text style={styles.eventSaveText}>CREATE EVENT</Text></TouchableOpacity>
                     <View style={styles.eventListHeader}><Text style={styles.eventSectionTitle}>ALL ESTATE EVENTS</Text><TouchableOpacity onPress={() => void loadEstateEvents()}><Text style={styles.eventRefresh}>REFRESH</Text></TouchableOpacity></View>
-                    {estateEvents.slice(1).map((event) => <TouchableOpacity key={event.id} style={styles.eventCard} onPress={() => void loadAttendanceReport(event)}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue} · {new Date(event.starts_at).toLocaleString()}</Text><Text style={styles.eventCardStatus}>{event.status.toUpperCase()}</Text></TouchableOpacity>)}
+                    {estateEvents.slice(1).map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue} · {new Date(event.starts_at).toLocaleString()}</Text><Text style={styles.eventCardStatus}>{event.status.toUpperCase()}</Text></View>)}
                     {!!eventMessage && <Text style={styles.eventError}>{eventMessage}</Text>}
                   </View>
                 ) : isEventOrganiser && tab === "create" ? (
