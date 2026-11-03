@@ -215,6 +215,19 @@ export default function HomeScreen() {
     try {
       const res = await fetch(apiUrl + "/v1/me", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } });
       const body = await res.json() as ProfileResponse;
+      if (res.ok && Platform.OS !== "web") {
+        const allowedRoles = new Set(["resident", "security", "event_organiser"]);
+        const hasAllowedMembership = (body.estateMemberships || []).some(
+          (membership) => membership.status === "active" && allowedRoles.has(membership.membership_role),
+        );
+        const hasResidentUnit = (body.residentUnits || []).length > 0;
+        if (!hasAllowedMembership && !hasResidentUnit) {
+          setProfile(null);
+          setMessage("Admin and facility manager accounts must sign in through the CB Nest web portal. The mobile app is for residents, security and event organisers.");
+          await supabase.auth.signOut();
+          return;
+        }
+      }
       setProfile(res.ok ? body : { error: body.error || "Profile request failed (" + res.status + ")." });
     } catch {
       setProfile({ error: "API is offline or unreachable. Start the API service on port 4000, then refresh." });
