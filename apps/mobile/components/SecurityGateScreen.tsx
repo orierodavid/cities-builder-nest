@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import VisitorDetails, { type Visitor } from "./VisitorDetails";
 
 type Visitor = {
   visitor: { name: string; phone: string | null };
@@ -25,6 +26,7 @@ type Props = {
   onDeny: () => void;
   onRefreshVisits: () => void;
   onCheckout: (visitId: string) => void;
+  onClearVisitor: () => void;
 };
 
 export default function SecurityGateScreen(props: Props) {
@@ -85,22 +87,24 @@ export default function SecurityGateScreen(props: Props) {
         </TouchableOpacity>
       </View>
       {!!props.message && <Text style={{ color: props.message.toLowerCase().includes("found") ? "#7DDAA2" : "#FF9292", fontSize: 12 }}>{props.message}</Text>}
-      {props.visitor && (
-        <View style={card}>
-          <Text style={{ color: "#D4A84B", fontSize: 10, fontWeight: "900", letterSpacing: 1.4 }}>VISITOR DETAILS</Text>
-          <Text style={{ color: "#FFFFFF", fontSize: 19, fontWeight: "900" }}>{props.visitor.visitor.name}</Text>
-          <Text style={muted}>{props.visitor.visitor.phone || "No phone number supplied"}</Text>
-          <View style={{ backgroundColor: props.visitor.availabilityError ? "#421D1D" : "#183A2A", padding: 9, borderRadius: 8 }}>
-            <Text style={{ color: props.visitor.availabilityError ? "#FF9292" : "#83E0A8", fontSize: 11, fontWeight: "900" }}>{props.visitor.availabilityError ? "ACCESS NOT VALID" : "VALID ACCESS CODE"}</Text>
-          </View>
-          <Text style={muted}>Host: {props.visitor.host.name || "Not available"}</Text>
-          <Text style={muted}>Valid from: {new Date(props.visitor.pass.validFrom).toLocaleString()}</Text>
-          <Text style={muted}>Valid until: {new Date(props.visitor.pass.validUntil).toLocaleString()}</Text>
-          <Text style={muted}>Pass status: {props.visitor.pass.status.toUpperCase()}</Text>
-          <TouchableOpacity disabled={props.busy || !!props.visitor.availabilityError} onPress={props.onApprove} style={[button, { backgroundColor: "#D4A84B", opacity: props.busy || !!props.visitor.availabilityError ? 0.55 : 1 }]}><Text style={{ color: "#17130B", fontWeight: "900" }}>APPROVE ENTRY</Text></TouchableOpacity>
-          <TouchableOpacity disabled={props.busy || props.visitor.pass.status !== "active"} onPress={props.onDeny} style={[button, { backgroundColor: "#421D1D", borderWidth: 1, borderColor: "#A43B3B", opacity: props.busy || props.visitor.pass.status !== "active" ? 0.55 : 1 }]}><Text style={{ color: "#FF9292", fontWeight: "900" }}>DENY ENTRY</Text></TouchableOpacity>
-        </View>
-      )}
+      {props.visitor && (() => {
+        const validFrom = new Date(props.visitor.pass.validFrom);
+        const validUntil = new Date(props.visitor.pass.validUntil);
+        const visitorDetails: Visitor = {
+          name: props.visitor.visitor.name,
+          category: "Personal Visitor",
+          valid: !props.visitor.availabilityError && props.visitor.pass.status === "active",
+          accessCode: props.visitorCode,
+          host: props.visitor.host.name || "Not available",
+          property: props.estateName || "Assigned estate",
+          date: Number.isNaN(validFrom.getTime()) ? "Not available" : validFrom.toLocaleDateString(),
+          time: Number.isNaN(validFrom.getTime()) || Number.isNaN(validUntil.getTime())
+            ? "Not available"
+            : validFrom.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + " – " + validUntil.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+          accessType: "Visitor pass",
+        };
+        return <VisitorDetails visitor={visitorDetails} busy={props.busy} onBack={props.onClearVisitor} onApprove={props.onApprove} onDeny={props.onDeny} />;
+      })()}
       <View style={{ gap: 10 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={{ color: "#D4A84B", fontSize: 11, fontWeight: "900", letterSpacing: 1.3 }}>VISITORS CURRENTLY INSIDE</Text>
