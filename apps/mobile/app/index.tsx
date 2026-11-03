@@ -1200,7 +1200,7 @@ const styles = StyleSheet.create({
   saasSubtitle:{fontSize:13,lineHeight:20,color:"#A8A29A",marginBottom:9},
   saasFieldLabel:{fontSize:10,fontWeight:"800",letterSpacing:1.4,color:"#D6C7A5"},
   saasInputWrap:{minHeight:54,borderRadius:12,borderWidth:1,borderColor:"#3A3328",backgroundColor:"#090909",paddingHorizontal:14,flexDirection:"row",alignItems:"center",gap:11},
-  saasInput:{flex:1,color:"#F8F5EE",fontSize:14,paddingVertical:13,outlineStyle:"none" as never},
+  saasInput:{flex:1,color:"#F8F5EE",fontSize:14,paddingVertical:13},
   saasPasswordHeading:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:3},
   saasForgot:{fontSize:11,fontWeight:"700",color:"#D9A93F"},
   saasSubmit:{height:54,marginTop:7,borderRadius:12,backgroundColor:"#D9A93F",flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10},
