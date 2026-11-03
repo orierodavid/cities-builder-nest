@@ -247,10 +247,13 @@ export default function HomeScreen() {
       const saved = await AsyncStorage.getItem("cities-builder-nest.selected-estate-id");
       // The mobile app is for residents, security and event organisers only.
       // Prefer a permitted resident estate over any legacy/admin selection.
+      const normalizeRole = (role: string | null | undefined) => role?.trim().toLowerCase().replace(/-/g, "_") || null;
       const mobileRolePriority = ["resident", "security", "event_organiser"];
       const permittedEstate = Platform.OS === "web"
         ? null
-        : mobileRolePriority.map((role) => list.find((estate) => estate.membershipRole === role)).find(Boolean);
+        : mobileRolePriority
+          .map((role) => list.find((estate) => normalizeRole(estate.membershipRole) === role))
+          .find(Boolean);
       setSelectedEstateId(permittedEstate?.id || (saved && list.some((e) => e.id === saved) ? saved : list[0]?.id || null));
     } catch (e) {
       setEstatesError(e instanceof Error ? e.message : "Could not load estates. Check the API connection.");
@@ -748,7 +751,8 @@ export default function HomeScreen() {
   // A resident unit or matching active resident membership confirms resident access
   // when the estates endpoint omits membershipRole. Explicit staff/security roles win.
   const isResident = selectedEstateRole === "resident" ||
-    (!selectedEstateRole && (hasResidentUnit || hasResidentMembership));
+    (hasResidentMembership && selectedEstateRole !== "security" && selectedEstateRole !== "event_organiser") ||
+    (!selectedEstateRole && hasResidentUnit);
 
   useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) void loadEstateEvents(); }, [isEventOrganiser, selectedEstateId, session?.access_token]);
 
