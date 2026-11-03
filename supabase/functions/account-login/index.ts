@@ -49,6 +49,12 @@ Deno.serve(async (req: Request) => {
   const publicClient = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data, error } = await publicClient.auth.signInWithPassword({ email, password });
   if (error || !data.session || !data.user) {
+    if (error?.code === "email_not_confirmed") {
+      return reply(403, {
+        error: "email_not_confirmed",
+        message: "Your email is not confirmed yet. Open the latest CB Nest invitation email and follow its confirmation link. If the link has expired, ask your estate administrator to send a fresh invitation.",
+      });
+    }
     const failed = await admin.rpc("record_account_login_failure", { p_email: email });
     if (failed.error) return reply(503, { error: "login_attempt_recording_unavailable", message: "Sign-in could not be completed. Please try again shortly." });
     const result = Array.isArray(failed.data) ? failed.data[0] : null;
