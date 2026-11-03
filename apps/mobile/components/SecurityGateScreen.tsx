@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 
@@ -31,9 +31,11 @@ export default function SecurityGateScreen(props: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [scanMessage, setScanMessage] = useState("");
+  const scanHandled = useRef(false);
 
   function handleScan(data: string) {
-    if (!cameraOpen) return;
+    if (!cameraOpen || scanHandled.current) return;
+    scanHandled.current = true;
     setCameraOpen(false);
     const code = data.match(/\b\d{6}\b/)?.[0];
     if (!code) {
@@ -55,7 +57,7 @@ export default function SecurityGateScreen(props: Props) {
         <Text style={muted}>{props.estateName || "Assigned estate"} · Verify access before admitting visitors.</Text>
       </View>
       <View style={card}>
-        <TouchableOpacity onPress={() => { setScanMessage(""); setCameraOpen((open) => !open); }} style={[button, { backgroundColor: "#D4A84B", flexDirection: "row", gap: 9 }]}>
+        <TouchableOpacity onPress={() => { setScanMessage(""); setCameraOpen((open) => { if (!open) scanHandled.current = false; return !open; }); }} style={[button, { backgroundColor: "#D4A84B", flexDirection: "row", gap: 9 }]}>
           <Text style={{ color: "#17130B", fontSize: 13, fontWeight: "900" }}>{cameraOpen ? "CLOSE SCANNER" : "SCAN VISITOR QR CODE"}</Text>
         </TouchableOpacity>
         {cameraOpen && (
