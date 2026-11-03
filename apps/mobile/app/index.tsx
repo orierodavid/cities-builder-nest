@@ -739,20 +739,23 @@ export default function HomeScreen() {
   // Never expose platform/estate administration in the mobile experience.
   const isPlatformAdmin = !mobileClient && (Boolean(profile?.globalRoles?.includes("platform_admin")) || estates.some((estate) => estate.membershipRole === "platform_admin"));
   const isEstateManager = !mobileClient && ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
-  const isSecurity = selectedEstate?.membershipRole === "security";
-  const isEventOrganiser = selectedEstate?.membershipRole === "event_organiser";
-  const selectedEstateRole = selectedEstate?.membershipRole?.trim().toLowerCase().replace(/-/g, "_") || null;
+  const normalizeRole = (role: string | null | undefined) => role?.trim().toLowerCase().replace(/-/g, "_") || null;
+  const selectedEstateRole = normalizeRole(selectedEstate?.membershipRole);
+  const isSecurity = selectedEstateRole === "security";
+  const isEventOrganiser = selectedEstateRole === "event_organiser";
   const hasResidentUnit = (profile?.residentUnits?.length || 0) > 0;
-  const hasResidentMembership = (profile?.estateMemberships || []).some((membership) =>
-    membership.status === "active" &&
-    membership.membership_role.trim().toLowerCase().replace(/-/g, "_") === "resident" &&
-    (!selectedEstateId || membership.estate_id === selectedEstateId),
+  const activeResidentMemberships = (profile?.estateMemberships || []).filter((membership) =>
+    membership.status?.trim().toLowerCase() === "active" &&
+    normalizeRole(membership.membership_role) === "resident",
   );
-  // A resident unit or matching active resident membership confirms resident access
-  // when the estates endpoint omits membershipRole. Explicit staff/security roles win.
-  const isResident = selectedEstateRole === "resident" ||
-    (hasResidentMembership && selectedEstateRole !== "security" && selectedEstateRole !== "event_organiser") ||
-    (!selectedEstateRole && hasResidentUnit);
+  const hasResidentMembership = activeResidentMemberships.some((membership) =>
+    !selectedEstateId || membership.estate_id === selectedEstateId,
+  );
+  // The authenticated /v1/me membership is authoritative for mobile resident access.
+  // Do not lose resident routing merely because /v1/estates omits or mislabels membershipRole.
+  const isResident = !isSecurity && !isEventOrganiser &&
+    (hasResidentMembership || (!selectedEstateId && activeResidentMemberships.length > 0) ||
+      (!selectedEstateRole && hasResidentUnit));
 
   useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) void loadEstateEvents(); }, [isEventOrganiser, selectedEstateId, session?.access_token]);
 
@@ -777,7 +780,7 @@ export default function HomeScreen() {
     <View style={styles.sectionTitleWrap}><Text style={styles.sectionTitle}>{title}</Text>{!!subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}</View>
   );
 
-  if (session && isResident && !wide && tab === "home") {
+  if (session && mobileClient && isResident && tab === "home") {
     const residentUnit = profile?.residentUnits?.[0]?.units;
     const residentBuilding = residentUnit?.buildings?.name;
     const residentUnitLabel = [residentBuilding, residentUnit?.unit_code ? "Unit " + residentUnit.unit_code : null].filter(Boolean).join(" - ");
