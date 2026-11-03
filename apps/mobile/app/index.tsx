@@ -231,7 +231,13 @@ export default function HomeScreen() {
       const list = body.estates || [];
       setEstates(list);
       const saved = await AsyncStorage.getItem("cities-builder-nest.selected-estate-id");
-      setSelectedEstateId(saved && list.some((e) => e.id === saved) ? saved : list[0]?.id || null);
+      // The mobile app is for residents, security and event organisers only.
+      // Prefer a permitted resident estate over any legacy/admin selection.
+      const mobileRolePriority = ["resident", "security", "event_organiser"];
+      const permittedEstate = Platform.OS === "web"
+        ? null
+        : mobileRolePriority.map((role) => list.find((estate) => estate.membershipRole === role)).find(Boolean);
+      setSelectedEstateId(permittedEstate?.id || (saved && list.some((e) => e.id === saved) ? saved : list[0]?.id || null));
     } catch (e) {
       setEstatesError(e instanceof Error ? e.message : "Could not load estates. Check the API connection.");
     } finally { setEstatesLoading(false); }
@@ -268,6 +274,22 @@ export default function HomeScreen() {
           : (data.message || "Email or password is incorrect."));
       }
       if (!data?.session) throw new Error("Authentication service returned no session. Please try again.");
+      if (Platform.OS !== "web") {
+        if (!apiUrl) throw new Error("The mobile app could not verify your estate role. Please try again.");
+        const roleResponse = await fetch(apiUrl + "/v1/me", {
+          headers: { Authorization: "Bearer " + data.session.access_token, Accept: "application/json" },
+        });
+        const roleProfile = await roleResponse.json() as ProfileResponse;
+        if (!roleResponse.ok) throw new Error("Your mobile access could not be verified. Please try again.");
+        const allowedRoles = new Set(["resident", "security", "event_organiser"]);
+        const hasAllowedMembership = (roleProfile.estateMemberships || []).some(
+          (membership) => membership.status === "active" && allowedRoles.has(membership.membership_role),
+        );
+        const hasResidentUnit = (roleProfile.residentUnits || []).length > 0;
+        if (!hasAllowedMembership && !hasResidentUnit) {
+          throw new Error("Admin and facility manager accounts must sign in through the CB Nest web portal. The mobile app is for residents, security and event organisers.");
+        }
+      }
       const { error: sessionError } = await supabase.auth.setSession(data.session);
       if (sessionError) throw sessionError;
       setMessage("Signed in successfully.");
@@ -696,8 +718,10 @@ export default function HomeScreen() {
   }
 
   const selectedEstate = estates.find((e) => e.id === selectedEstateId);
-  const isPlatformAdmin = Boolean(profile?.globalRoles?.includes("platform_admin")) || estates.some((estate) => estate.membershipRole === "platform_admin");
-  const isEstateManager = ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
+  const mobileClient = Platform.OS !== "web";
+  // Never expose platform/estate administration in the mobile experience.
+  const isPlatformAdmin = !mobileClient && (Boolean(profile?.globalRoles?.includes("platform_admin")) || estates.some((estate) => estate.membershipRole === "platform_admin"));
+  const isEstateManager = !mobileClient && ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
   const isSecurity = selectedEstate?.membershipRole === "security";
   const isEventOrganiser = selectedEstate?.membershipRole === "event_organiser";
   const isResident = selectedEstate?.membershipRole === "resident" || (!selectedEstate && (profile?.residentUnits?.length || 0) > 0);
