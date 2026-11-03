@@ -901,6 +901,7 @@ export default function HomeScreen() {
                     onDeny={() => void denyGateVisitor()}
                     onRefreshVisits={() => void loadGateVisits()}
                     onCheckout={(visitId) => void checkOutVisitor(visitId)}
+                    onClearVisitor={() => { setGateVisitor(null); setVisitorCode(""); setManagementMessage(""); }}
                   />
                 ) : isEventOrganiser && tab === "guests" ? (
                   <View style={styles.eventOrganiserHome}>
