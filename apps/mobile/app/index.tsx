@@ -14,6 +14,7 @@ import RentSavings from "../components/RentSavings";
 import ResidentUtilities from "../components/ResidentUtilities";
 import ResidentVirtualAccount from "../components/ResidentVirtualAccount";
 import ResidentLegalDocuments from "../components/ResidentLegalDocuments";
+import ResidentHome from "../components/ResidentHome";
 import SecurityGateScreen from "../components/SecurityGateScreen";
 
 type Estate = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; country_code?: string | null; is_enabled?: boolean; disabled_reason?: string | null; membershipRole: string | null };
@@ -761,6 +762,51 @@ export default function HomeScreen() {
   const SectionTitle = ({ title, subtitle }: { title: string; subtitle?: string }) => (
     <View style={styles.sectionTitleWrap}><Text style={styles.sectionTitle}>{title}</Text>{!!subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}</View>
   );
+
+  if (session && isResident && !wide && tab === "home") {
+    const residentUnit = profile?.residentUnits?.[0]?.units;
+    const residentBuilding = residentUnit?.buildings?.name;
+    const residentUnitLabel = [residentBuilding, residentUnit?.unit_code ? "Unit " + residentUnit.unit_code : null].filter(Boolean).join(" - ");
+    const navigateResident = (route: string) => {
+      switch (route) {
+        case "/":
+          setTab("home");
+          break;
+        case "/visitors":
+        case "/access-code":
+          setTab("visitors");
+          break;
+        case "/events":
+        case "/announcements":
+        case "/notifications":
+          setTab("community");
+          break;
+        case "/service-charges":
+        case "/payment-history":
+          setTab("utilities");
+          break;
+        case "/pay":
+        case "/account":
+        case "/property":
+        case "/profile":
+          setTab("profile");
+          break;
+        case "/maintenance":
+        case "/activity":
+          setTab("maintenance");
+          break;
+        default:
+          setTab("home");
+      }
+    };
+    return (
+      <ResidentHome
+        name={profile?.profile?.full_name || firstName}
+        unitLabel={residentUnitLabel || selectedEstate?.name}
+        onNavigate={navigateResident}
+      />
+    );
+  }
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
