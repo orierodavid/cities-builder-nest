@@ -3,7 +3,7 @@ import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "reac
 import { CameraView, useCameraPermissions } from "expo-camera";
 import VisitorDetails, { type Visitor } from "./VisitorDetails";
 
-type Visitor = {
+type GateVisitor = {
   visitor: { name: string; phone: string | null };
   host: { name: string | null };
   pass: { id: string; validFrom: string; validUntil: string; status: string };
@@ -14,7 +14,7 @@ type Visit = { id: string; checked_in_at: string; visitor_passes?: { visitor_nam
 type Props = {
   estateName: string;
   visitorCode: string;
-  visitor: Visitor | null;
+  visitor: GateVisitor | null;
   busy: boolean;
   message: string;
   visits: Visit[];
