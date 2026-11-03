@@ -705,6 +705,8 @@ export default function HomeScreen() {
 
   useEffect(() => { if (isEventOrganiser && tab === "home" && estateEvents[0] && reportEvent?.id !== estateEvents[0].id) void loadAttendanceReport(estateEvents[0]); }, [isEventOrganiser, tab, estateEvents, reportEvent?.id, selectedEstateId, session?.access_token]);
 
+  useEffect(() => { if (isResident && tab === "visitors" && selectedEstateId && session?.access_token) void loadVisitorPasses(); }, [isResident, tab, selectedEstateId, session?.access_token]);
+
   useEffect(() => {
     if (tab === "management" && selectedEstateId && session?.access_token && (isEstateManager || isPlatformAdmin)) void loadManagementDirectory();
   }, [tab, selectedEstateId, session?.access_token, isEstateManager, isPlatformAdmin]);
@@ -911,8 +913,9 @@ export default function HomeScreen() {
                   </View>
                 ) : isEventOrganiser && tab === "home" ? (
                   <View style={styles.eventOrganiserHome}>
+                    <TouchableOpacity onPress={() => setTab("home")} style={styles.eventBack}><Text style={styles.eventRefresh}>← BACK TO EVENT OVERVIEW</Text></TouchableOpacity>
                     <Text style={styles.eventEyebrow}>EVENT ORGANISER</Text>
-                    <Text style={styles.eventHeading}>Event Details</Text>
+                    <Text style={styles.eventHeading}>Create Event</Text>
                     <Text style={styles.eventSubheading}>{selectedEstate?.name || "Your assigned estate"} · Create events, manage guests and monitor attendance.</Text>
                     {eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? (
                       <>
