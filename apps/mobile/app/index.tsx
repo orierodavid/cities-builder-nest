@@ -297,7 +297,12 @@ export default function HomeScreen() {
       const { error: sessionError } = await supabase.auth.setSession(data.session);
       if (sessionError) throw sessionError;
       setMessage("Signed in successfully.");
-    } catch (e) {\n      const detail = e instanceof Error ? e.message : "Authentication failed. Please try again.";\n      setMessage(/fetch failed|network request failed|timed? ?out|unexpected exception/i.test(detail)\n        ? "We couldn’t reach CB Nest sign-in. Check your internet connection and try again."\n        : detail);\n    }
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : "Authentication failed. Please try again.";
+      setMessage(/fetch failed|network request failed|timed? ?out|unexpected exception/i.test(detail)
+        ? "We couldn’t reach CB Nest sign-in. Check your internet connection and try again."
+        : detail);
+    }
     finally { setBusy(false); }
   }
 
