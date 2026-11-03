@@ -89,7 +89,7 @@ function EstatesPage() {
  }
  return <PortalFrame title="Estates" description="Create and manage estates across the CB Nest platform.">
   <section className="panel module-panel">
-   <div className="module-toolbar"><div><h3>Estate directory</h3><p>Create an estate first, then assign its Facility Manager from User Management.</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");}}>{showForm?"Close":"＋ Create estate"}</button></div>
+   <div className="module-toolbar"><div><h3>Estate directory</h3><p>Create an estate first, then assign its Facility Manager from User Management.</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);}}>{showForm?"Close":"＋ Create estate"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">{success}<div style={{marginTop:8}}><a href="/users" style={{color:"inherit",fontWeight:700,textDecoration:"underline"}}>Continue to User Management →</a></div></div>}
    {showForm&&<form className="user-form" onSubmit={createEstate}>
@@ -122,6 +122,7 @@ function UsersPage() {
  const [saving,setSaving]=useState(false);
  const [error,setError]=useState("");
  const [success,setSuccess]=useState("");
+ const [inviteCredentials,setInviteCredentials]=useState<{email:string;password:string}|null>(null);
  const [fullName,setFullName]=useState("");
  const [email,setEmail]=useState("");
  const [password,setPassword]=useState("");
@@ -176,9 +177,15 @@ function UsersPage() {
   const payload:Record<string,string>={estateId:selectedEstate,fullName:fullName.trim(),email:email.trim().toLowerCase(),password,role};
   if(role==="resident"){payload.buildingName=buildingName.trim();payload.unitCode=unitCode.trim();if(unitType.trim())payload.unitType=unitType.trim();}
   const {data,error:invokeError}=await supabase.functions.invoke("onboard-account",{body:payload});
-  if(invokeError){setError(invokeError.message||"Invitation could not be sent.");setSaving(false);return;}
-  if(data?.error){setError(data.message||"Invitation could not be completed.");setSaving(false);return;}
-  setSuccess("Invitation sent. The user can accept the link and sign in with the email and password you created.");
+  if(invokeError){
+   let message=invokeError.message||"Invitation could not be sent.";
+   const context=(invokeError as typeof invokeError & {context?:Response}).context;
+   if(context){try{const detail=await context.clone().json() as {message?:string;error?:string};message=detail.message||detail.error||message;}catch{/* retain the SDK error */}}
+   setError(message);setSaving(false);return;
+  }
+  if(data?.error){setError(data.message||data.error||"Invitation could not be completed.");setSaving(false);return;}
+  setInviteCredentials({email:email.trim().toLowerCase(),password});
+  setSuccess("Invitation email sent successfully. Give the user the initial password below through a separate secure channel.");
   setFullName("");setEmail("");setPassword("");setBuildingName("");setUnitCode("");setUnitType("");setShowForm(false);
   await load();setSaving(false);
  }
@@ -186,7 +193,15 @@ function UsersPage() {
   <section className="panel module-panel">
    <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents, security personnel and event coordinators in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");}}>{showForm?"Close":"＋ Add user"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
-   {success&&<div className="user-alert user-alert-success" role="status">{success}</div>}
+   {success&&<div className="user-alert user-alert-success" role="status">
+    <strong>Invitation created successfully</strong><p>{success}</p>
+    {inviteCredentials&&<div style={{display:"grid",gap:10,marginTop:12}}>
+     <div><span className="optional-label">INVITATION EMAIL</span><div style={{fontWeight:800,overflowWrap:"anywhere"}}>{inviteCredentials.email}</div><button type="button" className="secondary-action" style={{marginTop:6}} onClick={()=>void navigator.clipboard.writeText(inviteCredentials.email)}>Copy email</button></div>
+     <div><span className="optional-label">INITIAL PASSWORD</span><div style={{fontWeight:800,overflowWrap:"anywhere",fontFamily:"monospace"}}>{inviteCredentials.password}</div><button type="button" className="secondary-action" style={{marginTop:6}} onClick={()=>void navigator.clipboard.writeText(inviteCredentials.password)}>Copy password</button></div>
+     <small>Keep this password private. Do not forward it in the invitation email; share it with the user separately and securely.</small>
+     <button type="button" className="secondary-action" onClick={()=>{setInviteCredentials(null);setSuccess("");}}>Hide credentials</button>
+    </div>}
+   </div>}
    {showForm&&<form className="user-form" onSubmit={createUser}>
     <div className="user-form-heading"><strong>Invite a new user</strong><span>Create their login password here. They will receive a separate email link to accept the invitation.</span></div>
     <div className="user-form-grid">
