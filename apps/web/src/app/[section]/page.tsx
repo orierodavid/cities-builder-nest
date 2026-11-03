@@ -91,6 +91,7 @@ function EstatesPage() {
   <section className="panel module-panel">
    <div className="module-toolbar"><div><h3>Estate directory</h3><p>Create an estate first, then assign its Facility Manager from User Management.</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);}}>{showForm?"Close":"＋ Create estate"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
+   {resendMessage&&<div className="user-alert user-alert-success" role="status">{resendMessage}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">{success}<div style={{marginTop:8}}><a href="/users" style={{color:"inherit",fontWeight:700,textDecoration:"underline"}}>Continue to User Management →</a></div></div>}
    {showForm&&<form className="user-form" onSubmit={createEstate}>
     <div className="user-form-heading"><strong>New estate details</strong><span>Enter the estate's official name and location. It will be enabled immediately.</span></div>
@@ -104,7 +105,7 @@ function EstatesPage() {
     <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving}>{saving?"Creating estate…":"Create estate"}</button></div>
    </form>}
    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Address</th><th>City</th><th>State</th><th>Status</th><th>Created</th></tr></thead><tbody>
-    {loading?<tr><td colSpan={6} className="empty-cell">Loading estates…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.address}</td><td>{x.city}</td><td>{x.state}</td><td><span className={"status-pill "+(x.is_enabled?"status-active":"status-suspended")}>{x.is_enabled?"Enabled":"Disabled"}</span></td><td>{new Date(x.created_at).toLocaleDateString()}</td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">▦</span><strong>No estates created yet</strong><small>Create your first estate, then add its Facility Manager under User Management.</small></td></tr>}
+    {loading?<tr><td colSpan={7} className="empty-cell">Loading estates…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.address}</td><td>{x.city}</td><td>{x.state}</td><td><span className={"status-pill "+(x.is_enabled?"status-active":"status-suspended")}>{x.is_enabled?"Enabled":"Disabled"}</span></td><td>{new Date(x.created_at).toLocaleDateString()}</td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">▦</span><strong>No estates created yet</strong><small>Create your first estate, then add its Facility Manager under User Management.</small></td></tr>}
    </tbody></table></div>
   </section>
  </PortalFrame>;
@@ -123,6 +124,8 @@ function UsersPage() {
  const [error,setError]=useState("");
  const [success,setSuccess]=useState("");
  const [inviteCredentials,setInviteCredentials]=useState<{email:string;password:string}|null>(null);
+ const [resendingUserId,setResendingUserId]=useState<string|null>(null);
+ const [resendMessage,setResendMessage]=useState("");
  const [fullName,setFullName]=useState("");
  const [email,setEmail]=useState("");
  const [password,setPassword]=useState("");
@@ -172,6 +175,24 @@ function UsersPage() {
   return (!selectedEstate||m.estate_id===selectedEstate) && (!q||[m.users?.full_name||"",roleLabels[m.membership_role]||m.membership_role,estate,m.users?.phone_e164||""].join(" ").toLowerCase().includes(q));
  }),[memberships,estates,selectedEstate,search]);
  const allowedRoles:Role[]=isAdmin?["facility_manager","resident","security","event_organiser"]:["resident","security","event_organiser"];
+ async function resendInvitation(membership:Membership){
+  setResendMessage("");setError("");setResendingUserId(membership.user_id);
+  const {data,error:invokeError}=await supabase.functions.invoke("resend-account-invitation",{
+   body:{estateId:membership.estate_id,userId:membership.user_id}
+  });
+  if(invokeError){
+   let message=invokeError.message||"The access email could not be sent.";
+   const context=(invokeError as typeof invokeError & {context?:Response}).context;
+   if(context){try{const detail=await context.clone().json() as {message?:string};message=detail.message||message;}catch{/* keep SDK message */}}
+   setError(message);setResendingUserId(null);return;
+  }
+  if(data?.error){setError(data.message||"The access email could not be sent.");setResendingUserId(null);return;}
+  setResendMessage(data.delivery==="password_reset"
+   ? `Password-reset email sent to ${data.email}. The existing account and estate role were not changed.`
+   : `A fresh invitation email was sent to ${data.email}. The existing account and estate role were not changed.`);
+  setResendingUserId(null);
+ }
+ 
  async function createUser(e:FormEvent){
   e.preventDefault();setSaving(true);setError("");setSuccess("");
   const payload:Record<string,string>={estateId:selectedEstate,fullName:fullName.trim(),email:email.trim().toLowerCase(),password,role};
@@ -191,7 +212,7 @@ function UsersPage() {
  }
  return <PortalFrame title="User Management" description="Invite people, assign roles and manage access within your estate.">
   <section className="panel module-panel">
-   <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents, security personnel and event coordinators in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");}}>{showForm?"Close":"＋ Add user"}</button></div>
+   <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents, security personnel and event coordinators in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);setResendMessage("");}}>{showForm?"Close":"＋ Add user"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">
     <strong>Invitation created successfully</strong><p>{success}</p>
@@ -215,8 +236,8 @@ function UsersPage() {
     <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving||!selectedEstate}>{saving?"Sending invitation…":"Send invitation"}</button></div>
    </form>}
    <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, role or phone…" aria-label="Search users"/></div>
-   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Name</th><th>Role</th><th>Estate</th><th>Phone</th><th>Status</th><th>Date added</th></tr></thead><tbody>
-    {loading?<tr><td colSpan={6} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span></td><td>{new Date(m.created_at).toLocaleDateString()}</td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Invited users will appear here once their accounts are provisioned.</small></td></tr>}
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Name</th><th>Role</th><th>Estate</th><th>Phone</th><th>Status</th><th>Date added</th><th>Actions</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={7} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td><button type="button" className="secondary-action" disabled={resendingUserId===m.user_id} onClick={()=>void resendInvitation(m)}>{resendingUserId===m.user_id?"Sending…":"Resend invitation"}</button></td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Invited users will appear here once their accounts are provisioned.</small></td></tr>}
    </tbody></table></div>
   </section>
  </PortalFrame>;
