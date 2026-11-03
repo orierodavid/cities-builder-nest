@@ -19,6 +19,7 @@ type Props = {
   visits: Visit[];
   visitsLoading: boolean;
   visitsError: string;
+  onCodeChange: (code: string) => void;
   onLookup: (code: string) => void;
   onApprove: () => void;
   onDeny: () => void;
@@ -76,7 +77,7 @@ export default function SecurityGateScreen(props: Props) {
         {!!scanMessage && <Text style={{ color: "#FF9292", fontSize: 12 }}>{scanMessage}</Text>}
         <View style={{ height: 1, backgroundColor: "#393126", marginVertical: 2 }} />
         <Text style={{ color: "#D4A84B", fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>ENTER ACCESS CODE MANUALLY</Text>
-        <TextInput accessibilityLabel="Six-digit visitor access code" value={props.visitorCode} onChangeText={(value) => props.onLookup(value.replace(/\D/g, "").slice(0, 6))} placeholder="Enter six-digit code" placeholderTextColor="#777" keyboardType="number-pad" maxLength={6} style={{ minHeight: 49, backgroundColor: "#101010", borderColor: "#494133", borderWidth: 1, borderRadius: 10, color: "#FFFFFF", paddingHorizontal: 13, fontSize: 16, letterSpacing: 3 }} />
+        <TextInput accessibilityLabel="Six-digit visitor access code" value={props.visitorCode} onChangeText={(value) => props.onCodeChange(value.replace(/\D/g, "").slice(0, 6))} placeholder="Enter six-digit code" placeholderTextColor="#777" keyboardType="number-pad" maxLength={6} style={{ minHeight: 49, backgroundColor: "#101010", borderColor: "#494133", borderWidth: 1, borderRadius: 10, color: "#FFFFFF", paddingHorizontal: 13, fontSize: 16, letterSpacing: 3 }} />
         <TouchableOpacity disabled={props.busy || props.visitorCode.length !== 6} onPress={() => props.onLookup(props.visitorCode)} style={[button, { backgroundColor: "#302718", borderWidth: 1, borderColor: "#6A552F", opacity: props.busy || props.visitorCode.length !== 6 ? 0.55 : 1 }]}>
           {props.busy ? <ActivityIndicator color="#D4A84B" /> : <Text style={{ color: "#F5D58D", fontWeight: "900" }}>VERIFY ACCESS CODE</Text>}
         </TouchableOpacity>
