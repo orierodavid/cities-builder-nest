@@ -738,7 +738,17 @@ export default function HomeScreen() {
   const isEstateManager = !mobileClient && ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
   const isSecurity = selectedEstate?.membershipRole === "security";
   const isEventOrganiser = selectedEstate?.membershipRole === "event_organiser";
-  const isResident = selectedEstate?.membershipRole === "resident" || (!selectedEstate && (profile?.residentUnits?.length || 0) > 0);
+  const selectedEstateRole = selectedEstate?.membershipRole?.trim().toLowerCase().replace(/-/g, "_") || null;
+  const hasResidentUnit = (profile?.residentUnits?.length || 0) > 0;
+  const hasResidentMembership = (profile?.estateMemberships || []).some((membership) =>
+    membership.status === "active" &&
+    membership.membership_role.trim().toLowerCase().replace(/-/g, "_") === "resident" &&
+    (!selectedEstateId || membership.estate_id === selectedEstateId),
+  );
+  // A resident unit or matching active resident membership confirms resident access
+  // when the estates endpoint omits membershipRole. Explicit staff/security roles win.
+  const isResident = selectedEstateRole === "resident" ||
+    (!selectedEstateRole && (hasResidentUnit || hasResidentMembership));
 
   useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) void loadEstateEvents(); }, [isEventOrganiser, selectedEstateId, session?.access_token]);
 
