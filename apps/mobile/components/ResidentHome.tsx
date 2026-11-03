@@ -11,13 +11,14 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { theme } from "../src/theme/theme";
 
-const GOLD = "#D9A93F";
-const GOLD_SOFT = "#F0C766";
-const BG = "#050505";
-const CARD = "#121212";
-const BORDER = "#3A2E12";
-const MUTED = "#9A9A9A";
+const GOLD = theme.gold;
+const GOLD_SOFT = theme.goldSoft;
+const BG = theme.bg;
+const CARD = theme.card;
+const BORDER = theme.border;
+const MUTED = theme.muted;
 
 type Tile = {
   key: string;
