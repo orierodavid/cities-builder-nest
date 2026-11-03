@@ -291,26 +291,13 @@ export default function HomeScreen() {
           : (data.message || "Email or password is incorrect."));
       }
       if (!data?.session) throw new Error("Authentication service returned no session. Please try again.");
-      if (Platform.OS !== "web") {
-        if (!apiUrl) throw new Error("The mobile app could not verify your estate role. Please try again.");
-        const roleResponse = await fetch(apiUrl + "/v1/me", {
-          headers: { Authorization: "Bearer " + data.session.access_token, Accept: "application/json" },
-        });
-        const roleProfile = await roleResponse.json() as ProfileResponse;
-        if (!roleResponse.ok) throw new Error("Your mobile access could not be verified. Please try again.");
-        const allowedRoles = new Set(["resident", "security", "event_organiser"]);
-        const hasAllowedMembership = (roleProfile.estateMemberships || []).some(
-          (membership) => membership.status === "active" && allowedRoles.has(membership.membership_role),
-        );
-        const hasResidentUnit = (roleProfile.residentUnits || []).length > 0;
-        if (!hasAllowedMembership && !hasResidentUnit) {
-          throw new Error("Admin and facility manager accounts must sign in through the CB Nest web portal. The mobile app is for residents, security and event organisers.");
-        }
-      }
+      // Establish the Supabase session immediately after successful authentication.
+      // Profile/role verification runs in loadProfile after the auth state changes;
+      // a slow or unreachable local API must not turn valid credentials into a login failure.
       const { error: sessionError } = await supabase.auth.setSession(data.session);
       if (sessionError) throw sessionError;
       setMessage("Signed in successfully.");
-    } catch (e) { setMessage(e instanceof Error ? e.message : "Authentication failed. Please try again."); }
+    } catch (e) {\n      const detail = e instanceof Error ? e.message : "Authentication failed. Please try again.";\n      setMessage(/fetch failed|network request failed|timed? ?out|unexpected exception/i.test(detail)\n        ? "We couldn’t reach CB Nest sign-in. Check your internet connection and try again."\n        : detail);\n    }
     finally { setBusy(false); }
   }
 
@@ -859,29 +846,26 @@ export default function HomeScreen() {
             {restoring ? (
               <View style={styles.loadingPage}><ActivityIndicator size="large" color={green}/><Text style={styles.bodyText}>Getting your space ready…</Text></View>
             ) : !session ? (
-              <View style={[styles.authLayout,wide && styles.authLayoutWide]}>
-                <View style={[styles.welcomePanel, wide && styles.welcomePanelWide]}>
-                  <View style={styles.overlinePill}><View style={styles.liveDot}/><Text style={styles.overlineText}>THE RESIDENT EXPERIENCE</Text></View>
-                  <Text style={styles.welcomeTitle}>A better way to{"\\n"}feel at <Text style={styles.welcomeAccent}>home.</Text></Text>
-                  <Text style={styles.welcomeBody}>Your estate life, thoughtfully connected. Stay informed, report issues, and keep your community moving.</Text>
-                  <View style={styles.welcomeFeatures}><View style={styles.welcomeFeatureRow}><Ionicons name="checkmark-circle" size={18} color={gold}/><Text style={styles.welcomeFeature}>Community updates</Text></View><View style={styles.welcomeFeatureRow}><Ionicons name="checkmark-circle" size={18} color={gold}/><Text style={styles.welcomeFeature}>Simple maintenance reporting</Text></View><View style={styles.welcomeFeatureRow}><Ionicons name="checkmark-circle" size={18} color={gold}/><Text style={styles.welcomeFeature}>One account, many estates</Text></View></View>
-                  <Text style={styles.welcomeFoot}>BUILT AROUND YOUR COMMUNITY</Text>
+              <View style={[styles.saasLoginShell,wide && styles.saasLoginShellWide]}>
+                <View style={styles.saasBrand}>
+                  <View style={styles.saasBrandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View>
+                  <View><Text style={styles.saasBrandName}>CB NEST</Text><Text style={styles.saasBrandTag}>CITIES BUILDER</Text></View>
                 </View>
-                <View style={[styles.authCard, wide && styles.authCardWide]}>
-                  <Text style={styles.formEyebrow}>WELCOME BACK</Text>
-                  <Text style={styles.formTitle}>Sign in to your space</Text>
-                  <Text style={styles.formIntro}>Use the email address your estate administrator invited.</Text>
-                  
-                  <Text style={styles.fieldLabel}>Email address</Text>
-                  <TextInput accessibilityLabel="Email address" returnKeyType="next" style={styles.input} value={email} onChangeText={setEmail} placeholder="you@example.com" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" editable={!busy}/>
-                  <View style={styles.passwordLabelRow}><Text style={styles.fieldLabel}>Password</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={showPassword ? "Hide password" : "Show password"} onPress={() => setShowPassword((visible) => !visible)} disabled={busy} style={styles.passwordToggle}><Text style={styles.passwordToggleText}>{showPassword ? "Hide" : "Show"}</Text></TouchableOpacity></View>
-                  <TextInput accessibilityLabel="Password" returnKeyType="go" style={styles.input} value={password} onChangeText={setPassword} placeholder="At least 8 characters" secureTextEntry={!showPassword} autoComplete="current-password" editable={!busy} onSubmitEditing={() => void submitAuth()}/>
-                  {!!message && <Text style={message.toLowerCase().includes("success") || message.toLowerCase().includes("submitted") ? styles.successMessage : styles.errorMessage}>{message}</Text>}
-                  {!supabaseConfigured && <Text style={styles.warningMessage}>Supabase setup is required. Check your local mobile environment file.</Text>}
-                  <TouchableOpacity style={[styles.button,styles.authButton,busy && styles.disabled]} onPress={() => void submitAuth()} disabled={busy}>{busy ? <ActivityIndicator color="#fff"/> : <Text style={styles.buttonText}>Sign in securely  →</Text>}</TouchableOpacity>
-                  <TouchableOpacity style={styles.switchMode} onPress={() => void requestPasswordReset()} disabled={busy}><Text style={styles.switchText}><Text style={styles.switchStrong}>Forgot your password?</Text></Text></TouchableOpacity>
-                  <Text style={styles.secureNote}>Your account is protected by Supabase authentication.</Text>
+                <View style={styles.saasLoginCard}>
+                  <View style={styles.saasWelcomeIcon}><Ionicons name="home" size={23} color="#D9A93F"/></View>
+                  <Text style={styles.saasEyebrow}>YOUR COMMUNITY, CONNECTED</Text>
+                  <Text style={styles.saasTitle}>Welcome back.</Text>
+                  <Text style={styles.saasSubtitle}>Sign in to manage your home and stay connected to your estate.</Text>
+                  <Text style={styles.saasFieldLabel}>EMAIL ADDRESS</Text>
+                  <View style={styles.saasInputWrap}><Ionicons name="mail-outline" size={18} color="#A99A78"/><TextInput accessibilityLabel="Email address" returnKeyType="next" style={styles.saasInput} value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor="#77716A" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" editable={!busy}/></View>
+                  <View style={styles.saasPasswordHeading}><Text style={styles.saasFieldLabel}>PASSWORD</Text><TouchableOpacity onPress={() => void requestPasswordReset()} disabled={busy}><Text style={styles.saasForgot}>Forgot password?</Text></TouchableOpacity></View>
+                  <View style={styles.saasInputWrap}><Ionicons name="lock-closed-outline" size={18} color="#A99A78"/><TextInput accessibilityLabel="Password" returnKeyType="go" style={styles.saasInput} value={password} onChangeText={setPassword} placeholder="Enter your password" placeholderTextColor="#77716A" secureTextEntry={!showPassword} autoComplete="current-password" editable={!busy} onSubmitEditing={() => void submitAuth()}/><TouchableOpacity accessibilityLabel={showPassword ? "Hide password" : "Show password"} onPress={() => setShowPassword((visible) => !visible)}><Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={19} color="#A99A78"/></TouchableOpacity></View>
+                  {!!message && <Text style={message.toLowerCase().includes("success") ? styles.successMessage : styles.saasError}>{message}</Text>}
+                  {!supabaseConfigured && <Text style={styles.saasError}>Sign-in configuration is missing. Contact your administrator.</Text>}
+                  <TouchableOpacity style={[styles.saasSubmit,busy && styles.disabled]} onPress={() => void submitAuth()} disabled={busy}>{busy ? <ActivityIndicator color="#17130B"/> : <><Text style={styles.saasSubmitText}>Sign in</Text><Ionicons name="arrow-forward" size={18} color="#17130B"/></>}</TouchableOpacity>
+                  <View style={styles.saasSecure}><Ionicons name="shield-checkmark-outline" size={15} color="#BFA66D"/><Text style={styles.saasSecureText}>Secure access to your estate account</Text></View>
                 </View>
+                <Text style={styles.saasFooter}>ONE PLATFORM. MANY ESTATES.</Text>
               </View>
             ) : (
               <>
@@ -1203,6 +1187,28 @@ const styles = StyleSheet.create({
   brandRow:{flexDirection:"row",alignItems:"center",gap:11,flexShrink:1,minWidth:0},brandMark:{width:42,height:42,flexShrink:0,borderRadius:0,backgroundColor:"transparent",alignItems:"center",justifyContent:"center",flexDirection:"row",gap:2},logoTowerLeft:{width:8,height:19,backgroundColor:"#FFC400",transform:[{skewY:"-24deg"}],alignSelf:"center"},logoTowerCenter:{width:10,height:34,backgroundColor:"#FFC400",transform:[{skewY:"-8deg"}],alignSelf:"center"},logoTowerRight:{width:8,height:23,backgroundColor:"#FFC400",transform:[{skewY:"24deg"}],alignSelf:"center"},
   brandName:{color:"#071A3A",fontSize:15,fontWeight:"900",letterSpacing:-.3,flexShrink:1},brandCaption:{color:"#53647F",fontSize:8,fontWeight:"800",letterSpacing:.8,marginTop:3,flexShrink:1},avatar:{width:39,height:39,borderRadius:20,backgroundColor:"#FFC400",alignItems:"center",justifyContent:"center"},avatarText:{color:"#071A3A",fontSize:15,fontWeight:"900"},
   content:{paddingHorizontal:20,paddingTop:18,paddingBottom:30,gap:16},contentWide:{paddingHorizontal:18,paddingTop:22,paddingBottom:30,maxWidth:430,width:"100%",alignSelf:"center"},loadingPage:{minHeight:300,alignItems:"center",justifyContent:"center",gap:12},
+  saasLoginShell:{flexGrow:1,justifyContent:"center",alignItems:"center",paddingHorizontal:22,paddingTop:28,paddingBottom:36,backgroundColor:"#050505",gap:26},
+  saasLoginShellWide:{flexDirection:"row",alignItems:"center",gap:70,paddingHorizontal:64,minHeight:650},
+  saasBrand:{flexDirection:"row",alignItems:"center",gap:12,alignSelf:"center"},
+  saasBrandMark:{width:43,height:43,borderRadius:13,backgroundColor:"#17130B",borderWidth:1,borderColor:"#6B5324",alignItems:"center",justifyContent:"center",flexDirection:"row",gap:2},
+  saasBrandName:{fontSize:20,fontWeight:"900",letterSpacing:2,color:"#F7F2E8"},
+  saasBrandTag:{fontSize:9,fontWeight:"800",letterSpacing:2.3,color:"#D9A93F",marginTop:3},
+  saasLoginCard:{width:"100%",maxWidth:440,backgroundColor:"#101010",borderWidth:1,borderColor:"#302719",borderRadius:24,padding:25,gap:14},
+  saasWelcomeIcon:{width:48,height:48,borderRadius:15,backgroundColor:"#211A0D",borderWidth:1,borderColor:"#594522",alignItems:"center",justifyContent:"center",marginBottom:4},
+  saasEyebrow:{fontSize:9,fontWeight:"800",letterSpacing:2,color:"#D9A93F"},
+  saasTitle:{fontSize:32,fontWeight:"800",letterSpacing:-1,color:"#F8F5EE",marginTop:1},
+  saasSubtitle:{fontSize:13,lineHeight:20,color:"#A8A29A",marginBottom:9},
+  saasFieldLabel:{fontSize:10,fontWeight:"800",letterSpacing:1.4,color:"#D6C7A5"},
+  saasInputWrap:{minHeight:54,borderRadius:12,borderWidth:1,borderColor:"#3A3328",backgroundColor:"#090909",paddingHorizontal:14,flexDirection:"row",alignItems:"center",gap:11},
+  saasInput:{flex:1,color:"#F8F5EE",fontSize:14,paddingVertical:13,outlineStyle:"none" as never},
+  saasPasswordHeading:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:3},
+  saasForgot:{fontSize:11,fontWeight:"700",color:"#D9A93F"},
+  saasSubmit:{height:54,marginTop:7,borderRadius:12,backgroundColor:"#D9A93F",flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10},
+  saasSubmitText:{fontSize:14,fontWeight:"900",letterSpacing:.3,color:"#17130B"},
+  saasSecure:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,marginTop:4},
+  saasSecureText:{fontSize:10,color:"#928979"},
+  saasError:{fontSize:12,lineHeight:18,color:"#F08B80",backgroundColor:"#241310",padding:11,borderRadius:9},
+  saasFooter:{fontSize:9,fontWeight:"700",letterSpacing:2,color:"#766B57",textAlign:"center"},
   authLayout:{gap:16},authLayoutWide:{flexDirection:"row",alignItems:"stretch",gap:28,paddingTop:26,paddingBottom:26},welcomePanel:{backgroundColor:"#071A3A",borderRadius:22,padding:24,overflow:"hidden"},welcomePanelWide:{flex:1,justifyContent:"center",minHeight:540},authCardWide:{flex:1,justifyContent:"center",maxWidth:480},overlinePill:{alignSelf:"flex-start",flexDirection:"row",alignItems:"center",gap:8,borderWidth:1,borderColor:"#E5EAF2",borderRadius:30,paddingHorizontal:12,paddingVertical:8,backgroundColor:"#FFFFFF"},overlineText:{fontSize:9,color:"#071A3A",fontWeight:"900",letterSpacing:1},
   liveDot:{width:7,height:7,borderRadius:4,backgroundColor:gold},welcomeTitle:{fontSize:26,lineHeight:32,fontWeight:"900",color:"#FFFFFF",letterSpacing:-.7,marginTop:16},welcomeAccent:{color:"#FFC400"},welcomeBody:{fontSize:14,lineHeight:23,color:"#DCE6F5",marginTop:14,maxWidth:440},welcomeFeatures:{gap:13,marginTop:22},welcomeFeatureRow:{flexDirection:"row",alignItems:"center",gap:10},welcomeFeature:{color:"#FFFFFF",fontSize:13,fontWeight:"700"},welcomeFoot:{fontSize:9,letterSpacing:1.6,fontWeight:"900",color:"#DCE6F5",marginTop:22},
   authCard:{backgroundColor:"#FFFFFF",borderRadius:20,padding:20,borderWidth:1,borderColor:"#E5EAF2"},formEyebrow:{fontSize:10,color:"#A57900",fontWeight:"900",letterSpacing:1.5},formTitle:{fontSize:25,lineHeight:31,fontWeight:"900",letterSpacing:-.7,color:"#071A3A",marginTop:9},formIntro:{fontSize:13,lineHeight:20,color:"#53647F",marginTop:6,marginBottom:18},fieldLabel:{fontSize:12,color:"#071A3A",fontWeight:"800",marginTop:15,marginBottom:7},passwordLabelRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},passwordToggle:{paddingHorizontal:8,paddingVertical:5,marginTop:10,marginBottom:3},passwordToggleText:{fontSize:12,color:"#071A3A",fontWeight:"900"},input:{minHeight:54,borderWidth:1,borderColor:"#DCE3EF",borderRadius:12,paddingHorizontal:14,paddingVertical:13,fontSize:14,color:"#071A3A",backgroundColor:"#FFFFFF"},textArea:{minHeight:120,paddingTop:12},button:{minHeight:49,borderRadius:12,backgroundColor:gold,alignItems:"center",justifyContent:"center",paddingHorizontal:16,marginTop:14},authButton:{marginTop:20},buttonText:{color:"#071A3A",fontSize:14,fontWeight:"900"},buttonSecondary:{backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#DCE3EF"},buttonSecondaryText:{color:green},disabled:{opacity:.6},switchMode:{alignItems:"center",paddingTop:18,paddingBottom:5},switchText:{fontSize:12,color:"#53647F"},switchStrong:{color:green,fontWeight:"900"},secureNote:{fontSize:10,color:"#7D8AA3",textAlign:"center",marginTop:15},errorMessage:{color:"#B42318",fontSize:12,lineHeight:18,marginTop:12},successMessage:{color:"#167044",fontSize:12,lineHeight:18,marginTop:12},warningMessage:{color:"#8A4B08",fontSize:12,lineHeight:18,backgroundColor:"#FFF4DF",borderRadius:10,padding:11,marginTop:12},
