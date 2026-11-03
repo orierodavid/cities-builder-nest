@@ -741,9 +741,18 @@ export default function HomeScreen() {
   const isEstateManager = !mobileClient && ["facility_manager", "estate_manager", "estate_admin"].includes(selectedEstate?.membershipRole || "");
   const normalizeRole = (role: string | null | undefined) => role?.trim().toLowerCase().replace(/-/g, "_") || null;
   const selectedEstateRole = normalizeRole(selectedEstate?.membershipRole);
-  const isSecurity = selectedEstateRole === "security";
-  const isEventOrganiser = selectedEstateRole === "event_organiser";
-  const hasResidentUnit = (profile?.residentUnits?.length || 0) > 0;
+  // /v1/me is the authenticated account record. The /v1/estates role is
+  // presentation metadata and must never override a verified membership.
+  const selectedEstateMemberships = (profile?.estateMemberships || []).filter((membership) =>
+    !selectedEstateId || membership.estate_id === selectedEstateId,
+  );
+  const activeSelectedMemberships = selectedEstateMemberships.filter((membership) =>
+    membership.status?.trim().toLowerCase() === "active",
+  );
+  const isSecurity = activeSelectedMemberships.some((membership) => normalizeRole(membership.membership_role) === "security") ||
+    (activeSelectedMemberships.length === 0 && selectedEstateRole === "security");
+  const isEventOrganiser = activeSelectedMemberships.some((membership) => normalizeRole(membership.membership_role) === "event_organiser") ||
+    (activeSelectedMemberships.length === 0 && selectedEstateRole === "event_organiser");
   const activeResidentMemberships = (profile?.estateMemberships || []).filter((membership) =>
     membership.status?.trim().toLowerCase() === "active" &&
     normalizeRole(membership.membership_role) === "resident",
@@ -751,11 +760,13 @@ export default function HomeScreen() {
   const hasResidentMembership = activeResidentMemberships.some((membership) =>
     !selectedEstateId || membership.estate_id === selectedEstateId,
   );
-  // The authenticated /v1/me membership is authoritative for mobile resident access.
-  // Do not lose resident routing merely because /v1/estates omits or mislabels membershipRole.
-  const isResident = !isSecurity && !isEventOrganiser &&
-    (hasResidentMembership || (!selectedEstateId && activeResidentMemberships.length > 0) ||
-      (!selectedEstateRole && hasResidentUnit));
+  const hasResidentUnit = (profile?.residentUnits || []).some((assignment) => {
+    const unitEstateId = assignment.units?.buildings?.estate_id;
+    return !selectedEstateId || !unitEstateId || unitEstateId === selectedEstateId;
+  });
+  // A verified active resident membership or current unit assignment grants
+  // resident dashboard routing even when the estate-list endpoint is stale.
+  const isResident = !isSecurity && !isEventOrganiser && (hasResidentMembership || hasResidentUnit);
 
   useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) void loadEstateEvents(); }, [isEventOrganiser, selectedEstateId, session?.access_token]);
 
@@ -780,7 +791,7 @@ export default function HomeScreen() {
     <View style={styles.sectionTitleWrap}><Text style={styles.sectionTitle}>{title}</Text>{!!subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}</View>
   );
 
-  if (session && mobileClient && isResident && tab === "home") {
+  if (session && isResident && tab === "home") {
     const residentUnit = profile?.residentUnits?.[0]?.units;
     const residentBuilding = residentUnit?.buildings?.name;
     const residentUnitLabel = [residentBuilding, residentUnit?.unit_code ? "Unit " + residentUnit.unit_code : null].filter(Boolean).join(" - ");
