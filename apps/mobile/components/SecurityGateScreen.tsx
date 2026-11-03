@@ -90,10 +90,18 @@ export default function SecurityGateScreen(props: Props) {
       {props.visitor && (() => {
         const validFrom = new Date(props.visitor.pass.validFrom);
         const validUntil = new Date(props.visitor.pass.validUntil);
+        const validFromMs = validFrom.getTime();
+        const validUntilMs = validUntil.getTime();
+        const now = Date.now();
         const visitorDetails: Visitor = {
           name: props.visitor.visitor.name,
           category: "Personal Visitor",
-          valid: !props.visitor.availabilityError && props.visitor.pass.status === "active",
+          valid: !props.visitor.availabilityError
+            && props.visitor.pass.status === "active"
+            && Number.isFinite(validFromMs)
+            && Number.isFinite(validUntilMs)
+            && validFromMs <= now
+            && now <= validUntilMs,
           accessCode: props.visitorCode,
           host: props.visitor.host.name || "Not available",
           property: props.estateName || "Assigned estate",
@@ -116,7 +124,7 @@ export default function SecurityGateScreen(props: Props) {
               <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "800" }}>{visit.visitor_passes?.visitor_name || "Visitor"}</Text>
               <Text style={muted}>Checked in {new Date(visit.checked_in_at).toLocaleString()}</Text>
             </View>
-            <TouchableOpacity onPress={() => props.onCheckout(visit.id)} style={{ paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: "#6A552F" }}><Text style={{ color: "#D4A84B", fontSize: 10, fontWeight: "900" }}>CHECK OUT</Text></TouchableOpacity>
+            <TouchableOpacity disabled={props.busy} onPress={() => props.onCheckout(visit.id)} style={{ paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: "#6A552F", opacity: props.busy ? 0.5 : 1 }}><Text style={{ color: "#D4A84B", fontSize: 10, fontWeight: "900" }}>CHECK OUT</Text></TouchableOpacity>
           </View>
         )) : <View style={card}><Text style={{ color: "#FFFFFF", fontWeight: "800" }}>No active visits</Text><Text style={muted}>Visitors currently inside the estate will appear here.</Text></View>}
       </View>
