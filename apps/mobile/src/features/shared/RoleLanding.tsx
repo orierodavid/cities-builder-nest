@@ -21,22 +21,48 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
  const router=useRouter(); const cfg=CONFIG[role]; const [signingOut,setSigningOut]=useState(false);
  const [residentName,setResidentName]=useState(providedName||''); const [residentUnit,setResidentUnit]=useState(providedUnit||''); const [profileLoading,setProfileLoading]=useState(role==='resident'&&!providedName); const [profileError,setProfileError]=useState('');
  const go=(route:string)=>router.push(route as never);
- useEffect(()=>{if(role!=='resident'||providedName)return;let active=true;(async()=>{setProfileLoading(true);setProfileError('');try{
-  const {data:{user},error:authError}=await supabase.auth.getUser();if(authError)throw authError;if(!user)throw new Error('Your session has expired. Please sign in again.');
-  const [{data:profile,error:profileError},{data:assignments,error:unitError}]=await Promise.all([
-   supabase.from('users').select('full_name').eq('id',user.id).maybeSingle(),
-   supabase.from('resident_units').select('unit_id,estate_id,units(unit_code,unit_type,buildings(name,estates(name)))').eq('resident_user_id',user.id).is('end_date',null).order('start_date',{ascending:false}).limit(1)
-  ]);
-  if(profileError)throw profileError;if(unitError)throw unitError;
-  const assignment=assignments?.[0] as any;
-  if(active){setResidentName(profile?.full_name?.trim()||'');const unit=assignment?.units;const building=unit?.buildings;const estate=building?.estates;setResidentUnit([estate?.name,building?.name,unit?.unit_code?('Unit '+unit.unit_code):null].filter(Boolean).join(' · '));}
- }catch(e){if(active)setProfileError(e instanceof Error?e.message:'Resident details could not be loaded.');}finally{if(active)setProfileLoading(false);}})();return()=>{active=false};},[role,providedName]);
+ const loadResidentDetails=async()=>{
+  if(role!=='resident'||providedName)return;
+  setProfileLoading(true);setProfileError('');
+  try{
+   const {data:{user},error:authError}=await supabase.auth.getUser();
+   if(authError)throw authError;
+   if(!user)throw new Error('Your session has expired. Please sign in again.');
+   // Keep the dashboard lookup identical to My Property: resolve each relation
+   // separately instead of relying on nested PostgREST relationship joins.
+   const [{data:profile,error:profileQueryError},{data:rows,error:assignmentError}]=await Promise.all([
+    supabase.from('users').select('full_name').eq('id',user.id).maybeSingle(),
+    supabase.from('resident_units').select('unit_id,start_date,estate_id').eq('resident_user_id',user.id).is('end_date',null).order('start_date',{ascending:false}).limit(1)
+   ]);
+   if(profileQueryError)throw profileQueryError;
+   if(assignmentError)throw assignmentError;
+   const row=rows?.[0];
+   let unitLabel='';
+   if(row){
+    const {data:unit,error:unitError}=await supabase.from('units').select('unit_code,building_id,estate_id').eq('id',row.unit_id).maybeSingle();
+    if(unitError)throw unitError;
+    if(unit){
+     const [{data:building,error:buildingError},{data:estate,error:estateError}]=await Promise.all([
+      supabase.from('buildings').select('name').eq('id',unit.building_id).maybeSingle(),
+      supabase.from('estates').select('name').eq('id',row.estate_id||unit.estate_id).maybeSingle()
+     ]);
+     if(buildingError)throw buildingError;
+     if(estateError)throw estateError;
+     unitLabel=[estate?.name,building?.name,unit.unit_code?('Unit '+unit.unit_code):null].filter(Boolean).join(' · ');
+    }
+   }
+   setResidentName(profile?.full_name?.trim()||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
+   setResidentUnit(unitLabel);
+  }catch(e){setProfileError(e instanceof Error?e.message:'Resident details could not be loaded.');}
+  finally{setProfileLoading(false);}
+ };
+ useEffect(()=>{void loadResidentDetails();},[role,providedName]);
  const signOut=async()=>{if(signingOut)return;setSigningOut(true);try{const {error}=await supabase.auth.signOut();if(error)throw error;router.replace('/' as never);}catch(error){Alert.alert('Could not log out',error instanceof Error?error.message:'Please check your connection and try again.');}finally{setSigningOut(false);}};
  const tileBasis=cfg.columns===3?'31%':'48%';
  return <SafeAreaView style={s.safe} edges={['top']}><ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
  <View style={s.brandRow}><MaterialCommunityIcons name="home-city" size={26} color={C.gold}/><Text style={s.brand}>CB NEST</Text></View>
  {cfg.tagline?<Text style={s.tagline}>{cfg.tagline}</Text>:null}{cfg.badge?<View style={s.badge}><Text style={s.badgeText}>{cfg.badge}</Text></View>:null}
- <View style={s.greetRow}><View style={s.avatar}><MaterialCommunityIcons name="account" size={28} color={C.gold}/></View><View style={{flex:1}}><Text style={s.greet}>{cfg.greeting}</Text>{role==='resident'&&profileLoading?<ActivityIndicator color={C.gold} size="small"/>:null}{(residentName||providedName)?<Text style={s.name}>{residentName||providedName}</Text>:role==='resident'&&!profileLoading?<Text style={s.name}>Name unavailable</Text>:null}{(residentUnit||providedUnit)?<Text style={s.unit}>{residentUnit||providedUnit}</Text>:role==='resident'&&!profileLoading?<Text style={s.unit}>Apartment assignment not found</Text>:null}{!!profileError&&<Pressable onPress={()=>{setResidentName('');setProfileError('');}}><Text style={s.error}>Resident details could not be loaded. Tap to retry.</Text></Pressable>}</View><Pressable onPress={()=>go('/notifications')} hitSlop={10}><MaterialCommunityIcons name="bell-outline" size={24} color={C.text}/>{hasUnread?<View style={s.dot}/>:null}</Pressable></View>
+ <View style={s.greetRow}><View style={s.avatar}><MaterialCommunityIcons name="account" size={28} color={C.gold}/></View><View style={{flex:1}}><Text style={s.greet}>{cfg.greeting}</Text>{role==='resident'&&profileLoading?<ActivityIndicator color={C.gold} size="small"/>:null}{(residentName||providedName)?<Text style={s.name}>{residentName||providedName}</Text>:role==='resident'&&!profileLoading?<Text style={s.name}>Name unavailable</Text>:null}{(residentUnit||providedUnit)?<Text style={s.unit}>{residentUnit||providedUnit}</Text>:role==='resident'&&!profileLoading?<Text style={s.unit}>Apartment assignment not found</Text>:null}{!!profileError&&<Pressable onPress={()=>void loadResidentDetails()}><Text style={s.error}>Resident details could not be loaded. Tap to retry.</Text></Pressable>}</View><Pressable onPress={()=>go('/notifications')} hitSlop={10}><MaterialCommunityIcons name="bell-outline" size={24} color={C.text}/>{hasUnread?<View style={s.dot}/>:null}</Pressable></View>
  {cfg.welcomeTitle?<View style={s.banner}><Text style={s.bannerTitle}>{cfg.welcomeTitle}</Text><Text style={s.bannerText}>{cfg.welcomeText}</Text></View>:null}
  {cfg.actions?.map(a=><Pressable key={a.label} onPress={()=>go(a.route)} style={({pressed})=>[s.action,a.variant==='gold'?s.actionGold:s.actionLight,pressed&&{opacity:0.85}]}><MaterialCommunityIcons name={a.icon} size={24} color={C.dark}/><Text style={s.actionText}>{a.label}</Text><MaterialCommunityIcons name="chevron-right" size={22} color={C.dark}/></Pressable>)}
  <View style={s.grid}>{cfg.tiles.map(tile=><Pressable key={tile.label} onPress={()=>go(tile.route)} style={({pressed})=>[s.tile,{width:tileBasis},pressed&&{opacity:0.8}]}><MaterialCommunityIcons name={tile.icon} size={26} color={C.gold}/><Text style={s.tileText} numberOfLines={2}>{tile.label}</Text></Pressable>)}</View>
