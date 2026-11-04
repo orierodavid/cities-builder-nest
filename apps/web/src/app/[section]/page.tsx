@@ -252,7 +252,7 @@ type ResidentActivity = {
  electricityMeters:ResidentActivityRow[]; serviceChargePayments:ResidentActivityRow[];
 };
 function ResidentsPage(){
- const [rows,setRows]=useState<Array<{id:string;name:string;email:string;phone:string;estate:string;unit:string;status:string;joined:string}>>([]);
+ const [rows,setRows]=useState<Array<{id:string;userId:string;estateId:string;name:string;email:string;phone:string;estate:string;unit:string;status:string;joined:string}>>([]);
  const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [search,setSearch]=useState("");const [estates,setEstates]=useState<Estate[]>([]);const [selected,setSelected]=useState("");
  const [selectedResident,setSelectedResident]=useState<{userId:string;estateId:string;name:string;estate:string;unit:string}|null>(null);
  const [activity,setActivity]=useState<ResidentActivity|null>(null);const [activityLoading,setActivityLoading]=useState(false);const [activityWarnings,setActivityWarnings]=useState<string[]>([]);
@@ -311,7 +311,7 @@ function ResidentsPage(){
   const labels=["Visitor passes","Maintenance requests","Rent savings goals","Rent savings contributions","Electricity purchases","Electricity meters","Service charge payments"];
   sources.forEach((result,index)=>{if(result.error)warnings.push(labels[index]+" could not be loaded: "+result.error.message);});
   const passRows=passes.data||[];
-  let visitRows:any[]=[];
+  let visitRows:Array<{id:string;visitor_pass_id:string;checked_in_at:string|null;checked_out_at:string|null}>=[];
   if(passRows.length){
    const visits=await supabase.from("visitor_visits").select("id,visitor_pass_id,checked_in_at,checked_out_at").eq("estate_id",resident.estateId).in("visitor_pass_id",passRows.map(x=>x.id)).order("checked_in_at",{ascending:false}).limit(100);
    if(visits.error)warnings.push("Visitor check-in history could not be loaded: "+visits.error.message);
