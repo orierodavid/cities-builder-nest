@@ -13,6 +13,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import RentSavings from "../components/RentSavings";
 import ResidentUtilities from "../components/ResidentUtilities";
+import ResidentElectricity from "../components/ResidentElectricity";
 import ResidentVirtualAccount from "../components/ResidentVirtualAccount";
 import ResidentLegalDocuments from "../components/ResidentLegalDocuments";
 import SecurityGateScreen from "../components/SecurityGateScreen";
@@ -111,7 +112,7 @@ export default function HomeScreen() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
-  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "visitors" | "verify" | "guests" | "invitations" | "checkin" | "report" | "create" | "savings" | "utilities">("home");
+  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "visitors" | "verify" | "guests" | "invitations" | "checkin" | "report" | "create" | "savings" | "utilities" | "electricity">("home");
   const [eventTitle, setEventTitle] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [eventVenue, setEventVenue] = useState("");
@@ -833,6 +834,8 @@ export default function HomeScreen() {
               <>
                 {isResident && tab === "savings" ? (
                   <RentSavings residentUserId={session.user.id} estateId={selectedEstateId} onBack={() => setTab("home")} />
+                 ) : isResident && tab === "electricity" ? (
+                  <ResidentElectricity estateId={selectedEstateId || ""} onBack={() => setTab("home")} />
                 ) : isResident && tab === "utilities" ? (
                   <View style={styles.panel}><TouchableOpacity onPress={() => setTab("home")} style={styles.eventBack}><Text style={styles.eventRefresh}>← BACK TO HOME</Text></TouchableOpacity><ResidentUtilities estateId={selectedEstateId || ""} /></View>
                 ) : isResident && tab === "visitors" ? (
@@ -1089,6 +1092,7 @@ export default function HomeScreen() {
                         ["qr-code-outline","Generate Access Code","visitors"],
                         ["calendar-outline","Community","community"],
                         ["receipt-outline","Service Charges","utilities"],
+                        ["flash-outline","Electricity","electricity"],
                         ["wallet-outline","Save for Rent","savings"],
                         ["card-outline","Payment Account","profile"],
                         ["construct-outline","Maintenance Requests","maintenance"],
