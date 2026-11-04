@@ -13,9 +13,9 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "../lib/supabase";
 import RentSavings from "../components/RentSavings";
 import ResidentUtilities from "../components/ResidentUtilities";
+import ResidentElectricity from "../components/ResidentElectricity";
 import ResidentVirtualAccount from "../components/ResidentVirtualAccount";
 import ResidentLegalDocuments from "../components/ResidentLegalDocuments";
-import ResidentHome from "../components/ResidentHome";
 import SecurityGateScreen from "../components/SecurityGateScreen";
 import LoginScreen from "../src/features/auth/LoginScreen";
 
@@ -112,7 +112,7 @@ export default function HomeScreen() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
-  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "visitors" | "verify" | "guests" | "invitations" | "checkin" | "report" | "create" | "savings" | "utilities">("home");
+  const [tab, setTab] = useState<"home" | "community" | "maintenance" | "profile" | "management" | "visitors" | "verify" | "guests" | "invitations" | "checkin" | "report" | "create" | "savings" | "utilities" | "electricity">("home");
   const [eventTitle, setEventTitle] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [eventVenue, setEventVenue] = useState("");
@@ -758,7 +758,10 @@ export default function HomeScreen() {
   });
   // A verified active resident membership or current unit assignment grants
   // resident dashboard routing even when the estate-list endpoint is stale.
-  const isResident = !isSecurity && !isEventOrganiser && (hasResidentMembership || hasResidentUnit);
+  // Resident access is resolved across the account, not just the currently
+  // selected estate. A stale saved estate selection must never send a resident
+  // back into the legacy root dashboard.
+  const isResident = mobileClient && (activeResidentMemberships.length > 0 || hasResidentUnit);
 
   useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) void loadEstateEvents(); }, [isEventOrganiser, selectedEstateId, session?.access_token]);
 
@@ -783,8 +786,20 @@ export default function HomeScreen() {
     <View style={styles.sectionTitleWrap}><Text style={styles.sectionTitle}>{title}</Text>{!!subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}</View>
   );
 
-  // Residents have one canonical UI and navigation tree. Keep the root route
-  // responsible for authentication/role resolution, then hand off to the new app.
+  // Do not render the legacy root application while the authenticated user's
+  // estate memberships are still being resolved. This prevents the old shell
+  // flashing underneath the dedicated resident application on cold launch.
+  if (session && !profile) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" }}>
+        <ActivityIndicator size="large" color="#D4A84B" />
+        <Text style={{ color: "#B9B9B9", marginTop: 12, fontSize: 12 }}>Loading your account…</Text>
+      </View>
+    );
+  }
+
+  // Residents use only the dedicated Expo Router app group. The legacy root
+  // application remains available to the other supported mobile roles.
   if (session && isResident) return <Redirect href={"/(resident)" as never} />;
 
   return (
@@ -819,6 +834,8 @@ export default function HomeScreen() {
               <>
                 {isResident && tab === "savings" ? (
                   <RentSavings residentUserId={session.user.id} estateId={selectedEstateId} onBack={() => setTab("home")} />
+                 ) : isResident && tab === "electricity" ? (
+                  <ResidentElectricity estateId={selectedEstateId || ""} onBack={() => setTab("home")} />
                 ) : isResident && tab === "utilities" ? (
                   <View style={styles.panel}><TouchableOpacity onPress={() => setTab("home")} style={styles.eventBack}><Text style={styles.eventRefresh}>← BACK TO HOME</Text></TouchableOpacity><ResidentUtilities estateId={selectedEstateId || ""} /></View>
                 ) : isResident && tab === "visitors" ? (
@@ -1075,6 +1092,7 @@ export default function HomeScreen() {
                         ["qr-code-outline","Generate Access Code","visitors"],
                         ["calendar-outline","Community","community"],
                         ["receipt-outline","Service Charges","utilities"],
+                        ["flash-outline","Electricity","electricity"],
                         ["wallet-outline","Save for Rent","savings"],
                         ["card-outline","Payment Account","profile"],
                         ["construct-outline","Maintenance Requests","maintenance"],

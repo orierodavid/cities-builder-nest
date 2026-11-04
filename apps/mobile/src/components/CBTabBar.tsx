@@ -5,7 +5,6 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { theme as t } from '../theme/theme';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -19,9 +18,10 @@ const TABS: Record<string, { label: string; icon: IconName; iconActive: IconName
   profile: { label: 'Profile', icon: 'person-outline', iconActive: 'person' },
 };
 
-export default function CBTabBar({ state, navigation }: { state: any; navigation: any }) {
+type ResidentTabState = { routes: Array<{ name: string; key: string; params?: object }>; index: number };
+
+export default function CBTabBar({ state, navigation }: { state: ResidentTabState; navigation: any }) {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
 
   const visible = state.routes.filter((r) => TABS[r.name]);
   const left = visible.slice(0, 2);
@@ -29,7 +29,10 @@ export default function CBTabBar({ state, navigation }: { state: any; navigation
 
   const renderTab = (route: (typeof state.routes)[number]) => {
     const meta = TABS[route.name];
-    const focused = state.routes[state.index]?.key === route.key;
+    const activeRoute = state.routes[state.index]?.name;
+    // Feature screens are pushed within this tab navigator. Keep Home visibly
+    // selected while a resident is viewing a feature route from the dashboard.
+    const focused = activeRoute === route.name || (!TABS[activeRoute] && route.name === 'index');
 
     const onPress = () => {
       const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -37,7 +40,7 @@ export default function CBTabBar({ state, navigation }: { state: any; navigation
     };
 
     return (
-      <TouchableOpacity key={route.key} style={s.item} onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity key={route.key} style={s.item} onPress={onPress} activeOpacity={0.7} accessibilityRole="tab" accessibilityLabel={meta.label} accessibilityState={{ selected: focused }}>
         <Ionicons name={focused ? meta.iconActive : meta.icon} size={22} color={focused ? t.gold : t.muted} />
         <Text style={[s.label, focused && { color: t.gold }]}>{meta.label}</Text>
       </TouchableOpacity>
@@ -47,7 +50,7 @@ export default function CBTabBar({ state, navigation }: { state: any; navigation
   return (
     <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {left.map(renderTab)}
-      <TouchableOpacity style={s.fab} onPress={() => router.push('/visitors')} activeOpacity={0.85}>
+      <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('visitors')} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Generate visitor access code">
         <Ionicons name="add" size={32} color="#000" />
       </TouchableOpacity>
       {right.map(renderTab)}
@@ -57,6 +60,7 @@ export default function CBTabBar({ state, navigation }: { state: any; navigation
 
 const s = StyleSheet.create({
   bar: {
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
@@ -65,7 +69,7 @@ const s = StyleSheet.create({
     borderTopColor: t.border,
     paddingTop: 8,
   },
-  item: { alignItems: 'center', minWidth: 60 },
+  item: { alignItems: 'center', justifyContent: 'center', minWidth: 60, minHeight: 48, paddingHorizontal: 4 },
   label: { color: t.muted, fontSize: 10, marginTop: 2 },
   fab: {
     width: 54,

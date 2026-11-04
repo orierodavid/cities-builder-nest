@@ -43,7 +43,7 @@ export function Screen({ title, subtitle, back, right, scroll = true, children }
 
       {scroll ? (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 }}
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
         >
           {children}
