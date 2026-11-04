@@ -77,12 +77,24 @@ export default function RootLayout() {
     const subscription = AppState.addEventListener("change", (nextState) => {
       const previousState = appState.current;
       appState.current = nextState;
-      if (!biometricEnabled.current || authenticationInProgress.current) return;
+      if (authenticationInProgress.current) return;
       if (nextState === "background" && previousState !== "background") {
-        lockedRef.current = true;
-        setLocked(true);
-      } else if (nextState === "active" && previousState === "background" && lockedRef.current) {
-        void authenticate();
+        void AsyncStorage.getItem(BIOMETRIC_KEY).then((enabled) => {
+          biometricEnabled.current = enabled === "true";
+          if (biometricEnabled.current) {
+            lockedRef.current = true;
+            setLocked(true);
+          }
+        });
+      } else if (nextState === "active" && previousState === "background") {
+        void AsyncStorage.getItem(BIOMETRIC_KEY).then((enabled) => {
+          biometricEnabled.current = enabled === "true";
+          if (biometricEnabled.current) {
+            lockedRef.current = true;
+            setLocked(true);
+            void authenticate();
+          }
+        });
       }
     });
     return () => subscription.remove();
