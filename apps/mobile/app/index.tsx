@@ -757,7 +757,10 @@ export default function HomeScreen() {
   });
   // A verified active resident membership or current unit assignment grants
   // resident dashboard routing even when the estate-list endpoint is stale.
-  const isResident = !isSecurity && !isEventOrganiser && (hasResidentMembership || hasResidentUnit);
+  // Resident access is resolved across the account, not just the currently
+  // selected estate. A stale saved estate selection must never send a resident
+  // back into the legacy root dashboard.
+  const isResident = mobileClient && (activeResidentMemberships.length > 0 || hasResidentUnit);
 
   useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) void loadEstateEvents(); }, [isEventOrganiser, selectedEstateId, session?.access_token]);
 
