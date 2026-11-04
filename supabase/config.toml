@@ -1,2 +1,5 @@
 [functions.squad-payment-webhook]
 verify_jwt = false
+
+[functions.squad-electricity]
+verify_jwt = true
