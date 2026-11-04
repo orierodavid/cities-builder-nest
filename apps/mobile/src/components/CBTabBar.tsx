@@ -18,7 +18,7 @@ const TABS: Record<string, { label: string; icon: IconName; iconActive: IconName
   profile: { label: 'Profile', icon: 'person-outline', iconActive: 'person' },
 };
 
-export default function CBTabBar({ state, navigation }: { state: any; navigation: any }) {
+type ResidentTabState = { routes: Array<{ name: string; key: string; params?: Record<string, unknown> }>; index: number };\n\nexport default function CBTabBar({ state, navigation }: { state: ResidentTabState; navigation: any }) {
   const insets = useSafeAreaInsets();
 
   const visible = state.routes.filter((r) => TABS[r.name]);
