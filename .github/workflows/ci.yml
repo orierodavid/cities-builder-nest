@@ -48,6 +48,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - run: npx expo install --check
+      - run: npx expo-doctor
       - run: npm run typecheck
 
   onboarding-function:
