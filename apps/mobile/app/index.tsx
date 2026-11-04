@@ -816,10 +816,10 @@ export default function HomeScreen() {
           </View>
         )}
         <View style={[styles.main, isResident && !wide && tab === "home" && styles.residentMain]}>
-          <View style={[styles.topbar, isResident && !wide && tab === "home" && styles.residentTopbar]}>
+          {session && <View style={[styles.topbar, isResident && !wide && tab === "home" && styles.residentTopbar]}>
             <View style={styles.brandRow}>{(!session || !wide) && <View style={styles.brandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View>}<View><Text style={[styles.brandName, isResident && !wide && tab === "home" && styles.residentBrandName]}>CB NEST</Text><Text style={[styles.brandCaption, isResident && !wide && tab === "home" && styles.residentBrandCaption]}>{session ? "BUILDING YOUR FUTURE" : "ONE PLATFORM · MANY ESTATES"}</Text></View></View>
             {session && <View style={[styles.avatar, isResident && !wide && tab === "home" && styles.residentAvatar]}><Text style={styles.avatarText}>{firstName.slice(0,1).toUpperCase()}</Text></View>}
-          </View>
+          </View>}
 
           <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide, isResident && !wide && tab === "home" && styles.residentContent]} keyboardShouldPersistTaps="handled">
             {restoring ? (
