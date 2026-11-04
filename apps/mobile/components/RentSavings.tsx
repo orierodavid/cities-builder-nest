@@ -26,7 +26,10 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
   const [durationMonths, setDurationMonths] = useState<3 | 6>(3);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");\n  const [contributions, setContributions] = useState<Array<{goal_id:string;amount_kobo:number;status:string;created_at:string}>>([]);\n  const [contributionAmount, setContributionAmount] = useState("");\n  const [fundingGoalId, setFundingGoalId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [contributions, setContributions] = useState<Array<{goal_id:string;amount_kobo:number;status:string;created_at:string}>>([]);
+  const [contributionAmount, setContributionAmount] = useState("");
+  const [fundingGoalId, setFundingGoalId] = useState<string | null>(null);
 
   const loadGoals = useCallback(async () => {
     setLoading(true);
@@ -134,7 +137,10 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
           <Text style={styles.date}>{goal.duration_months}-month commitment · Started {new Date(goal.created_at).toLocaleDateString("en-NG")}</Text>
           <Text style={styles.date}>Due date: {goal.target_date || "Pending setup"}</Text>
           <Text style={styles.commitment}>This goal cannot be paused or cancelled. It is intended to run until its due date.</Text>
-          <Text style={styles.targetLabel}>VERIFIED CONTRIBUTIONS (NOT A CUSTODIAL WALLET BALANCE)</Text><Text style={styles.date}>{money(contributions.filter(x => x.goal_id === goal.id && x.status === "successful").reduce((sum,x) => sum + Number(x.amount_kobo),0))}</Text>\n          <TextInput style={styles.input} value={contributionAmount} onChangeText={setContributionAmount} placeholder="Contribution amount (NGN)" placeholderTextColor="#888" keyboardType="numeric"/>\n          <TouchableOpacity style={[styles.primaryButton, fundingGoalId === goal.id && styles.disabled]} onPress={() => void fundGoal(goal.id)} disabled={!!fundingGoalId || goal.status !== "active"}>{fundingGoalId === goal.id ? <ActivityIndicator color="#071A3A"/> : <Text style={styles.primaryText}>Add money with Squad</Text>}</TouchableOpacity>\n          <Text style={styles.date}>{contributions.filter(x => x.goal_id === goal.id).length} contribution transactions recorded</Text>
+          <Text style={styles.targetLabel}>VERIFIED CONTRIBUTIONS (NOT A CUSTODIAL WALLET BALANCE)</Text><Text style={styles.date}>{money(contributions.filter(x => x.goal_id === goal.id && x.status === "successful").reduce((sum,x) => sum + Number(x.amount_kobo),0))}</Text>
+          <TextInput style={styles.input} value={contributionAmount} onChangeText={setContributionAmount} placeholder="Contribution amount (NGN)" placeholderTextColor="#888" keyboardType="numeric"/>
+          <TouchableOpacity style={[styles.primaryButton, fundingGoalId === goal.id && styles.disabled]} onPress={() => void fundGoal(goal.id)} disabled={!!fundingGoalId || goal.status !== "active"}>{fundingGoalId === goal.id ? <ActivityIndicator color="#071A3A"/> : <Text style={styles.primaryText}>Add money with Squad</Text>}</TouchableOpacity>
+          <Text style={styles.date}>{contributions.filter(x => x.goal_id === goal.id).length} contribution transactions recorded</Text>
         </View>
       ))}
       {!!message && <Text style={message.includes("created") ? styles.success : styles.error}>{message}</Text>}
