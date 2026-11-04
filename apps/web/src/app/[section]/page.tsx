@@ -300,7 +300,8 @@ function ResidentsPage(){
 
 export default function SectionPage(){
  const params=useParams<{section:string}>();const section=Array.isArray(params.section)?params.section[0]:params.section;
- if(section==="users")return <UsersPage/>;\n if(section==="residents")return <ResidentsPage/>;
+ if(section==="users")return <UsersPage/>;
+ if(section==="residents")return <ResidentsPage/>;
  if(section==="settings")return <SettingsPage/>;
  if(section==="profile")return <ProfilePage/>;
  if(section==="estates")return <EstatesPage/>;
