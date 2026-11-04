@@ -1,4 +1,6 @@
-// The resident application's shared dark/gold bottom navigation.
+// src/components/CBTabBar.tsx
+// The ONE bottom bar for the resident app. Used by app/(resident)/_layout.tsx via <Tabs tabBar=... />.
+// Requires: @react-navigation/bottom-tabs (installed with expo-router), react-native-safe-area-context, @expo/vector-icons
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -8,29 +10,35 @@ import { useRouter } from 'expo-router';
 import { theme as t } from '../theme/theme';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+// Only route names listed here appear in the bar. Any other file in the folder
+// (community, maintain, access-code, ...) still works as a screen but gets no tab.
 const TABS: Record<string, { label: string; icon: IconName; iconActive: IconName }> = {
   index: { label: 'Home', icon: 'home-outline', iconActive: 'home' },
   activity: { label: 'Activity', icon: 'pulse-outline', iconActive: 'pulse' },
-  notifications: { label: 'Alerts', icon: 'notifications-outline', iconActive: 'notifications' },
+  notifications: { label: 'Notifications', icon: 'notifications-outline', iconActive: 'notifications' },
   profile: { label: 'Profile', icon: 'person-outline', iconActive: 'person' },
 };
 
 export default function CBTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const visible = state.routes.filter((route) => TABS[route.name]);
+
+  const visible = state.routes.filter((r) => TABS[r.name]);
   const left = visible.slice(0, 2);
   const right = visible.slice(2);
 
   const renderTab = (route: (typeof state.routes)[number]) => {
     const meta = TABS[route.name];
     const focused = state.routes[state.index]?.key === route.key;
+
     const onPress = () => {
       const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
       if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
     };
+
     return (
-      <TouchableOpacity key={route.key} style={s.item} onPress={onPress} activeOpacity={0.75} accessibilityRole="button" accessibilityState={{ selected: focused }} accessibilityLabel={meta.label}>
+      <TouchableOpacity key={route.key} style={s.item} onPress={onPress} activeOpacity={0.7}>
         <Ionicons name={focused ? meta.iconActive : meta.icon} size={22} color={focused ? t.gold : t.muted} />
         <Text style={[s.label, focused && { color: t.gold }]}>{meta.label}</Text>
       </TouchableOpacity>
@@ -40,7 +48,7 @@ export default function CBTabBar({ state, navigation }: BottomTabBarProps) {
   return (
     <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {left.map(renderTab)}
-      <TouchableOpacity style={s.fab} onPress={() => router.push('/access-code' as never)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Generate visitor code">
+      <TouchableOpacity style={s.fab} onPress={() => router.push('/access-code')} activeOpacity={0.85}>
         <Ionicons name="add" size={32} color="#000" />
       </TouchableOpacity>
       {right.map(renderTab)}
@@ -49,8 +57,26 @@ export default function CBTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 const s = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', backgroundColor: '#0A0A0A', borderTopWidth: 1, borderTopColor: t.border, paddingTop: 8 },
-  item: { alignItems: 'center', minWidth: 60, paddingHorizontal: 8 },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#0A0A0A',
+    borderTopWidth: 1,
+    borderTopColor: t.border,
+    paddingTop: 8,
+  },
+  item: { alignItems: 'center', minWidth: 60 },
   label: { color: t.muted, fontSize: 10, marginTop: 2 },
-  fab: { width: 54, height: 54, borderRadius: 27, backgroundColor: t.gold, alignItems: 'center', justifyContent: 'center', marginTop: -26, borderWidth: 4, borderColor: t.bg },
+  fab: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: t.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -26,
+    borderWidth: 4,
+    borderColor: t.bg,
+  },
 });
