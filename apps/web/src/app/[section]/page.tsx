@@ -275,7 +275,7 @@ function ResidentsPage(){
   if(profileError||unitError){setError("Resident profile or property details could not be loaded.");setLoading(false);return;}
   const profileMap=new Map((profiles||[]).map(x=>[x.id,x]));
   const unitMap=new Map((units||[]).map(x=>[x.id,x]));
-  const {data:assignments,error:assignmentError}=ids.length?await supabase.from("resident_unit_assignments").select("resident_user_id,unit_id").in("resident_user_id",ids):{data:[],error:null};
+  const {data:assignments,error:assignmentError}=ids.length?await supabase.from("resident_units").select("resident_user_id,unit_id").in("resident_user_id",ids).is("end_date",null):{data:[],error:null};
   if(assignmentError){setError("Resident property assignments could not be loaded.");setLoading(false);return;}
   const assignmentMap=new Map((assignments||[]).map(x=>[x.resident_user_id,x.unit_id]));
   const next=(members||[]).map((m:ResidentDirectoryRow)=>{
