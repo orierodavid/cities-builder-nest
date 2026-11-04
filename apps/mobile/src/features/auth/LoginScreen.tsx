@@ -15,14 +15,12 @@ type Props = {
   onSubmit: (identifier: string, password: string) => Promise<void> | void;
   onForgotPassword?: (identifier: string) => void;
   onCreateAccount?: () => void;
-  onBiometric?: () => Promise<void> | void;
 };
-export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount, onBiometric }: Props) {
+export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Props) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [biometricLoading, setBiometricLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canSubmit = identifier.trim().length > 0 && password.length > 0 && !loading;
   const submit = async () => {
@@ -68,15 +66,6 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount, onBio
               <Pressable onPress={submit} disabled={!canSubmit} style={({ pressed }) => [s.button, s.signInButton, !canSubmit && s.disabled, pressed && { opacity: .86 }]}>
                 {loading ? <ActivityIndicator color="#17130B" /> : <><Text style={s.buttonText}>SIGN IN</Text><MaterialCommunityIcons name="arrow-right" size={19} color="#17130B"/></>}
               </Pressable>
-              {onBiometric && <Pressable accessibilityRole="button" accessibilityLabel={Platform.OS === 'ios' ? 'Sign in with Face ID' : 'Sign in with biometrics'} onPress={async () => {
-                if (biometricLoading || loading) return;
-                setError(null); setBiometricLoading(true);
-                try { await onBiometric(); }
-                catch (e) { setError(e instanceof Error ? e.message : 'Biometric sign-in could not be completed.'); }
-                finally { setBiometricLoading(false); }
-              }} disabled={biometricLoading || loading} style={({ pressed }) => [s.biometricButton, (biometricLoading || loading) && s.disabled, pressed && { opacity: .82 }]}>
-                {biometricLoading ? <ActivityIndicator color={C.gold} /> : <MaterialCommunityIcons name={Platform.OS === 'ios' ? 'face-recognition' : 'fingerprint'} size={25} color={C.gold}/>}
-              </Pressable>}
             </View>
             {onCreateAccount && <Pressable onPress={onCreateAccount} style={s.contact}><Text style={s.contactText}>Need access? <Text style={s.contactGold}>Contact estate management</Text></Text></Pressable>}
           </View>
@@ -104,10 +93,7 @@ const s = StyleSheet.create({
   input:{flex:1,minWidth:0,color:C.text,fontSize:13,paddingVertical:13},
   passwordHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
   forgot:{color:C.gold,fontSize:10,fontWeight:'800',marginBottom:8},
-  signInActions:{flexDirection:'row',alignItems:'stretch',gap:10,marginTop:5},
   button:{minHeight:54,borderRadius:12,backgroundColor:C.gold,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,marginTop:5},
-  signInButton:{flex:1,marginTop:0},
-  biometricButton:{width:58,minHeight:54,borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:'#1A160F',alignItems:'center',justifyContent:'center'},
   buttonText:{color:'#17130B',fontSize:12,fontWeight:'900',letterSpacing:1},
   disabled:{opacity:.45},
   errorBox:{flexDirection:'row',alignItems:'center',gap:8,backgroundColor:'#2A1715',borderRadius:10,padding:11,marginBottom:10},
