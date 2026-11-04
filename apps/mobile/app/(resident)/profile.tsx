@@ -22,6 +22,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     let mounted = true;
+    AsyncStorage.getItem('cbnest.biometric.enabled').then(value => { if (mounted) setBiometricEnabled(value === 'true'); });
     async function loadResidentContext() {
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -47,6 +48,30 @@ export default function ProfileScreen() {
     return () => { mounted = false; };
   }, []);
 
+
+  async function toggleBiometric() {
+    setBiometricMessage('');
+    try {
+      if (biometricEnabled) {
+        await AsyncStorage.removeItem('cbnest.biometric.enabled');
+        setBiometricEnabled(false);
+        setBiometricMessage('Biometric unlock disabled on this device.');
+        return;
+      }
+      const [hardware, enrolled] = await Promise.all([
+        LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()
+      ]);
+      if (!hardware || !enrolled) throw new Error('Set up Face ID or fingerprint on your device first.');
+      const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Enable CB Nest biometric unlock', biometricsSecurityLevel: 'strong' });
+      if (!result.success) throw new Error('Biometric verification was not completed.');
+      await AsyncStorage.setItem('cbnest.biometric.enabled', 'true');
+      setBiometricEnabled(true);
+      setBiometricMessage('Biometric unlock enabled on this device.');
+    } catch (error) {
+      setBiometricMessage(error instanceof Error ? error.message : 'Could not update biometric settings.');
+    }
+  }
+
   return (
     <Screen title="My Profile" subtitle="Your account and resident preferences">
       <Card>
@@ -58,6 +83,15 @@ export default function ProfileScreen() {
         </View>}
         <ListRow icon="account-outline" title="Personal details" subtitle="View your resident account information" />
         <ListRow icon="home-city-outline" title="My property" subtitle="View your assigned property" onPress={() => router.push('/property' as never)} />
+      </Card>
+
+      <Card>
+        <SectionTitle>Biometric login</SectionTitle>
+        <Text style={{ color: '#B9B9B9', fontSize: 12, lineHeight: 18 }}>Use Face ID or fingerprint to unlock your existing session. Biometric data stays on your device.</Text>
+        {!!biometricMessage && <Text style={{ color: '#F1D28A', fontSize: 11, marginTop: 8 }}>{biometricMessage}</Text>}
+        <TouchableOpacity accessibilityRole="button" onPress={() => void toggleBiometric()} style={{ minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: '#8A6A32', backgroundColor: '#211B10', alignItems: 'center', justifyContent: 'center', marginTop: 12 }}>
+          <Text style={{ color: '#F1D28A', fontSize: 12, fontWeight: '900' }}>{biometricEnabled ? 'DISABLE BIOMETRIC LOGIN' : 'ENABLE BIOMETRIC LOGIN'}</Text>
+        </TouchableOpacity>
       </Card>
       {loading ? <ActivityIndicator color="#D4A84B" /> : residentUserId ? <ResidentVirtualAccount residentUserId={residentUserId} estateId={estateId} /> : <Text style={{ color: '#B9B9B9', fontSize: 12 }}>Sign in with your resident account to view payment account details.</Text>}
       <Card>
