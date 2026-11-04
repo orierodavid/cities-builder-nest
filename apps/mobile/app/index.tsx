@@ -18,6 +18,7 @@ import ResidentVirtualAccount from "../components/ResidentVirtualAccount";
 import ResidentLegalDocuments from "../components/ResidentLegalDocuments";
 import SecurityGateScreen from "../components/SecurityGateScreen";
 import LoginScreen from "../src/features/auth/LoginScreen";
+import SplashScreen from "../components/SplashScreen";
 
 type Estate = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; country_code?: string | null; is_enabled?: boolean; disabled_reason?: string | null; membershipRole: string | null };
 type ProfileResponse = { profile?: { id: string; full_name: string | null; is_active: boolean } | null; globalRoles?: string[]; estateMemberships?: { id: string; estate_id: string; membership_role: string; status: string; estates?: { name?: string; address?: string; city?: string; state?: string } | null }[]; residentUnits?: { unit_id: string; units?: { unit_code?: string; unit_type?: string | null; buildings?: { name?: string; estate_id?: string; estates?: { name?: string } | null } | null } | null }[]; profilePending?: boolean; error?: string };
@@ -380,10 +381,19 @@ export default function HomeScreen() {
 
   async function signOut() {
     setBusy(true);
-    const { error } = await supabase.auth.signOut();
-    setBusy(false);
-    if (error) setMessage(error.message);
-    else { setMessage("Signed out."); setTab("home"); }
+    setMessage("");
+    try {
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
+      setSession(null);
+      setProfile(null);
+      setEstates([]);
+      setSelectedEstateId(null);
+      setDashboard(null);
+      setTab("home");
+    } catch (e) {
+      setMessage(e instanceof Error ? "Could not sign out: " + e.message : "Could not sign out. Please try again.");
+    } finally { setBusy(false); }
   }
 
   async function chooseEstate(id: string) {
@@ -791,10 +801,7 @@ export default function HomeScreen() {
   // flashing underneath the dedicated resident application on cold launch.
   if (session && !profile) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" }}>
-        <ActivityIndicator size="large" color="#D4A84B" />
-        <Text style={{ color: "#B9B9B9", marginTop: 12, fontSize: 12 }}>Loading your account…</Text>
-      </View>
+      <SplashScreen />
     );
   }
 
