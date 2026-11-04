@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { ActivityIndicator, Text, View, TouchableOpacity } from 'react-native';
 import { Screen, Card, SectionTitle, ListRow } from '../../src/components/ui';
 import { useRouter } from 'expo-router';
@@ -15,6 +17,8 @@ export default function ProfileScreen() {
   const [phone, setPhone] = useState('');
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState('');
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricMessage, setBiometricMessage] = useState('');
 
   useEffect(() => {
     let mounted = true;
