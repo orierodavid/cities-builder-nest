@@ -242,9 +242,65 @@ function UsersPage() {
  </PortalFrame>;
 }
 
+
+type ResidentDirectoryRow = { id:string; user_id:string; estate_id:string; status:string; created_at:string; membership_role:string };
+function ResidentsPage(){
+ const [rows,setRows]=useState<Array<{id:string;name:string;email:string;phone:string;estate:string;unit:string;status:string;joined:string}>>([]);
+ const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [search,setSearch]=useState("");const [estates,setEstates]=useState<Estate[]>([]);const [selected,setSelected]=useState("");
+ const load=useCallback(async()=>{
+  setLoading(true);setError("");
+  const {data:{user}}=await supabase.auth.getUser();if(!user){setError("Your session has expired. Sign in again.");setLoading(false);return;}
+  const [{data:globalRoles,error:roleError},{data:ownMemberships,error:ownError}]=await Promise.all([
+   supabase.from("user_roles").select("role").eq("user_id",user.id),
+   supabase.from("estate_memberships").select("estate_id,membership_role,status").eq("user_id",user.id).eq("status","active")
+  ]);
+  if(roleError||ownError){setError("Unable to verify access to resident records.");setLoading(false);return;}
+  const admin=(globalRoles||[]).some(x=>x.role==="platform_admin");
+  const allowed=admin?[]:(ownMemberships||[]).filter(x=>["facility_manager","estate_manager","estate_admin"].includes(x.membership_role)).map(x=>x.estate_id);
+  if(!admin&&!allowed.length){setError("You do not have permission to view resident records.");setLoading(false);return;}
+  let estateQuery=supabase.from("estates").select("id,name").order("name");
+  if(!admin)estateQuery=estateQuery.in("id",allowed);
+  const {data:estateRows,error:estateError}=await estateQuery;
+  if(estateError){setError("Unable to load estate records.");setLoading(false);return;}
+  const estateList=(estateRows||[]) as Estate[];setEstates(estateList);
+  const estateIds=estateList.map(x=>x.id);
+  if(!estateIds.length){setRows([]);setLoading(false);return;}
+  const {data:members,error:memberError}=await supabase.from("estate_memberships").select("id,user_id,estate_id,status,created_at,membership_role").in("estate_id",estateIds).eq("membership_role","resident").order("created_at",{ascending:false});
+  if(memberError){setError("Resident membership records could not be loaded. Check database read permissions.");setLoading(false);return;}
+  const ids=[...new Set((members||[]).map(x=>x.user_id))];
+  const [{data:profiles,error:profileError},{data:units,error:unitError}]=await Promise.all([
+   ids.length?supabase.from("users").select("id,full_name,phone_e164").in("id",ids):Promise.resolve({data:[],error:null}),
+   supabase.from("units").select("id,estate_id,unit_code,building_id").in("estate_id",estateIds)
+  ]);
+  if(profileError||unitError){setError("Resident profile or property details could not be loaded.");setLoading(false);return;}
+  const profileMap=new Map((profiles||[]).map(x=>[x.id,x]));
+  const unitMap=new Map((units||[]).map(x=>[x.id,x]));
+  const {data:assignments,error:assignmentError}=ids.length?await supabase.from("resident_unit_assignments").select("resident_user_id,unit_id").in("resident_user_id",ids):{data:[],error:null};
+  if(assignmentError){setError("Resident property assignments could not be loaded.");setLoading(false);return;}
+  const assignmentMap=new Map((assignments||[]).map(x=>[x.resident_user_id,x.unit_id]));
+  const next=(members||[]).map((m:ResidentDirectoryRow)=>{
+   const profile=profileMap.get(m.user_id);const unitId=assignmentMap.get(m.user_id);const unit=unitId?unitMap.get(unitId):null;
+   return {id:m.id,name:profile?.full_name||"Name unavailable",email:"Email is private",phone:profile?.phone_e164||"—",estate:estateList.find(x=>x.id===m.estate_id)?.name||"—",unit:unit?.unit_code||"Not assigned",status:m.status,joined:new Date(m.created_at).toLocaleDateString("en-NG")};
+  });
+  setRows(next);setLoading(false);
+ },[]);
+ useEffect(()=>{void load();},[load]);
+ const visible=rows.filter(x=>{const q=search.toLowerCase();return (!selected||estates.find(e=>e.name===x.estate)?.id===selected)&&(!q||[x.name,x.phone,x.estate,x.unit,x.status].join(" ").toLowerCase().includes(q));});
+ return <PortalFrame title="Residents" description="Read-only resident directory across the estates you are authorized to oversee.">
+  <section className="panel module-panel"><div className="module-toolbar"><div><h3>Resident directory</h3><p>Live resident memberships and assigned property details. This screen does not permit resident-record edits.</p></div><button className="secondary-action" onClick={()=>void load()}>Refresh records</button></div>
+   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
+   <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selected} onChange={e=>setSelected(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search resident, phone, unit or estate…" aria-label="Search residents"/></div>
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Estate</th><th>Unit</th><th>Phone</th><th>Membership</th><th>Date added</th></tr></thead><tbody>
+   {loading?<tr><td colSpan={6} className="empty-cell">Loading live resident records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.estate}</td><td>{x.unit}</td><td>{x.phone}</td><td><span className={"status-pill status-"+x.status}>{x.status}</span></td><td>{x.joined}</td></tr>):<tr><td colSpan={6} className="empty-cell"><strong>No resident records found</strong><small>There are no matching resident memberships in the estates available to this account.</small></td></tr>}
+   </tbody></table></div>
+   <p className="notice-line">Read-only oversight. Resident accounts, financial records and personal details cannot be changed from this directory.</p>
+  </section>
+ </PortalFrame>;
+}
+
 export default function SectionPage(){
  const params=useParams<{section:string}>();const section=Array.isArray(params.section)?params.section[0]:params.section;
- if(section==="users")return <UsersPage/>;
+ if(section==="users")return <UsersPage/>;\n if(section==="residents")return <ResidentsPage/>;
  if(section==="settings")return <SettingsPage/>;
  if(section==="profile")return <ProfilePage/>;
  if(section==="estates")return <EstatesPage/>;
