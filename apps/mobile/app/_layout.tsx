@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, AppState, Text, TouchableOpacity, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -14,23 +14,39 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [locked, setLocked] = useState(false);
   const [error, setError] = useState("");
+  const biometricEnabled = useRef(false);
+  const lockedRef = useRef(false);
+  const authenticationInProgress = useRef(false);
+  const appState = useRef(AppState.currentState);
 
   async function authenticate() {
+    if (authenticationInProgress.current) return;
+    authenticationInProgress.current = true;
     setError("");
-    const hardware = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
-    if (!hardware || !enrolled) {
-      setError("Biometrics are unavailable. Sign in with your password to continue.");
-      return;
+    try {
+      const hardware = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!hardware || !enrolled) {
+        setError("Biometrics are unavailable. Sign in with your password to continue.");
+        return;
+      }
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Unlock Cities Builder Nest",
+        cancelLabel: "Cancel",
+        disableDeviceFallback: false,
+        biometricsSecurityLevel: "strong",
+      });
+      if (result.success) {
+        lockedRef.current = false;
+        setLocked(false);
+      } else {
+        setError("Biometric verification was not completed. Try again or use password sign-in.");
+      }
+    } catch {
+      setError("Unable to complete biometric verification. Try again or use password sign-in.");
+    } finally {
+      authenticationInProgress.current = false;
     }
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Unlock Cities Builder Nest",
-      cancelLabel: "Cancel",
-      disableDeviceFallback: false,
-      biometricsSecurityLevel: "strong",
-    });
-    if (result.success) setLocked(false);
-    else setError("Biometric verification was not completed. Try again or use password sign-in.");
   }
 
   useEffect(() => {
@@ -43,6 +59,8 @@ export default function RootLayout() {
         ]);
         if (!alive) return;
         if (session && enabled === "true") {
+          biometricEnabled.current = true;
+          lockedRef.current = true;
           setLocked(true);
           await authenticate();
         }
@@ -55,8 +73,25 @@ export default function RootLayout() {
     return () => { alive = false; };
   }, []);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      const previousState = appState.current;
+      appState.current = nextState;
+      if (!biometricEnabled.current || authenticationInProgress.current) return;
+      if (nextState === "background" && previousState !== "background") {
+        lockedRef.current = true;
+        setLocked(true);
+      } else if (nextState === "active" && previousState === "background" && lockedRef.current) {
+        void authenticate();
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
   async function usePassword() {
     await AsyncStorage.removeItem(BIOMETRIC_KEY);
+    biometricEnabled.current = false;
+    lockedRef.current = false;
     await supabase.auth.signOut({ scope: "local" });
     setLocked(false);
   }
