@@ -50,27 +50,9 @@ export default function RootLayout() {
   }
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const [{ data: { session } }, enabled] = await Promise.all([
-          supabase.auth.getSession(),
-          AsyncStorage.getItem(BIOMETRIC_KEY),
-        ]);
-        if (!alive) return;
-        if (session && enabled === "true") {
-          biometricEnabled.current = true;
-          lockedRef.current = true;
-          setLocked(true);
-          await authenticate();
-        }
-      } catch {
-        if (alive) setError("Unable to verify device authentication. Try again.");
-      } finally {
-        if (alive) setReady(true);
-      }
-    })();
-    return () => { alive = false; };
+    // Cold-start biometric sign-in is presented by the app's normal login screen.
+    // This root overlay is reserved for relocking after the app returns from background.
+    setReady(true);
   }, []);
 
   useEffect(() => {
