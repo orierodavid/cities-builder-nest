@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View, TouchableOpacity } from 'react-native';
 import { Screen, Card, SectionTitle, ListRow } from '../../src/components/ui';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -13,6 +13,8 @@ export default function ProfileScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [signingOut, setSigningOut] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -59,6 +61,22 @@ export default function ProfileScreen() {
         <ListRow icon="bell-outline" title="Notifications" subtitle="Estate updates and alerts" onPress={() => router.push('/notifications' as never)} />
         <ListRow icon="shield-check-outline" title="Privacy & security" subtitle="Account security and privacy settings" />
         <ListRow icon="help-circle-outline" title="Help & support" subtitle="Get assistance from estate management" />
+      </Card>
+      <Card>
+        <SectionTitle>Account access</SectionTitle>
+        {!!logoutError && <Text style={{ color: '#FF9292', fontSize: 12, marginBottom: 8 }}>{logoutError}</Text>}
+        <TouchableOpacity accessibilityRole="button" disabled={signingOut} onPress={async () => {
+          setSigningOut(true); setLogoutError('');
+          try {
+            const { error } = await supabase.auth.signOut({ scope: 'local' });
+            if (error) throw error;
+            router.replace('/' as never);
+          } catch (error) {
+            setLogoutError(error instanceof Error ? error.message : 'Could not sign out. Please try again.');
+          } finally { setSigningOut(false); }
+        }} style={{ minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: '#74403A', backgroundColor: '#241615', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: '#F28B82', fontSize: 12, fontWeight: '900' }}>{signingOut ? 'SIGNING OUT…' : 'SIGN OUT'}</Text>
+        </TouchableOpacity>
       </Card>
     </Screen>
   );
