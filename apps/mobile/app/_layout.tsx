@@ -6,7 +6,7 @@ import { theme } from "../src/theme/theme";
 export default function RootLayout() {
   return (
     <>
-      <StatusBar style="light" backgroundColor={theme.bg} />
+      <StatusBar style="light" />
       <MobileConsentGate>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }} />
       </MobileConsentGate>
