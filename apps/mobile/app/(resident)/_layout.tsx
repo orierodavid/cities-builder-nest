@@ -9,6 +9,7 @@ export default function ResidentLayout() {
       tabBar={(props) => <CBTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: false,
         sceneStyle: { backgroundColor: theme.bg },
       }}
     >
