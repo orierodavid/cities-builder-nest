@@ -120,7 +120,7 @@ export default function ProfileScreen() {
             setLogoutError(error instanceof Error ? error.message : 'Could not sign out. Please try again.');
           } finally { setSigningOut(false); }
         }} style={{ minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: '#74403A', backgroundColor: '#241615', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: '#F28B82', fontSize: 12, fontWeight: '900' }}>{signingOut ? 'SIGNING OUT…' : 'SIGN OUT'}</Text>
+          <Text style={{ color: '#F28B82', fontSize: 12, fontWeight: '900' }}>{signingOut ? (biometricEnabled ? 'LOCKING…' : 'SIGNING OUT…') : (biometricEnabled ? 'LOCK WITH FACE ID' : 'SIGN OUT')}</Text>
         </TouchableOpacity>
       </Card>
     </Screen>
