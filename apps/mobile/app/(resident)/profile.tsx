@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Text } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { Screen, Card, SectionTitle, ListRow } from '../../src/components/ui';
 import { useRouter } from 'expo-router';
-import { supabase } from '../../src/lib/supabase';
+import { supabase } from '../../lib/supabase';
 import ResidentVirtualAccount from '../../components/ResidentVirtualAccount';
 
 export default function ProfileScreen() {
@@ -10,23 +10,32 @@ export default function ProfileScreen() {
   const [residentUserId, setResidentUserId] = useState('');
   const [estateId, setEstateId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
 
   useEffect(() => {
     let mounted = true;
     async function loadResidentContext() {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) { if (mounted) setLoading(false); return; }
-      const { data: memberships } = await supabase.from('estate_memberships')
-        .select('estate_id, created_at')
-        .eq('user_id', auth.user.id)
-        .eq('membership_role', 'resident')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-      if (mounted) {
-        setResidentUserId(auth.user.id);
-        setEstateId(memberships?.[0]?.estate_id ?? null);
-        setLoading(false);
-      }
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
+        if (!user) { if (mounted) setLoading(false); return; }
+        const [{ data: account, error: accountError }, { data: memberships, error: membershipError }] = await Promise.all([
+          supabase.from('users').select('full_name, phone_e164').eq('id', user.id).maybeSingle(),
+          supabase.from('estate_memberships').select('estate_id, created_at').eq('user_id', user.id).eq('membership_role', 'resident').eq('status', 'active').order('created_at', { ascending: false })
+        ]);
+        if (accountError) throw accountError;
+        if (membershipError) throw membershipError;
+        if (mounted) {
+          setResidentUserId(user.id);
+          setFullName(account?.full_name?.trim() || user.user_metadata?.full_name || '');
+          setPhone(account?.phone_e164 || '');
+          setEmail(user.email || '');
+          setEstateId(memberships?.[0]?.estate_id ?? null);
+        }
+      } catch { if (mounted) setFullName('Profile details unavailable'); }
+      finally { if (mounted) setLoading(false); }
     }
     void loadResidentContext();
     return () => { mounted = false; };
@@ -36,6 +45,11 @@ export default function ProfileScreen() {
     <Screen title="My Profile" subtitle="Your account and resident preferences">
       <Card>
         <SectionTitle>Account</SectionTitle>
+        {loading ? <ActivityIndicator color="#D4A84B" /> : <View style={{ gap: 8, paddingVertical: 8 }}>
+          <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900' }}>{fullName || 'Name unavailable'}</Text>
+          <Text style={{ color: '#B9B9B9', fontSize: 12 }}>{email || 'Email unavailable'}</Text>
+          {!!phone && <Text style={{ color: '#B9B9B9', fontSize: 12 }}>{phone}</Text>}
+        </View>}
         <ListRow icon="account-outline" title="Personal details" subtitle="View your resident account information" />
         <ListRow icon="home-city-outline" title="My property" subtitle="View your assigned property" onPress={() => router.push('/property' as never)} />
       </Card>
