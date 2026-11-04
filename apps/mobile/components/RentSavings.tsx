@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, View, StyleSheet, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 
@@ -26,7 +26,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
   const [durationMonths, setDurationMonths] = useState<3 | 6>(3);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState("");\n  const [contributions, setContributions] = useState<Array<{goal_id:string;amount_kobo:number;status:string;created_at:string}>>([]);\n  const [contributionAmount, setContributionAmount] = useState("");\n  const [fundingGoalId, setFundingGoalId] = useState<string | null>(null);
 
   const loadGoals = useCallback(async () => {
     setLoading(true);
@@ -68,6 +68,29 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
     setSaving(false);
   }
 
+  async function fundGoal(goalId: string) {
+    const naira = Number(contributionAmount.replace(/,/g, ""));
+    if (!Number.isFinite(naira) || naira < 100 || naira > 100000000) {
+      setMessage("Enter a contribution of at least ₦100.");
+      return;
+    }
+    setFundingGoalId(goalId); setMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("initiate-squad-payment", {
+        body: { paymentType: "rent_savings", goalId, amountKobo: Math.round(naira * 100) },
+      });
+      if (error) throw error;
+      if (!data?.checkoutUrl || typeof data.checkoutUrl !== "string" || !data.checkoutUrl.startsWith("https://")) {
+        throw new Error(data?.error || "Squad did not return a valid checkout link.");
+      }
+      await Linking.openURL(data.checkoutUrl);
+      setContributionAmount("");
+      setMessage("Squad checkout opened. Your contribution will appear after Squad verifies the payment. Return here and refresh after checkout.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to start Squad checkout.");
+    } finally { setFundingGoalId(null); }
+  }
+
   const visibleGoals = goals;
   return (
     <View style={styles.page}>
@@ -80,7 +103,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
         <View style={styles.noticeIcon}><Ionicons name="shield-checkmark-outline" size={22} color="#D4A84B"/></View>
         <View style={styles.noticeCopy}>
           <Text style={styles.noticeTitle}>A committed savings plan</Text>
-          <Text style={styles.noticeText}>Once started, a goal runs for its full 3- or 6-month term. It cannot be paused or cancelled. Deposits and live balances will be enabled after a payment and custody partner is selected.</Text>
+          <Text style={styles.noticeText}>Once started, a goal runs for its full 3- or 6-month term. It cannot be paused or cancelled. You can contribute through Squad checkout. Only server-verified payments appear in your contribution history; this is not a withdrawable wallet balance.</Text>
         </View>
       </View>
 
@@ -111,11 +134,11 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
           <Text style={styles.date}>{goal.duration_months}-month commitment · Started {new Date(goal.created_at).toLocaleDateString("en-NG")}</Text>
           <Text style={styles.date}>Due date: {goal.target_date || "Pending setup"}</Text>
           <Text style={styles.commitment}>This goal cannot be paused or cancelled. It is intended to run until its due date.</Text>
-          <Text style={styles.pending}>Savings balance will appear after payment partner integration.</Text>
+          <Text style={styles.targetLabel}>VERIFIED CONTRIBUTIONS (NOT A CUSTODIAL WALLET BALANCE)</Text><Text style={styles.date}>{money(contributions.filter(x => x.goal_id === goal.id && x.status === "successful").reduce((sum,x) => sum + Number(x.amount_kobo),0))}</Text>\n          <TextInput style={styles.input} value={contributionAmount} onChangeText={setContributionAmount} placeholder="Contribution amount (NGN)" placeholderTextColor="#888" keyboardType="numeric"/>\n          <TouchableOpacity style={[styles.primaryButton, fundingGoalId === goal.id && styles.disabled]} onPress={() => void fundGoal(goal.id)} disabled={!!fundingGoalId || goal.status !== "active"}>{fundingGoalId === goal.id ? <ActivityIndicator color="#071A3A"/> : <Text style={styles.primaryText}>Add money with Squad</Text>}</TouchableOpacity>\n          <Text style={styles.date}>{contributions.filter(x => x.goal_id === goal.id).length} contribution transactions recorded</Text>
         </View>
       ))}
       {!!message && <Text style={message.includes("created") ? styles.success : styles.error}>{message}</Text>}
-      <Text style={styles.footnote}>No money is collected or held by CB Nest at this stage. Starting a goal does not initiate a payment.</Text>
+      <Text style={styles.footnote}>Payments are collected through the configured Squad merchant account. CB Nest records only server-verified transactions; this screen does not represent funds as segregated or withdrawable savings.</Text>
     </View>
   );
 }
