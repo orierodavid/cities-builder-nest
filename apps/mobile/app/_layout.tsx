@@ -8,7 +8,7 @@ export default function RootLayout() {
     <>
       <StatusBar style="light" />
       <MobileConsentGate>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }} />
+        <Stack screenOptions={{ headerShown: false, gestureEnabled: true, contentStyle: { backgroundColor: theme.bg } }} />
       </MobileConsentGate>
     </>
   );
