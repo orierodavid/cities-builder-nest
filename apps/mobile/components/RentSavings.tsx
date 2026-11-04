@@ -56,7 +56,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
       name: name.trim(),
       target_amount_kobo: Math.round(naira * 100),
       currency: "NGN",
-      target_date: targetDate || null,
+      target_date: targetDate,
       status: "active",
     });
     if (error) setMessage("Goal was not saved. " + error.message);
@@ -95,8 +95,8 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
         <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. 2027 Annual Rent" placeholderTextColor="#888" maxLength={80}/>
         <Text style={styles.label}>Target amount (NGN)</Text>
         <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="e.g. 1500000" placeholderTextColor="#888" keyboardType="numeric"/>
-        <Text style={styles.label}>Target date (optional)</Text>
-        <TextInput style={styles.input} value={targetDate} onChangeText={setTargetDate} placeholder="YYYY-MM-DD" placeholderTextColor="#888" maxLength={10}/>
+        <Text style={styles.label}>Due date (required)</Text>
+        <TextInput style={styles.input} value={targetDate} onChangeText={setTargetDate} placeholder="YYYY-MM-DD (required)" placeholderTextColor="#888" maxLength={10}/>
         <TouchableOpacity style={[styles.primaryButton, saving && styles.disabled]} onPress={() => void createGoal()} disabled={saving}>
           {saving ? <ActivityIndicator color="#071A3A"/> : <Text style={styles.primaryText}>Create savings goal</Text>}
         </TouchableOpacity>
@@ -110,7 +110,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
           <View style={styles.goalTop}><View style={styles.goalIcon}><Ionicons name="home-outline" size={20} color="#D4A84B"/></View><View style={styles.goalCopy}><Text style={styles.goalName}>{goal.name}</Text><Text style={styles.goalStatus}>{goal.status.toUpperCase()}</Text></View></View>
           <Text style={styles.targetLabel}>TARGET AMOUNT</Text><Text style={styles.target}>{money(Number(goal.target_amount_kobo))}</Text>
           <Text style={styles.pending}>Savings balance will appear after payment partner integration.</Text>
-          <Text style={styles.date}>Target date: {goal.target_date || "Not set"}</Text>
+          <Text style={styles.date}>Due date: {goal.target_date || "Not set"}</Text>
           <View style={styles.actions}>
             {goal.status === "active" ? <TouchableOpacity style={styles.secondaryButton} onPress={() => void updateStatus(goal,"paused")} disabled={saving}><Text style={styles.secondaryText}>Pause goal</Text></TouchableOpacity> : goal.status === "paused" ? <TouchableOpacity style={styles.secondaryButton} onPress={() => void updateStatus(goal,"active")} disabled={saving}><Text style={styles.secondaryText}>Resume goal</Text></TouchableOpacity> : null}
             {goal.status !== "cancelled" && <TouchableOpacity style={styles.cancelButton} onPress={() => void updateStatus(goal,"cancelled")} disabled={saving}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>}
