@@ -106,6 +106,13 @@ export default function ProfileScreen() {
         <TouchableOpacity accessibilityRole="button" disabled={signingOut} onPress={async () => {
           setSigningOut(true); setLogoutError('');
           try {
+            const biometricEnabled = await AsyncStorage.getItem('cbnest.biometric.enabled');
+            if (biometricEnabled === 'true') {
+              // Keep the persisted Supabase session and require local biometric verification
+              // before returning to the resident app.
+              router.replace('/(auth)/biometric' as never);
+              return;
+            }
             const { error } = await supabase.auth.signOut({ scope: 'local' });
             if (error) throw error;
             router.replace('/' as never);
