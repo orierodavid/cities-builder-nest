@@ -16,6 +16,7 @@ import ResidentVirtualAccount from "../components/ResidentVirtualAccount";
 import ResidentLegalDocuments from "../components/ResidentLegalDocuments";
 import ResidentHome from "../components/ResidentHome";
 import SecurityGateScreen from "../components/SecurityGateScreen";
+import LoginScreen from "../src/features/auth/LoginScreen";
 
 type Estate = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; country_code?: string | null; is_enabled?: boolean; disabled_reason?: string | null; membershipRole: string | null };
 type ProfileResponse = { profile?: { id: string; full_name: string | null; is_active: boolean } | null; globalRoles?: string[]; estateMemberships?: { id: string; estate_id: string; membership_role: string; status: string; estates?: { name?: string; address?: string; city?: string; state?: string } | null }[]; residentUnits?: { unit_id: string; units?: { unit_code?: string; unit_type?: string | null; buildings?: { name?: string; estate_id?: string; estates?: { name?: string } | null } | null } | null }[]; profilePending?: boolean; error?: string };
@@ -274,15 +275,16 @@ export default function HomeScreen() {
     } finally { setDashboardLoading(false); }
   }
 
-  async function submitAuth() {
+  async function submitAuth(identifier: string, enteredPassword: string) {
     setMessage("");
-    const cleanEmail = email.trim().toLowerCase();
-    if (!supabaseConfigured) { setMessage("Supabase configuration is missing. Check apps/mobile/.env."); return; }
-    if (!cleanEmail || !password) { setMessage("Enter your email address and password."); return; }
-    if (password.length < 8) { setMessage("Your password must contain at least 8 characters."); return; }
+    const cleanEmail = identifier.trim().toLowerCase();
+    if (!supabaseConfigured) throw new Error("Supabase configuration is missing. Check apps/mobile/.env.");
+    if (!cleanEmail || !enteredPassword) throw new Error("Enter your email address and password.");
+    if (!cleanEmail.includes("@")) throw new Error("Please sign in with the email address registered to your account.");
+    if (enteredPassword.length < 8) throw new Error("Your password must contain at least 8 characters.");
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke("account-login", { body: { email: cleanEmail, password } });
+      const { data, error } = await supabase.functions.invoke("account-login", { body: { email: cleanEmail, password: enteredPassword } });
       if (error) throw error;
       if (data?.error) {
         const retry = Number(data.retry_after_seconds || 0);
@@ -291,25 +293,22 @@ export default function HomeScreen() {
           : (data.message || "Email or password is incorrect."));
       }
       if (!data?.session) throw new Error("Authentication service returned no session. Please try again.");
-      // Establish the Supabase session immediately after successful authentication.
-      // Profile/role verification runs in loadProfile after the auth state changes;
-      // a slow or unreachable local API must not turn valid credentials into a login failure.
+      // Preserve the existing custom account-login flow and establish its Supabase session.
       const { error: sessionError } = await supabase.auth.setSession(data.session);
       if (sessionError) throw sessionError;
-      setMessage("Signed in successfully.");
     } catch (e) {
       const detail = e instanceof Error ? e.message : "Authentication failed. Please try again.";
-      setMessage(/fetch failed|network request failed|timed? ?out|unexpected exception/i.test(detail)
+      throw new Error(/fetch failed|network request failed|timed? ?out|unexpected exception/i.test(detail)
         ? "We couldn’t reach CB Nest sign-in. Check your internet connection and try again."
         : detail);
-    }
-    finally { setBusy(false); }
+    } finally { setBusy(false); }
   }
 
-  async function requestPasswordReset() {
+  async function requestPasswordReset(identifier: string) {
     setMessage("");
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = identifier.trim().toLowerCase();
     if (!cleanEmail) { setMessage("Enter your email address first to receive a password reset link."); return; }
+    if (!cleanEmail.includes("@")) { setMessage("Enter the email address registered to your account."); return; }
     setBusy(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
@@ -851,26 +850,10 @@ export default function HomeScreen() {
             {restoring ? (
               <View style={styles.loadingPage}><ActivityIndicator size="large" color={green}/><Text style={styles.bodyText}>Getting your space ready…</Text></View>
             ) : !session ? (
-              <View style={[styles.saasLoginShell,wide && styles.saasLoginShellWide]}>
-                <View style={styles.saasBrand}>
-                  <View style={styles.saasBrandMark}><View style={styles.logoTowerLeft}/><View style={styles.logoTowerCenter}/><View style={styles.logoTowerRight}/></View>
-                  <View><Text style={styles.saasBrandName}>CB NEST</Text><Text style={styles.saasBrandTag}>CITIES BUILDER</Text></View>
-                </View>
-                <View style={styles.saasLoginCard}>
-                  <View style={styles.saasWelcomeIcon}><Ionicons name="home" size={23} color="#D9A93F"/></View>
-                  <Text style={styles.saasEyebrow}>YOUR COMMUNITY, CONNECTED</Text>
-                  <Text style={styles.saasTitle}>Welcome back.</Text>
-                  <Text style={styles.saasSubtitle}>Sign in to manage your home and stay connected to your estate.</Text>
-                  <Text style={styles.saasFieldLabel}>EMAIL ADDRESS</Text>
-                  <View style={styles.saasInputWrap}><Ionicons name="mail-outline" size={18} color="#A99A78"/><TextInput accessibilityLabel="Email address" returnKeyType="next" style={styles.saasInput} value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor="#77716A" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" editable={!busy}/></View>
-                  <View style={styles.saasPasswordHeading}><Text style={styles.saasFieldLabel}>PASSWORD</Text><TouchableOpacity onPress={() => void requestPasswordReset()} disabled={busy}><Text style={styles.saasForgot}>Forgot password?</Text></TouchableOpacity></View>
-                  <View style={styles.saasInputWrap}><Ionicons name="lock-closed-outline" size={18} color="#A99A78"/><TextInput accessibilityLabel="Password" returnKeyType="go" style={styles.saasInput} value={password} onChangeText={setPassword} placeholder="Enter your password" placeholderTextColor="#77716A" secureTextEntry={!showPassword} autoComplete="current-password" editable={!busy} onSubmitEditing={() => void submitAuth()}/><TouchableOpacity accessibilityLabel={showPassword ? "Hide password" : "Show password"} onPress={() => setShowPassword((visible) => !visible)}><Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={19} color="#A99A78"/></TouchableOpacity></View>
-                  {!!message && <Text style={message.toLowerCase().includes("success") ? styles.successMessage : styles.saasError}>{message}</Text>}
-                  {!supabaseConfigured && <Text style={styles.saasError}>Sign-in configuration is missing. Contact your administrator.</Text>}
-                  <TouchableOpacity style={[styles.saasSubmit,busy && styles.disabled]} onPress={() => void submitAuth()} disabled={busy}>{busy ? <ActivityIndicator color="#17130B"/> : <><Text style={styles.saasSubmitText}>Sign in</Text><Ionicons name="arrow-forward" size={18} color="#17130B"/></>}</TouchableOpacity>
-                  <View style={styles.saasSecure}><Ionicons name="shield-checkmark-outline" size={15} color="#BFA66D"/><Text style={styles.saasSecureText}>Secure access to your estate account</Text></View>
-                </View>
-                <Text style={styles.saasFooter}>ONE PLATFORM. MANY ESTATES.</Text>
+              <View style={{ flex: 1, backgroundColor: "#050505" }}>
+                <LoginScreen onSubmit={submitAuth} onForgotPassword={requestPasswordReset} />
+                {!!message && <Text style={{ color: "#D4AF37", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>{message}</Text>}
+                {!supabaseConfigured && <Text style={{ color: "#E5484D", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>Sign-in configuration is missing. Contact your administrator.</Text>}
               </View>
             ) : (
               <>
