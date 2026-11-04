@@ -15,13 +15,7 @@
           "recordAudioAndroid": false
         }
       ],
-      "expo-asset",
-      [
-        "expo-local-authentication",
-        {
-          "faceIDPermission": "Allow CB Nest to use Face ID to secure your account."
-        }
-      ]
+      "expo-asset"
     ],
     "ios": {
       "supportsTablet": true,
