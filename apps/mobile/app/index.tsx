@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Redirect } from "expo-router";
 import Constants from "expo-constants";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
@@ -782,50 +783,9 @@ export default function HomeScreen() {
     <View style={styles.sectionTitleWrap}><Text style={styles.sectionTitle}>{title}</Text>{!!subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}</View>
   );
 
-  if (session && isResident && tab === "home") {
-    const residentUnit = profile?.residentUnits?.[0]?.units;
-    const residentBuilding = residentUnit?.buildings?.name;
-    const residentUnitLabel = [residentBuilding, residentUnit?.unit_code ? "Unit " + residentUnit.unit_code : null].filter(Boolean).join(" - ");
-    const navigateResident = (route: string) => {
-      switch (route) {
-        case "/":
-          setTab("home");
-          break;
-        case "/visitors":
-        case "/access-code":
-          setTab("visitors");
-          break;
-        case "/events":
-        case "/announcements":
-        case "/notifications":
-          setTab("community");
-          break;
-        case "/service-charges":
-        case "/payment-history":
-          setTab("utilities");
-          break;
-        case "/pay":
-        case "/account":
-        case "/property":
-        case "/profile":
-          setTab("profile");
-          break;
-        case "/maintenance":
-        case "/activity":
-          setTab("maintenance");
-          break;
-        default:
-          setTab("home");
-      }
-    };
-    return (
-      <ResidentHome
-        name={profile?.profile?.full_name || firstName}
-        unitLabel={residentUnitLabel || selectedEstate?.name}
-        onNavigate={navigateResident}
-      />
-    );
-  }
+  // Residents have one canonical UI and navigation tree. Keep the root route
+  // responsible for authentication/role resolution, then hand off to the new app.
+  if (session && isResident) return <Redirect href={"/(resident)" as never} />;
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
