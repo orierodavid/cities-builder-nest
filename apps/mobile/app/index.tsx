@@ -15,7 +15,6 @@ import RentSavings from "../components/RentSavings";
 import ResidentUtilities from "../components/ResidentUtilities";
 import ResidentVirtualAccount from "../components/ResidentVirtualAccount";
 import ResidentLegalDocuments from "../components/ResidentLegalDocuments";
-import ResidentHome from "../components/ResidentHome";
 import SecurityGateScreen from "../components/SecurityGateScreen";
 import LoginScreen from "../src/features/auth/LoginScreen";
 
@@ -783,8 +782,20 @@ export default function HomeScreen() {
     <View style={styles.sectionTitleWrap}><Text style={styles.sectionTitle}>{title}</Text>{!!subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}</View>
   );
 
-  // Residents have one canonical UI and navigation tree. Keep the root route
-  // responsible for authentication/role resolution, then hand off to the new app.
+  // Do not render the legacy root application while the authenticated user's
+  // estate memberships are still being resolved. This prevents the old shell
+  // flashing underneath the dedicated resident application on cold launch.
+  if (session && !profile) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" }}>
+        <ActivityIndicator size="large" color="#D4A84B" />
+        <Text style={{ color: "#B9B9B9", marginTop: 12, fontSize: 12 }}>Loading your account…</Text>
+      </View>
+    );
+  }
+
+  // Residents use only the dedicated Expo Router app group. The legacy root
+  // application remains available to the other supported mobile roles.
   if (session && isResident) return <Redirect href={"/(resident)" as never} />;
 
   return (
