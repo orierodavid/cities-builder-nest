@@ -6,13 +6,9 @@ import { theme } from '../../src/theme/theme';
 
 type ActivityItem = {
   id: string;
-  kind: 'maintenance' | 'payment';
   title: string;
   detail: string;
-  status: string;
   createdAt: string;
-  amountKobo?: number;
-  currency?: string;
 };
 
 const formatMoney = (amountKobo: number, currency: string) =>
@@ -36,49 +32,25 @@ export default function ActivityScreen() {
       if (authError) throw authError;
       if (!user) throw new Error('Your session has expired. Please sign in again.');
 
-      const [maintenanceResult, paymentsResult] = await Promise.all([
-        supabase
-          .from('maintenance_requests')
-          .select('id,title,status,priority,created_at')
-          .eq('created_by', user.id)
-          .order('created_at', { ascending: false })
-          .limit(30),
-        supabase
-          .from('service_charge_payments')
-          .select('id,amount_kobo,currency,status,verified_at,created_at,charge:estate_service_charges(title)')
-          .eq('resident_user_id', user.id)
-          .eq('status', 'successful')
-          .not('verified_at', 'is', null)
-          .order('verified_at', { ascending: false })
-          .limit(30),
-      ]);
+      // These columns and relationships are defined by the service-charge migration.
+      // Do not infer activity from unverified maintenance or notification schemas.
+      const { data, error: paymentsError } = await supabase
+        .from('service_charge_payments')
+        .select('id,amount_kobo,currency,verified_at,created_at,charge:estate_service_charges(title)')
+        .eq('resident_user_id', user.id)
+        .eq('status', 'successful')
+        .not('verified_at', 'is', null)
+        .order('verified_at', { ascending: false })
+        .limit(50);
 
-      if (maintenanceResult.error) throw maintenanceResult.error;
-      if (paymentsResult.error) throw paymentsResult.error;
+      if (paymentsError) throw paymentsError;
 
-      const maintenance: ActivityItem[] = (maintenanceResult.data || []).map((item) => ({
-        id: 'maintenance-' + item.id,
-        kind: 'maintenance',
-        title: item.title,
-        detail: 'Maintenance request · ' + String(item.priority || 'normal').toUpperCase() + ' priority',
-        status: item.status || 'submitted',
-        createdAt: item.created_at,
-      }));
-
-      const payments: ActivityItem[] = (paymentsResult.data || []).map((item: any) => ({
-        id: 'payment-' + item.id,
-        kind: 'payment',
+      setItems((data || []).map((item: any) => ({
+        id: item.id,
         title: item.charge?.title || 'Estate service charge payment',
-        detail: 'Payment · ' + formatMoney(Number(item.amount_kobo), item.currency || 'NGN'),
-        status: 'confirmed',
+        detail: 'Confirmed payment · ' + formatMoney(Number(item.amount_kobo), item.currency || 'NGN'),
         createdAt: item.verified_at || item.created_at,
-        amountKobo: Number(item.amount_kobo),
-        currency: item.currency || 'NGN',
-      }));
-
-      setItems([...maintenance, ...payments].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      ));
+      })));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Your recent activity could not be loaded.');
       setItems([]);
@@ -109,7 +81,7 @@ export default function ActivityScreen() {
           <Text onPress={() => void load()} style={{ color: theme.goldSoft, fontWeight: '700', marginTop: 12 }}>Try again</Text>
         </Card>
       ) : items.length === 0 ? (
-        <EmptyState icon="history" title="No recent activity" message="Your maintenance requests and confirmed service charge payments will appear here." />
+        <EmptyState icon="history" title="No recent activity" message="Your provider-confirmed service charge payments will appear here." />
       ) : (
         items.map((item) => (
           <Card key={item.id}>
@@ -119,9 +91,7 @@ export default function ActivityScreen() {
                 <Text style={{ color: theme.muted, fontSize: 11, marginTop: 5 }}>{item.detail}</Text>
                 <Text style={{ color: theme.muted, fontSize: 10, marginTop: 6 }}>{new Date(item.createdAt).toLocaleString('en-NG')}</Text>
               </View>
-              <Text style={{ color: item.kind === 'payment' ? '#79D6A1' : theme.goldSoft, fontSize: 10, fontWeight: '800' }}>
-                {item.status.replace(/_/g, ' ').toUpperCase()}
-              </Text>
+              <Text style={{ color: '#79D6A1', fontSize: 10, fontWeight: '800' }}>CONFIRMED</Text>
             </View>
           </Card>
         ))
