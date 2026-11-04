@@ -1,0 +1,2 @@
+[functions.squad-payment-webhook]
+verify_jwt = false
