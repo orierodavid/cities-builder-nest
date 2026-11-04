@@ -5,10 +5,11 @@ import { supabase } from '../../lib/supabase';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { theme } from '../../src/theme/theme';
+import { getApiBaseUrl } from '../../src/lib/api-url';
 
 type Estate = { id: string; membershipRole?: string | null };
 type Pass = { id: string; visitor_name: string; valid_from: string; valid_until: string; status: string; created_at: string };
-const apiUrl = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+const apiUrl = getApiBaseUrl();
 
 function apiMessage(code?: string) {
   if (code === 'estate_membership_required') return 'Only an active resident of this estate can manage visitor passes.';
@@ -60,7 +61,8 @@ export default function VisitorsScreen() {
       if (!passResponse.ok) throw new Error(apiMessage(passResult.error));
       setPasses(passResult.visitorPasses || []);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not load visitor management.');
+      const detail = error instanceof Error ? error.message : 'Could not load visitor management.';
+      setMessage(/fetch failed|network request failed|network error/i.test(detail) ? 'CB Nest could not reach its API. Confirm the API is running and EXPO_PUBLIC_API_URL points to your computer’s LAN IP or deployed API URL.' : detail);
     } finally { setLoading(false); }
   }, []);
 
