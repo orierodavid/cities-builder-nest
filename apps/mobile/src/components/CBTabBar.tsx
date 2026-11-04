@@ -3,7 +3,6 @@
 // Requires: @react-navigation/bottom-tabs (installed with expo-router), react-native-safe-area-context, @expo/vector-icons
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -11,8 +10,8 @@ import { theme as t } from '../theme/theme';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
-// Only route names listed here appear in the bar. Any other file in the folder
-// (community, maintain, access-code, ...) still works as a screen but gets no tab.
+// Keep the bottom bar intentionally focused; every resident feature remains reachable
+// from the dashboard and stays inside this same tab navigator.
 const TABS: Record<string, { label: string; icon: IconName; iconActive: IconName }> = {
   index: { label: 'Home', icon: 'home-outline', iconActive: 'home' },
   activity: { label: 'Activity', icon: 'pulse-outline', iconActive: 'pulse' },
@@ -20,7 +19,7 @@ const TABS: Record<string, { label: string; icon: IconName; iconActive: IconName
   profile: { label: 'Profile', icon: 'person-outline', iconActive: 'person' },
 };
 
-export default function CBTabBar({ state, navigation }: BottomTabBarProps) {
+export default function CBTabBar({ state, navigation }: { state: any; navigation: any }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -48,7 +47,7 @@ export default function CBTabBar({ state, navigation }: BottomTabBarProps) {
   return (
     <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {left.map(renderTab)}
-      <TouchableOpacity style={s.fab} onPress={() => router.push('/access-code')} activeOpacity={0.85}>
+      <TouchableOpacity style={s.fab} onPress={() => router.push('/visitors')} activeOpacity={0.85}>
         <Ionicons name="add" size={32} color="#000" />
       </TouchableOpacity>
       {right.map(renderTab)}
