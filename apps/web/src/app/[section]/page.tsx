@@ -244,9 +244,18 @@ function UsersPage() {
 
 
 type ResidentDirectoryRow = { id:string; user_id:string; estate_id:string; status:string; created_at:string; membership_role:string };
+type ResidentActivityRow = { id:string; title:string; status:string; date:string; detail:string };
+type ResidentActivity = {
+ visitorPasses:ResidentActivityRow[]; visitorVisits:ResidentActivityRow[];
+ maintenance:ResidentActivityRow[]; savingsGoals:ResidentActivityRow[];
+ savingsContributions:ResidentActivityRow[]; electricityOrders:ResidentActivityRow[];
+ electricityMeters:ResidentActivityRow[]; serviceChargePayments:ResidentActivityRow[];
+};
 function ResidentsPage(){
  const [rows,setRows]=useState<Array<{id:string;name:string;email:string;phone:string;estate:string;unit:string;status:string;joined:string}>>([]);
  const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [search,setSearch]=useState("");const [estates,setEstates]=useState<Estate[]>([]);const [selected,setSelected]=useState("");
+ const [selectedResident,setSelectedResident]=useState<{userId:string;estateId:string;name:string;estate:string;unit:string}|null>(null);
+ const [activity,setActivity]=useState<ResidentActivity|null>(null);const [activityLoading,setActivityLoading]=useState(false);const [activityWarnings,setActivityWarnings]=useState<string[]>([]);
  const load=useCallback(async()=>{
   setLoading(true);setError("");
   const {data:{user}}=await supabase.auth.getUser();if(!user){setError("Your session has expired. Sign in again.");setLoading(false);return;}
@@ -280,19 +289,74 @@ function ResidentsPage(){
   const assignmentMap=new Map((assignments||[]).map(x=>[x.resident_user_id,x.unit_id]));
   const next=(members||[]).map((m:ResidentDirectoryRow)=>{
    const profile=profileMap.get(m.user_id);const unitId=assignmentMap.get(m.user_id);const unit=unitId?unitMap.get(unitId):null;
-   return {id:m.id,name:profile?.full_name||"Name unavailable",email:"Email is private",phone:profile?.phone_e164||"—",estate:estateList.find(x=>x.id===m.estate_id)?.name||"—",unit:unit?.unit_code||"Not assigned",status:m.status,joined:new Date(m.created_at).toLocaleDateString("en-NG")};
+   return {id:m.id,userId:m.user_id,estateId:m.estate_id,name:profile?.full_name||"Name unavailable",email:"Email is private",phone:profile?.phone_e164||"—",estate:estateList.find(x=>x.id===m.estate_id)?.name||"—",unit:unit?.unit_code||"Not assigned",status:m.status,joined:new Date(m.created_at).toLocaleDateString("en-NG")};
   });
   setRows(next);setLoading(false);
  },[]);
  useEffect(()=>{void load();},[load]);
- const visible=rows.filter(x=>{const q=search.toLowerCase();return (!selected||estates.find(e=>e.name===x.estate)?.id===selected)&&(!q||[x.name,x.phone,x.estate,x.unit,x.status].join(" ").toLowerCase().includes(q));});
+ const visible=rows.filter(x=>{const q=search.toLowerCase();return (!selected||x.estateId===selected)&&(!q||[x.name,x.phone,x.estate,x.unit,x.status].join(" ").toLowerCase().includes(q));});
+ const loadActivity=async(resident:{userId:string;estateId:string;name:string;estate:string;unit:string})=>{
+  setSelectedResident(resident);setActivity(null);setActivityWarnings([]);setActivityLoading(true);
+  const [passes,maintenance,goals,contributions,electricity,meters,charges]=await Promise.all([
+   supabase.from("visitor_passes").select("id,visitor_name,status,created_at,valid_from,valid_until").eq("host_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(50),
+   supabase.from("maintenance_requests").select("id,title,status,priority,created_at").eq("created_by",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(50),
+   supabase.from("rent_savings_goals").select("id,name,status,target_amount_kobo,target_date,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(50),
+   supabase.from("rent_savings_contributions").select("id,amount_kobo,status,provider,verified_at,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(100),
+   supabase.from("electricity_recharge_orders").select("id,amount_kobo,status,provider,units_purchased,verified_at,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(100),
+   supabase.from("resident_electricity_meters").select("id,meter_number,disco,meter_type,label,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(30),
+   supabase.from("service_charge_payments").select("id,amount_kobo,status,provider,verified_at,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(100)
+  ]);
+  const warnings:string[]=[];
+  const sources=[passes,maintenance,goals,contributions,electricity,meters,charges];
+  const labels=["Visitor passes","Maintenance requests","Rent savings goals","Rent savings contributions","Electricity purchases","Electricity meters","Service charge payments"];
+  sources.forEach((result,index)=>{if(result.error)warnings.push(labels[index]+" could not be loaded: "+result.error.message);});
+  const passRows=passes.data||[];
+  let visitRows:any[]=[];
+  if(passRows.length){
+   const visits=await supabase.from("visitor_visits").select("id,visitor_pass_id,checked_in_at,checked_out_at").eq("estate_id",resident.estateId).in("visitor_pass_id",passRows.map(x=>x.id)).order("checked_in_at",{ascending:false}).limit(100);
+   if(visits.error)warnings.push("Visitor check-in history could not be loaded: "+visits.error.message);
+   else visitRows=visits.data||[];
+  }
+  const date=(value:string|null)=>value?new Date(value).toLocaleString("en-NG"):"—";
+  const money=(value:number|null)=>value===null?"Amount unavailable":new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN",maximumFractionDigits:2}).format(value/100);
+  setActivity({
+   visitorPasses:passRows.map(x=>({id:x.id,title:x.visitor_name||"Visitor pass",status:x.status||"unknown",date:date(x.created_at),detail:"Valid "+date(x.valid_from)+" – "+date(x.valid_until)})),
+   visitorVisits:visitRows.map(x=>({id:x.id,title:"Visitor check-in",status:x.checked_out_at?"Checked out":"Checked in",date:date(x.checked_in_at),detail:x.checked_out_at?"Checked out "+date(x.checked_out_at):"Visitor currently checked in"})),
+   maintenance:(maintenance.data||[]).map(x=>({id:x.id,title:x.title||"Maintenance request",status:x.status||"unknown",date:date(x.created_at),detail:"Priority: "+(x.priority||"Not specified")})),
+   savingsGoals:(goals.data||[]).map(x=>({id:x.id,title:x.name||"Rent savings goal",status:String(x.status||"unknown"),date:date(x.created_at),detail:money(x.target_amount_kobo)+" target • due "+(x.target_date||"Not set")})),
+   savingsContributions:(contributions.data||[]).map(x=>({id:x.id,title:"Rent savings contribution",status:x.status||"unknown",date:date(x.created_at),detail:money(x.amount_kobo)+" • "+(x.provider||"Provider unavailable")+(x.verified_at?" • verified "+date(x.verified_at):"")})),
+   electricityOrders:(electricity.data||[]).map(x=>({id:x.id,title:"Electricity purchase",status:x.status||"unknown",date:date(x.created_at),detail:money(x.amount_kobo)+" • "+(x.units_purchased??"Units unavailable")+" units • "+(x.provider||"Provider unavailable")})),
+   electricityMeters:(meters.data||[]).map(x=>({id:x.id,title:x.label||x.meter_number,status:x.meter_type||"Meter",date:date(x.created_at),detail:(x.disco||"Disco unavailable")+" • "+x.meter_number})),
+   serviceChargePayments:(charges.data||[]).map(x=>({id:x.id,title:"Service charge payment",status:x.status||"unknown",date:date(x.created_at),detail:money(x.amount_kobo)+" • "+(x.provider||"Provider unavailable")+(x.verified_at?" • verified "+date(x.verified_at):"")}))
+  });
+  setActivityWarnings(warnings);setActivityLoading(false);
+ };
+ const activitySections: {key:keyof ResidentActivity;title:string}[]=[
+  {key:"visitorPasses",title:"Visitor passes created"},{key:"visitorVisits",title:"Visitor check-in history"},
+  {key:"maintenance",title:"Maintenance requests"},{key:"savingsGoals",title:"Rent savings goals"},
+  {key:"savingsContributions",title:"Verified / pending savings contributions"},{key:"electricityOrders",title:"Electricity purchase history"},
+  {key:"electricityMeters",title:"Registered electricity meters"},{key:"serviceChargePayments",title:"Service charge payments"}
+ ];
  return <PortalFrame title="Residents" description="Read-only resident directory across the estates you are authorized to oversee.">
   <section className="panel module-panel"><div className="module-toolbar"><div><h3>Resident directory</h3><p>Live resident memberships and assigned property details. This screen does not permit resident-record edits.</p></div><button className="secondary-action" onClick={()=>void load()}>Refresh records</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selected} onChange={e=>setSelected(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search resident, phone, unit or estate…" aria-label="Search residents"/></div>
-   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Estate</th><th>Unit</th><th>Phone</th><th>Membership</th><th>Date added</th></tr></thead><tbody>
-   {loading?<tr><td colSpan={6} className="empty-cell">Loading live resident records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.estate}</td><td>{x.unit}</td><td>{x.phone}</td><td><span className={"status-pill status-"+x.status}>{x.status}</span></td><td>{x.joined}</td></tr>):<tr><td colSpan={6} className="empty-cell"><strong>No resident records found</strong><small>There are no matching resident memberships in the estates available to this account.</small></td></tr>}
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Estate</th><th>Unit</th><th>Phone</th><th>Membership</th><th>Date added</th><th>Activity</th></tr></thead><tbody>
+   {loading?<tr><td colSpan={6} className="empty-cell">Loading live resident records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.estate}</td><td>{x.unit}</td><td>{x.phone}</td><td><span className={"status-pill status-"+x.status}>{x.status}</span></td><td>{x.joined}</td><td><button type="button" className="secondary-action" onClick={()=>void loadActivity({userId:x.userId,estateId:x.estateId,name:x.name,estate:x.estate,unit:x.unit})}>View activity</button></td></tr>):<tr><td colSpan={7} className="empty-cell"><strong>No resident records found</strong><small>There are no matching resident memberships in the estates available to this account.</small></td></tr>}
    </tbody></table></div>
+   {selectedResident&&<section className="panel module-panel" style={{marginTop:20}}>
+    <div className="module-toolbar"><div><h3>Resident activity — {selectedResident.name}</h3><p>{selectedResident.estate} • {selectedResident.unit}. Records are limited to this resident and estate.</p></div><button type="button" className="secondary-action" onClick={()=>{setSelectedResident(null);setActivity(null);setActivityWarnings([]);}}>Close activity</button></div>
+    {activityLoading?<p className="empty-cell">Loading resident activity from live records…</p>:null}
+    {activityWarnings.length>0&&<div className="user-alert user-alert-error" role="status"><strong>Some activity sources could not be read.</strong><ul>{activityWarnings.map((warning,index)=><li key={index}>{warning}</li>)}</ul></div>}
+    {activity&&<div className="user-form-grid">{activitySections.map(section=><div key={section.key} className="panel" style={{padding:14}}>
+     <h4>{section.title}</h4>
+     {activity[section.key].length?activity[section.key].map(item=><div key={item.id} style={{padding:"10px 0",borderBottom:"1px solid var(--border,#e5e7eb)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}><strong>{item.title}</strong><span className={"status-pill status-"+item.status.toLowerCase().replace(/[^a-z0-9]+/g,"-")}>{item.status}</span></div>
+      <small>{item.date}</small><p style={{margin:"4px 0 0"}}>{item.detail}</p>
+     </div>):<p className="empty-cell">No records found for this resident.</p>}
+    </div>)}</div>}
+    <p className="notice-line">This activity view is read-only. It does not allow changing resident records, payments, visitor passes, meter details or maintenance requests.</p>
+   </section>}
    <p className="notice-line">Read-only oversight. Resident accounts, financial records and personal details cannot be changed from this directory.</p>
   </section>
  </PortalFrame>;
