@@ -14,7 +14,8 @@
           "cameraPermission": "Allow CB Nest security personnel to scan visitor QR codes.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "ios": {
       "supportsTablet": true,
