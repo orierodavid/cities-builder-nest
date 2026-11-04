@@ -100,6 +100,7 @@ export default function HomeScreen() {
   const wide = Platform.OS === "web" && width >= 900;
   const [session, setSession] = useState<Session | null>(null);
   const [restoring, setRestoring] = useState(true);
+  const [biometricSignInRequired, setBiometricSignInRequired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -192,8 +193,15 @@ export default function HomeScreen() {
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (mounted) { setSession(data.session); setRestoring(false); }
+    Promise.all([
+      supabase.auth.getSession(),
+      AsyncStorage.getItem("cbnest.biometric.enabled"),
+    ]).then(([{ data }, biometricEnabled]) => {
+      if (mounted) {
+        setSession(data.session);
+        setBiometricSignInRequired(Boolean(data.session && biometricEnabled === "true" && Platform.OS !== "web"));
+        setRestoring(false);
+      }
     }).catch(() => {
       if (mounted) { setRestoring(false); setMessage("We couldn't restore your session. Please sign in again."); }
     });
@@ -298,12 +306,43 @@ export default function HomeScreen() {
       // Preserve the existing custom account-login flow and establish its Supabase session.
       const { error: sessionError } = await supabase.auth.setSession(data.session);
       if (sessionError) throw sessionError;
+      setBiometricSignInRequired(false);
     } catch (e) {
       const detail = e instanceof Error ? e.message : "Authentication failed. Please try again.";
       throw new Error(/fetch failed|network request failed|timed? ?out|unexpected exception/i.test(detail)
         ? "We couldn’t reach CB Nest sign-in. Check your internet connection and try again."
         : detail);
     } finally { setBusy(false); }
+  }
+
+  async function authenticateBiometricSignIn() {
+    const [{ data: { session: savedSession } }, enabled] = await Promise.all([
+      supabase.auth.getSession(),
+      AsyncStorage.getItem("cbnest.biometric.enabled"),
+    ]);
+    if (!savedSession || enabled !== "true") {
+      setBiometricSignInRequired(false);
+      throw new Error("Your saved sign-in session is unavailable. Please sign in with your password.");
+    }
+    const [hardware, enrolled] = await Promise.all([
+      LocalAuthentication.hasHardwareAsync(),
+      LocalAuthentication.isEnrolledAsync(),
+    ]);
+    if (!hardware || !enrolled) {
+      throw new Error("Face ID is not available or has not been set up on this device. Use your password instead.");
+    }
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: Platform.OS === "ios" ? "Sign in to Cities Builder Nest with Face ID" : "Sign in to Cities Builder Nest",
+      cancelLabel: "Cancel",
+      disableDeviceFallback: true,
+      biometricsSecurityLevel: "strong",
+    });
+    if (!result.success) {
+      throw new Error(result.error === "user_cancel"
+        ? "Face ID was cancelled. You can try again or use your password."
+        : "Face ID verification failed. Try again or use your password.");
+    }
+    setBiometricSignInRequired(false);
   }
 
   async function requestPasswordReset(identifier: string) {
@@ -795,6 +834,18 @@ export default function HomeScreen() {
   const SectionTitle = ({ title, subtitle }: { title: string; subtitle?: string }) => (
     <View style={styles.sectionTitleWrap}><Text style={styles.sectionTitle}>{title}</Text>{!!subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}</View>
   );
+
+  // When a saved session and biometric login are enabled, show the normal
+  // sign-in screen with its Face ID action before rendering any authenticated app.
+  if (biometricSignInRequired && session) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#050505" }}>
+        <LoginScreen onSubmit={submitAuth} onForgotPassword={requestPasswordReset} onBiometric={authenticateBiometricSignIn} />
+        {!!message && <Text style={{ color: "#D4AF37", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>{message}</Text>}
+        {!supabaseConfigured && <Text style={{ color: "#E5484D", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>Sign-in configuration is missing. Contact your administrator.</Text>}
+      </View>
+    );
+  }
 
   // Do not render the legacy root application while the authenticated user's
   // estate memberships are still being resolved. This prevents the old shell
