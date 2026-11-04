@@ -12,13 +12,13 @@ import { theme as t } from '../theme/theme';
 type ScreenProps = {
   title?: string;
   subtitle?: string;
-  back?: boolean; // show a back chevron (use on pushed pages, not on tab roots)
+  back?: boolean; // show a back chevron; enabled by default
   right?: React.ReactNode;
   scroll?: boolean;
   children: React.ReactNode;
 };
 
-export function Screen({ title, subtitle, back, right, scroll = true, children }: ScreenProps) {
+export function Screen({ title, subtitle, back = true, right, scroll = true, children }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -29,7 +29,7 @@ export function Screen({ title, subtitle, back, right, scroll = true, children }
       {!!title && (
         <View style={s.header}>
           {back ? (
-            <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={{ marginRight: 8 }}>
+            <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(resident)' as never); }} hitSlop={12} style={{ marginRight: 8 }}>
               <Ionicons name="chevron-back" size={26} color={t.text} />
             </TouchableOpacity>
           ) : null}
