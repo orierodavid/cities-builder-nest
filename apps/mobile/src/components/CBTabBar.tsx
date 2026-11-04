@@ -5,7 +5,6 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { theme as t } from '../theme/theme';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -21,7 +20,6 @@ const TABS: Record<string, { label: string; icon: IconName; iconActive: IconName
 
 export default function CBTabBar({ state, navigation }: { state: any; navigation: any }) {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
 
   const visible = state.routes.filter((r) => TABS[r.name]);
   const left = visible.slice(0, 2);
@@ -47,7 +45,7 @@ export default function CBTabBar({ state, navigation }: { state: any; navigation
   return (
     <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {left.map(renderTab)}
-      <TouchableOpacity style={s.fab} onPress={() => router.push('/visitors')} activeOpacity={0.85}>
+      <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('visitors')} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Generate visitor access code">
         <Ionicons name="add" size={32} color="#000" />
       </TouchableOpacity>
       {right.map(renderTab)}
@@ -57,6 +55,7 @@ export default function CBTabBar({ state, navigation }: { state: any; navigation
 
 const s = StyleSheet.create({
   bar: {
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
@@ -65,7 +64,7 @@ const s = StyleSheet.create({
     borderTopColor: t.border,
     paddingTop: 8,
   },
-  item: { alignItems: 'center', minWidth: 60 },
+  item: { alignItems: 'center', justifyContent: 'center', minWidth: 60, minHeight: 48, paddingHorizontal: 4 },
   label: { color: t.muted, fontSize: 10, marginTop: 2 },
   fab: {
     width: 54,
