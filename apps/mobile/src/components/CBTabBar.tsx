@@ -29,7 +29,10 @@ export default function CBTabBar({ state, navigation }: { state: ResidentTabStat
 
   const renderTab = (route: (typeof state.routes)[number]) => {
     const meta = TABS[route.name];
-    const focused = state.routes[state.index]?.key === route.key;
+    const activeRoute = state.routes[state.index]?.name;
+    // Feature screens are pushed within this tab navigator. Keep Home visibly
+    // selected while a resident is viewing a feature route from the dashboard.
+    const focused = activeRoute === route.name || (!TABS[activeRoute] && route.name === 'index');
 
     const onPress = () => {
       const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -37,7 +40,7 @@ export default function CBTabBar({ state, navigation }: { state: ResidentTabStat
     };
 
     return (
-      <TouchableOpacity key={route.key} style={s.item} onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity key={route.key} style={s.item} onPress={onPress} activeOpacity={0.7} accessibilityRole="tab" accessibilityLabel={meta.label} accessibilityState={{ selected: focused }}>
         <Ionicons name={focused ? meta.iconActive : meta.icon} size={22} color={focused ? t.gold : t.muted} />
         <Text style={[s.label, focused && { color: t.gold }]}>{meta.label}</Text>
       </TouchableOpacity>
