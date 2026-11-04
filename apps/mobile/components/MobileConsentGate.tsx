@@ -2,6 +2,7 @@ import { ReactNode, useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, AppState, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { supabase } from "../lib/supabase";
 import LegalConsentScreen, { type MobileLegalDocument } from "./LegalConsentScreen";
+import SplashScreen from "./SplashScreen";
 
 type LegalStatus = { requiresAcceptance: boolean; configurationRequired: boolean; accepted: boolean; documents: MobileLegalDocument[] };
 
@@ -64,7 +65,7 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
     return () => { alive = false; authListener.subscription.unsubscribe(); appStateListener.remove(); };
   }, []);
 
-  if (!sessionChecked || checking) return <View style={styles.center}><ActivityIndicator size="large" color="#D4A84B"/><Text style={styles.copy}>Verifying your account…</Text></View>;
+  if (!sessionChecked || checking) return <SplashScreen />;
   if (error) return <View style={styles.center}><Text style={styles.title}>Verification required</Text><Text style={styles.copy}>{error}</Text><TouchableOpacity onPress={() => void refresh()} style={styles.button}><Text style={styles.buttonText}>Retry</Text></TouchableOpacity><TouchableOpacity onPress={() => void supabase.auth.signOut()} style={styles.secondary}><Text style={styles.secondaryText}>Sign out</Text></TouchableOpacity></View>;
   if (status?.requiresAcceptance) return <ScrollView style={styles.shell} contentContainerStyle={styles.shellContent} keyboardShouldPersistTaps="handled"><LegalConsentScreen documents={status.documents || []} onAccepted={() => void refresh()} onSignOut={() => void supabase.auth.signOut()}/></ScrollView>;
   return <>{children}</>;
