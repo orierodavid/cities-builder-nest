@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Text, View, StyleSheet } from "react-native";
 import { supabase } from "../lib/supabase";
 
 type VirtualAccount = {
@@ -10,7 +10,6 @@ type VirtualAccount = {
 export default function ResidentVirtualAccount({ residentUserId, estateId }: { residentUserId: string; estateId: string | null }) {
   const [account, setAccount] = useState<VirtualAccount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   async function load() {
@@ -26,28 +25,7 @@ export default function ResidentVirtualAccount({ residentUserId, estateId }: { r
 
   useEffect(() => { void load(); }, [residentUserId, estateId]);
 
-  async function create() {
-    if (!estateId || busy) return;
-    setBusy(true); setMessage("");
-    const { data, error } = await supabase.functions.invoke("create-resident-virtual-account", { body: { estateId } });
-    if (error || data?.error) {
-      let detail = data?.message || data?.error || "Virtual account creation is unavailable.";
-      try {
-        const response = (error as { context?: Response } | null)?.context;
-        if (response) {
-          const body = await response.clone().json() as { error?: string; message?: string };
-          detail = body.message || body.error || detail;
-        }
-      } catch { /* Keep the function response message. */ }
-      setMessage(detail === "virtual_account_provider_not_configured"
-        ? "A payment provider has not been selected and configured yet. No account has been created."
-        : detail);
-    } else {
-      await load();
-      setMessage("Virtual account details have been refreshed.");
-    }
-    setBusy(false);
-  }
+
 
   return <View style={styles.card}>
     <Text style={styles.eyebrow}>RESIDENT PAYMENTS</Text>
@@ -60,9 +38,7 @@ export default function ResidentVirtualAccount({ residentUserId, estateId }: { r
       <Text style={styles.status}>ACTIVE · {account.currency}</Text>
     </> : account?.status === "pending" ? <Text style={styles.message}>Your virtual account request is being processed. Refresh shortly.</Text> : <Text style={styles.message}>No virtual account has been created for this estate yet.</Text>}
     {!!message && <Text style={styles.message}>{message}</Text>}
-    {estateId && account?.status !== "active" && <TouchableOpacity onPress={() => void create()} disabled={busy || loading} style={[styles.button,(busy || loading) && styles.disabled]}>
-      {busy ? <ActivityIndicator color="#17130B"/> : <Text style={styles.buttonText}>{account?.status === "pending" ? "Check Virtual Account" : "Create Virtual Account"}</Text>}
-    </TouchableOpacity>}
+    {estateId && account?.status !== "active" && <Text style={styles.message}>Virtual account creation is currently disabled. It will be enabled after a payment provider is selected, configured and verified.</Text>}
   </View>;
 }
 
@@ -77,7 +53,4 @@ const styles = StyleSheet.create({
   accountNumber:{fontSize:20,color:"#FFFFFF",fontWeight:"900",letterSpacing:1.3},
   status:{alignSelf:"flex-start",fontSize:9,color:"#A6E3BA",fontWeight:"900",letterSpacing:1,backgroundColor:"#173225",paddingHorizontal:9,paddingVertical:6,borderRadius:12},
   message:{fontSize:11,lineHeight:17,color:"#D5D5D5"},
-  button:{minHeight:45,backgroundColor:"#D4A84B",borderRadius:10,alignItems:"center",justifyContent:"center",marginTop:5},
-  buttonText:{fontSize:11,color:"#17130B",fontWeight:"900"},
-  disabled:{opacity:.55}
 });
