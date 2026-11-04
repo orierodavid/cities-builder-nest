@@ -46,8 +46,10 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
     const naira = Number(amount.replace(/,/g, ""));
     if (name.trim().length < 2) { setMessage("Give your savings goal a name."); return; }
     if (!Number.isFinite(naira) || naira <= 0 || naira > 100000000) { setMessage("Enter a valid rent target amount."); return; }
-    if (targetDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(targetDate)) { setMessage("Use the date format YYYY-MM-DD."); return; }
-    if (targetDate && Number.isNaN(Date.parse(targetDate))) { setMessage("Enter a valid target date."); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) { setMessage("A due date is required. Use YYYY-MM-DD."); return; }
+    const parsedDate = new Date(`${targetDate}T00:00:00.000Z`);
+    if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== targetDate) { setMessage("Enter a valid due date."); return; }
+    if (targetDate < new Date().toISOString().slice(0, 10)) { setMessage("The due date must be today or later."); return; }
     setSaving(true);
     setMessage("");
     const { error } = await supabase.from("rent_savings_goals").insert({
