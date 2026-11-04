@@ -5,6 +5,7 @@ import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import QRCode from "react-native-qrcode-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as LocalAuthentication from "expo-local-authentication";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View, useWindowDimensions,
