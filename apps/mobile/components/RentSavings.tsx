@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View, StyleSheet, Linking } from "react-native";
+import { ActivityIndicator, AppState, Text, TextInput, TouchableOpacity, View, StyleSheet, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 
@@ -33,17 +33,43 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
 
   const loadGoals = useCallback(async () => {
     setLoading(true);
-    setMessage("");
-    const { data, error } = await supabase.from("rent_savings_goals")
+    const goalsQuery = supabase.from("rent_savings_goals")
       .select("id,name,target_amount_kobo,target_date,duration_months,status,created_at")
       .eq("resident_user_id", residentUserId)
       .order("created_at", { ascending: false });
-    if (error) setMessage("Your savings goals could not be loaded. " + error.message);
-    else setGoals((data || []) as Goal[]);
+    let contributionsQuery = supabase.from("rent_savings_contributions")
+      .select("goal_id,amount_kobo,status,created_at")
+      .eq("resident_user_id", residentUserId)
+      .order("created_at", { ascending: false });
+    if (estateId) contributionsQuery = contributionsQuery.eq("estate_id", estateId);
+    const [goalsResult, contributionsResult] = await Promise.all([goalsQuery, contributionsQuery]);
+    if (goalsResult.error) {
+      setMessage("Your savings goals could not be loaded. " + goalsResult.error.message);
+    } else {
+      setGoals((goalsResult.data || []) as Goal[]);
+      if (contributionsResult.error) {
+        setContributions([]);
+        setMessage("Your goals loaded, but contribution history is temporarily unavailable. " + contributionsResult.error.message);
+      } else {
+        setContributions((contributionsResult.data || []) as Array<{goal_id:string;amount_kobo:number;status:string;created_at:string}>);
+        setMessage("");
+      }
+    }
     setLoading(false);
-  }, [residentUserId]);
+  }, [residentUserId, estateId]);
 
   useEffect(() => { void loadGoals(); }, [loadGoals]);
+
+  useEffect(() => {
+    let previousState = AppState.currentState;
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if ((previousState === "background" || previousState === "inactive") && nextState === "active") {
+        void loadGoals();
+      }
+      previousState = nextState;
+    });
+    return () => subscription.remove();
+  }, [loadGoals]);
 
   async function createGoal() {
     const naira = Number(amount.replace(/,/g, ""));
@@ -88,7 +114,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
       }
       await Linking.openURL(data.checkoutUrl);
       setContributionAmount("");
-      setMessage("Squad checkout opened. Your contribution will appear after Squad verifies the payment. Return here and refresh after checkout.");
+      setMessage("Squad checkout opened. This screen will refresh when you return. Your contribution appears only after Squad verifies the payment.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to start Squad checkout.");
     } finally { setFundingGoalId(null); }
