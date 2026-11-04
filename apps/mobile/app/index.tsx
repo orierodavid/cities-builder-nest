@@ -809,6 +809,16 @@ export default function HomeScreen() {
   // application remains available to the other supported mobile roles.
   if (session && isResident) return <Redirect href={"/(resident)" as never} />;
 
+  if (!restoring && !session) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#050505" }}>
+        <LoginScreen onSubmit={submitAuth} onForgotPassword={requestPasswordReset} />
+        {!!message && <Text style={{ color: "#D4AF37", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>{message}</Text>}
+        {!supabaseConfigured && <Text style={{ color: "#E5484D", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>Sign-in configuration is missing. Contact your administrator.</Text>}
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={[styles.appFrame, wide && styles.appFrameWide]}>
