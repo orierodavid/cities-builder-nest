@@ -1,12 +1,39 @@
-import React from 'react';
-import { Screen, SectionTitle, EmptyState, GoldButton } from '../../src/components/ui';
-
-export default function MaintainScreen() {
-  return (
-    <Screen title="Maintenance" subtitle="Report and track property issues">
-      <GoldButton label="Maintenance requests" disabled />
-      <SectionTitle>My requests</SectionTitle>
-      <EmptyState icon="tools" title="No maintenance requests" message="Your submitted maintenance requests and their status will appear here." />
-    </Screen>
-  );
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Screen, SectionTitle, EmptyState, Card } from '../../src/components/ui';
+import { supabase } from '../../lib/supabase';
+import { theme } from '../../src/theme/theme';
+import { getApiBaseUrl } from '../../src/lib/api-url';
+type Request={id:string;title:string;description:string;status:string;priority:string;created_at:string};
+const apiUrl=getApiBaseUrl();
+export default function MaintainScreen(){
+ const [estateId,setEstateId]=useState('');const [unitId,setUnitId]=useState('');const [title,setTitle]=useState('');const [description,setDescription]=useState('');
+ const [priority,setPriority]=useState<'low'|'normal'|'high'|'urgent'>('normal');const [items,setItems]=useState<Request[]>([]);const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);const [message,setMessage]=useState('');
+ const load=useCallback(async()=>{setLoading(true);setMessage('');try{
+  const {data:{user},error:authError}=await supabase.auth.getUser();if(authError)throw authError;if(!user)throw new Error('Please sign in again.');
+  const {data:membership,error:membershipError}=await supabase.from('estate_memberships').select('estate_id').eq('user_id',user.id).eq('membership_role','resident').eq('status','active').order('created_at',{ascending:false}).limit(1).maybeSingle();
+  if(membershipError)throw membershipError;if(!membership)throw new Error('No active resident estate membership was found.');setEstateId(membership.estate_id);
+  const {data:unit,error:unitError}=await supabase.from('resident_units').select('unit_id').eq('resident_user_id',user.id).eq('estate_id',membership.estate_id).is('end_date',null).limit(1).maybeSingle();if(unitError)throw unitError;setUnitId(unit?.unit_id||'');
+  const {data:requests,error:requestError}=await supabase.from('maintenance_requests').select('id,title,description,status,priority,created_at').eq('estate_id',membership.estate_id).eq('created_by',user.id).order('created_at',{ascending:false});
+  if(requestError)throw requestError;setItems((requests||[]) as Request[]);
+ }catch(e){setMessage(e instanceof Error?e.message:'Maintenance requests could not be loaded.');}finally{setLoading(false);}},[]);
+ useEffect(()=>{void load()},[load]);
+ async function submit(){if(title.trim().length<3){setMessage('Enter a clear maintenance request title.');return;}if(description.trim().length<5){setMessage('Please describe the issue in a little more detail.');return;}if(!apiUrl){setMessage('API address is not configured. Set EXPO_PUBLIC_API_URL and restart Expo.');return;}setSaving(true);setMessage('');
+  try{const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Your session has expired. Please sign in again.');
+   const response=await fetch(apiUrl+'/v1/estates/'+encodeURIComponent(estateId)+'/maintenance',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,Accept:'application/json','Content-Type':'application/json'},body:JSON.stringify({title:title.trim(),description:description.trim(),priority,...(unitId?{unitId}:{})})});
+   const result=await response.json() as {error?:string;message?:string;maintenanceRequest?:Request};if(!response.ok)throw new Error(result.message||result.error||'Maintenance request could not be submitted.');
+   setTitle('');setDescription('');setMessage('Maintenance request submitted successfully.');await load();
+  }catch(e){const detail=e instanceof Error?e.message:'Maintenance request could not be submitted.';setMessage(/fetch failed|network request failed|network error/i.test(detail)?'CB Nest could not reach its API. Confirm the API is running and EXPO_PUBLIC_API_URL points to your computer’s LAN IP or deployed API URL.':detail);}finally{setSaving(false);}
+ }
+ return <Screen title="Maintenance Requests" subtitle="Report a problem and track its progress">
+  <Card><SectionTitle>Submit a request</SectionTitle><Text style={{color:theme.text,fontSize:12,marginTop:8}}>Request title</Text>
+   <TextInput value={title} onChangeText={setTitle} placeholder="e.g. Water leakage in bathroom" placeholderTextColor={theme.muted} style={{color:theme.text,borderWidth:1,borderColor:theme.border,borderRadius:10,padding:12,marginTop:7}}/>
+   <Text style={{color:theme.text,fontSize:12,marginTop:12}}>Describe the issue</Text><TextInput value={description} onChangeText={setDescription} multiline textAlignVertical="top" placeholder="Tell estate management what happened and where…" placeholderTextColor={theme.muted} style={{minHeight:105,color:theme.text,borderWidth:1,borderColor:theme.border,borderRadius:10,padding:12,marginTop:7}}/>
+   <Text style={{color:theme.text,fontSize:12,marginTop:12}}>Priority</Text><View style={{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:8}}>{(['low','normal','high','urgent'] as const).map(p=><TouchableOpacity key={p} onPress={()=>setPriority(p)} style={{paddingHorizontal:12,paddingVertical:9,borderRadius:20,borderWidth:1,borderColor:priority===p?theme.gold:theme.border,backgroundColor:priority===p?'#302719':'transparent'}}><Text style={{color:priority===p?theme.gold:theme.muted,fontSize:11,fontWeight:'700',textTransform:'capitalize'}}>{p}</Text></TouchableOpacity>)}</View>
+   <TouchableOpacity onPress={()=>void submit()} disabled={saving||!estateId} style={{marginTop:15,minHeight:48,borderRadius:10,backgroundColor:theme.gold,alignItems:'center',justifyContent:'center',opacity:saving||!estateId?0.6:1}}>{saving?<ActivityIndicator color="#071A3A"/>:<Text style={{color:'#071A3A',fontWeight:'900'}}>Submit maintenance request</Text>}</TouchableOpacity>
+  </Card>
+  {!!message&&<Text accessibilityRole="alert" style={{color:message.includes('successfully')?'#72D6A0':'#FF9292',fontSize:12,lineHeight:18}}>{message}</Text>}
+  <SectionTitle>My requests</SectionTitle>{loading?<ActivityIndicator color={theme.gold}/>:items.length?items.map(item=><Card key={item.id}><Text style={{color:theme.text,fontSize:14,fontWeight:'800'}}>{item.title}</Text><Text style={{color:theme.muted,fontSize:11,marginTop:5}}>{item.description}</Text><Text style={{color:theme.gold,fontSize:10,fontWeight:'800',marginTop:8}}>{item.status.toUpperCase()} · {item.priority.toUpperCase()}</Text><Text style={{color:theme.muted,fontSize:10,marginTop:4}}>{new Date(item.created_at).toLocaleString('en-NG')}</Text></Card>):<EmptyState icon="tools" title="No maintenance requests" message="Requests you submit will appear here with their current status."/>}
+  <TouchableOpacity onPress={()=>void load()} style={{padding:12,alignItems:'center'}}><Text style={{color:theme.gold}}>Refresh requests</Text></TouchableOpacity>
+ </Screen>;
 }
