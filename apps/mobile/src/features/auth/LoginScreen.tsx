@@ -54,11 +54,11 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Pro
           <View style={s.card}>
             <Text style={s.title}>Welcome back</Text>
             <Text style={s.subtitle}>Sign in to access your estate services</Text>
-            <Text style={s.label}>Email or phone number</Text>
+            <Text style={s.label}>Email address</Text>
             <View style={[s.field, focus === 'id' && s.fieldFocus]}>
               <MaterialCommunityIcons name="account-outline" size={20} color={C.muted} />
               <TextInput style={s.input} value={identifier} onChangeText={setIdentifier}
-                placeholder="you@example.com or +234..." placeholderTextColor="#666"
+                placeholder="you@example.com" placeholderTextColor="#666"
                 autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
                 textContentType="username" onFocus={() => setFocus('id')} onBlur={() => setFocus(null)}
                 returnKeyType="next" />
