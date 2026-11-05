@@ -64,6 +64,7 @@ const eventInvitationRecords: Record<string, any>[] = [
   { id: "event-invitation-a", estate_id: estateA, event_id: "event-a", guest_id: "event-guest-a", status: "active", code_hash: createHash("sha256").update("987654").digest("hex") },
 ];
 const eventCheckinRecords: Record<string, any>[] = [];
+const incidentRecords: Record<string, any>[] = [];
 
 function sendJson(res: ServerResponse, status: number, body: unknown, objectResponse = false) {
   res.statusCode = status;
@@ -131,6 +132,15 @@ const mockSupabase = createServer(async (req, res) => {
   const objectResponse = (req.headers.accept ?? "").includes("application/vnd.pgrst.object+json");
 
   if (req.method === "GET" && table === "users") return sendJson(res, 200, [], objectResponse);
+  if (req.method === "GET" && table === "security_incident_reports") {
+    return sendJson(res, 200, incidentRecords.filter(matches).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, Number(url.searchParams.get("limit") ?? 100)), objectResponse);
+  }
+  if (req.method === "POST" && table === "security_incident_reports") {
+    const body = await readBody(req);
+    const row = { id: "incident-" + (incidentRecords.length + 1), created_at: new Date().toISOString(), status: "open", ...body };
+    incidentRecords.push(row);
+    return sendJson(res, 201, row, objectResponse);
+  }
   if (req.method === "GET" && table === "estate_events") return sendJson(res, 200, eventRecords.filter(matches), objectResponse);
   if (req.method === "GET" && table === "estate_event_invitations") return sendJson(res, 200, eventInvitationRecords.filter(matches), objectResponse);
   if (req.method === "GET" && table === "estate_event_guests") return sendJson(res, 200, eventGuestRecords.filter(matches), objectResponse);
@@ -386,6 +396,46 @@ test("only security assigned to the estate can deny visitor entry", async () => 
 
   const resident = await request(`/v1/estates/${estateA}/gate/visitor-passes/denial-test-pass/deny`, "resident-token", "POST", {
     reason: "Residents cannot deny entry.",
+  });
+  assert.equal(resident.status, 403);
+  assert.equal(resident.body.error, "security_membership_required");
+});
+
+test("security can create and list incident reports only in the assigned estate", async () => {
+  const created = await request(`/v1/estates/${estateA}/security/incidents`, "security-token", "POST", {
+    title: "Unauthorised gate access attempt",
+    category: "unauthorised_access",
+    severity: "high",
+    description: "An unknown individual attempted to enter the estate without a valid visitor pass.",
+    location: "Main entrance",
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.incident.estate_id, estateA);
+  assert.equal(created.body.incident.reported_by, securityId);
+  assert.equal(created.body.incident.status, "open");
+  assert.equal(incidentRecords.length, 1);
+
+  const listed = await request(`/v1/estates/${estateA}/security/incidents`, "security-token");
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.incidents.length, 1);
+  assert.equal(listed.body.incidents[0].title, "Unauthorised gate access attempt");
+
+  const invalid = await request(`/v1/estates/${estateA}/security/incidents`, "security-token", "POST", {
+    title: "x", category: "unknown", severity: "urgent", description: "short",
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body.error, "invalid_security_incident");
+
+  const crossEstate = await request(`/v1/estates/${estateA}/security/incidents`, "security-b-token", "POST", {
+    title: "Cross estate report", category: "other", severity: "medium",
+    description: "This report must not be created from another estate.",
+  });
+  assert.equal(crossEstate.status, 403);
+  assert.equal(crossEstate.body.error, "security_membership_required");
+
+  const resident = await request(`/v1/estates/${estateA}/security/incidents`, "resident-token", "POST", {
+    title: "Resident report", category: "other", severity: "medium",
+    description: "Residents cannot submit through the Security incident workflow.",
   });
   assert.equal(resident.status, 403);
   assert.equal(resident.body.error, "security_membership_required");
