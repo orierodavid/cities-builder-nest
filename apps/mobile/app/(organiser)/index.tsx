@@ -1,2 +1,5 @@
-import { RoleLanding } from "../../src/features/shared/RoleLanding";
-export default function OrganiserHomeRoute() { return <RoleLanding role="event_organiser" />; }
+import EventDashboard from "../../src/features/organiser/EventDashboard";
+
+export default function OrganiserHomeRoute() {
+  return <EventDashboard />;
+}
