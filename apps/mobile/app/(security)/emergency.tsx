@@ -74,11 +74,13 @@ export default function SecurityEmergencyRoute() {
         method: "POST", headers,
         body: JSON.stringify({ alertType, severity, title: title.trim(), message: messageText.trim(), location: location.trim() }),
       });
-      const payload = await response.json() as { alert?: AlertRecord; error?: string; message?: string };
+      const payload = await response.json() as { alert?: AlertRecord; recipientCount?: number; error?: string; message?: string };
       if (!response.ok || !payload.alert) throw new Error(payload.message || payload.error || "Emergency alert could not be issued.");
       setAlerts(current => [payload.alert!, ...current]);
       setTitle(""); setMessageText(""); setLocation("");
-      setNotice("Emergency alert recorded for in-app visibility to active members of this estate.");
+      setNotice(payload.recipientCount
+        ? "Emergency alert recorded and delivered to " + payload.recipientCount + " active resident inbox(es)."
+        : "Emergency alert recorded. No active resident inboxes were available for delivery.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Emergency alert could not be issued.");
     } finally { setSaving(false); }
