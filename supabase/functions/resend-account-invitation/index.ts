@@ -62,6 +62,7 @@ Deno.serve(async (req: Request) => {
     origin = parsed.origin;
   } catch { return json(400, { error: "invalid_portal_origin" }); }
   const redirectTo = new URL("/invitation/accepted", origin).toString();
+  const passwordSetupRedirectTo = new URL("/invitation/accepted?flow=password_setup", origin).toString();
 
   const { data: target, error: targetUserError } = await admin.auth.admin.getUserById(targetUserId);
   if (targetUserError || !target.user?.email) return json(404, { error: "account_email_not_found" });
@@ -69,7 +70,7 @@ Deno.serve(async (req: Request) => {
 
   if (delivery === "password_setup") {
     // Send a one-time password setup/reset link. Never email the user's actual password.
-    const { error } = await auth.auth.resetPasswordForEmail(email, { redirectTo });
+    const { error } = await auth.auth.resetPasswordForEmail(email, { redirectTo: passwordSetupRedirectTo });
     if (error) return json(502, {
       error: "password_setup_email_failed",
       message: "The password setup email could not be sent. Check Supabase Auth email delivery settings and try again.",
@@ -92,7 +93,7 @@ Deno.serve(async (req: Request) => {
     return json(200, { success: true, email, delivery: "invitation" });
   }
 
-  const { error } = await auth.auth.resetPasswordForEmail(email, { redirectTo });
+  const { error } = await auth.auth.resetPasswordForEmail(email, { redirectTo: passwordSetupRedirectTo });
   if (error) return json(502, {
     error: "access_email_failed",
     message: "The account exists, but its password-reset email could not be sent. Check Supabase Auth email delivery settings.",
