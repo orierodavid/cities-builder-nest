@@ -502,6 +502,7 @@ test("security can issue and resolve emergency alerts while estate members can r
   assert.equal(created.body.alert.estate_id, estateA);
   assert.equal(created.body.alert.created_by, securityId);
   assert.equal(created.body.alert.status, "active");
+  assert.equal(created.body.recipientCount, 1);
 
   const residentRead = await request(`/v1/estates/${estateA}/emergency-alerts`, "resident-token");
   assert.equal(residentRead.status, 200);
