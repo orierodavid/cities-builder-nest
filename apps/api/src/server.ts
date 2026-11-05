@@ -985,6 +985,58 @@ async function requireSecurityEventAccess(req: import("express").Request, res: i
   return authenticated;
 }
 
+app.get("/v1/estates/:estateId/security/shift-handovers", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const authenticated = await requireSecurityEventAccess(req, res, estateId);
+  if (!authenticated) return;
+  const { data, error } = await authenticated.userSupabase.from("security_shift_handovers")
+    .select("id, estate_id, outgoing_officer, shift_label, shift_started_at, shift_ended_at, handover_notes, pending_actions, status, acknowledged_by, acknowledged_at, created_at")
+    .eq("estate_id", estateId).order("created_at", { ascending: false }).limit(100);
+  if (error) { res.status(400).json({ error: "security_shift_handovers_load_failed" }); return; }
+  res.status(200).json({ handovers: data ?? [] });
+});
+
+app.post("/v1/estates/:estateId/security/shift-handovers", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const authenticated = await requireSecurityEventAccess(req, res, estateId);
+  if (!authenticated) return;
+  const shiftLabel = typeof req.body?.shiftLabel === "string" ? req.body.shiftLabel.trim() : "";
+  const startedAt = typeof req.body?.shiftStartedAt === "string" ? new Date(req.body.shiftStartedAt) : new Date(Number.NaN);
+  const endedAt = typeof req.body?.shiftEndedAt === "string" ? new Date(req.body.shiftEndedAt) : new Date(Number.NaN);
+  const notes = typeof req.body?.handoverNotes === "string" ? req.body.handoverNotes.trim() : "";
+  const pendingActions = typeof req.body?.pendingActions === "string" ? req.body.pendingActions.trim() : "";
+  if (shiftLabel.length < 2 || shiftLabel.length > 80 || Number.isNaN(startedAt.getTime()) ||
+      Number.isNaN(endedAt.getTime()) || endedAt.getTime() < startedAt.getTime() ||
+      endedAt.getTime() > Date.now() + 5 * 60 * 1000 || notes.length < 10 || notes.length > 4000 ||
+      pendingActions.length > 3000) {
+    res.status(400).json({ error: "invalid_security_shift_handover", message: "Provide a shift label, valid start and end times, and handover notes." }); return;
+  }
+  const { data, error } = await authenticated.userSupabase.from("security_shift_handovers")
+    .insert({
+      estate_id: estateId, outgoing_officer: authenticated.authUser.id, shift_label: shiftLabel,
+      shift_started_at: startedAt.toISOString(), shift_ended_at: endedAt.toISOString(),
+      handover_notes: notes, pending_actions: pendingActions || null, status: "pending",
+    })
+    .select("id, estate_id, outgoing_officer, shift_label, shift_started_at, shift_ended_at, handover_notes, pending_actions, status, created_at")
+    .single();
+  if (error || !data) { res.status(400).json({ error: "security_shift_handover_create_failed" }); return; }
+  res.status(201).json({ handover: data });
+});
+
+app.post("/v1/estates/:estateId/security/shift-handovers/:handoverId/acknowledge", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const handoverId = Array.isArray(req.params.handoverId) ? req.params.handoverId[0] : req.params.handoverId;
+  const authenticated = await requireSecurityEventAccess(req, res, estateId);
+  if (!authenticated) return;
+  const { data, error } = await authenticated.userSupabase.from("security_shift_handovers")
+    .update({ status: "acknowledged", acknowledged_by: authenticated.authUser.id, acknowledged_at: new Date().toISOString() })
+    .eq("id", handoverId).eq("estate_id", estateId).eq("status", "pending")
+    .neq("outgoing_officer", authenticated.authUser.id)
+    .select("id, estate_id, status, acknowledged_by, acknowledged_at").maybeSingle();
+  if (error || !data) { res.status(409).json({ error: "pending_shift_handover_not_found_or_self_acknowledgement" }); return; }
+  res.status(200).json({ handover: data });
+});
+
 app.get("/v1/estates/:estateId/emergency-alerts", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const authenticated = req as AuthenticatedRequest;
