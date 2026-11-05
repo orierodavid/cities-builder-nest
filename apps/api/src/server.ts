@@ -985,6 +985,54 @@ async function requireSecurityEventAccess(req: import("express").Request, res: i
   return authenticated;
 }
 
+app.get("/v1/estates/:estateId/security/incidents", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const authenticated = await requireSecurityEventAccess(req, res, estateId);
+  if (!authenticated) return;
+  const { data, error } = await authenticated.userSupabase.from("security_incident_reports")
+    .select("id, estate_id, reported_by, title, category, severity, description, location, occurred_at, status, reviewed_by, reviewed_at, resolution_note, created_at, updated_at")
+    .eq("estate_id", estateId).order("created_at", { ascending: false }).limit(100);
+  if (error) { res.status(400).json({ error: "security_incidents_load_failed" }); return; }
+  res.status(200).json({ incidents: data ?? [] });
+});
+
+app.post("/v1/estates/:estateId/security/incidents", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const authenticated = await requireSecurityEventAccess(req, res, estateId);
+  if (!authenticated) return;
+
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const category = typeof req.body?.category === "string" ? req.body.category.trim() : "";
+  const severity = typeof req.body?.severity === "string" ? req.body.severity.trim() : "medium";
+  const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
+  const location = typeof req.body?.location === "string" ? req.body.location.trim() : "";
+  const occurredAt = typeof req.body?.occurredAt === "string" ? req.body.occurredAt : "";
+  const categories = ["unauthorised_access", "theft", "property_damage", "disturbance", "safety_hazard", "medical", "fire", "other"];
+  const severities = ["low", "medium", "high", "critical"];
+  const occurredDate = occurredAt ? new Date(occurredAt) : new Date();
+  if (title.length < 3 || title.length > 160 || !categories.includes(category) ||
+      !severities.includes(severity) || description.length < 10 || description.length > 5000 ||
+      location.length > 240 || Number.isNaN(occurredDate.getTime()) || occurredDate.getTime() > Date.now() + 5 * 60 * 1000) {
+    res.status(400).json({ error: "invalid_security_incident", message: "Provide a valid title, category, severity, description and occurrence time." }); return;
+  }
+  const { data, error } = await authenticated.userSupabase.from("security_incident_reports")
+    .insert({
+      estate_id: estateId,
+      reported_by: authenticated.authUser.id,
+      title,
+      category,
+      severity,
+      description,
+      location: location || null,
+      occurred_at: occurredDate.toISOString(),
+      status: "open",
+    })
+    .select("id, estate_id, reported_by, title, category, severity, description, location, occurred_at, status, created_at")
+    .single();
+  if (error || !data) { res.status(400).json({ error: "security_incident_create_failed" }); return; }
+  res.status(201).json({ incident: data });
+});
+
 async function requireEventOrganiser(req: import("express").Request, res: import("express").Response, estateId: string): Promise<AuthenticatedRequest | null> {
   const authenticated = req as AuthenticatedRequest;
   const { data: membership, error } = await authenticated.userSupabase
