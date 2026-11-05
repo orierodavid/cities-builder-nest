@@ -22,6 +22,7 @@ export default function SecurityHandoverRoute() {
   const [userId, setUserId] = useState("");
   const [handovers, setHandovers] = useState<Handover[]>([]);
   const [shiftLabel, setShiftLabel] = useState("Morning");
+  const [shiftDuration, setShiftDuration] = useState(8);
   const [notes, setNotes] = useState("");
   const [pendingActions, setPendingActions] = useState("");
   const [loading, setLoading] = useState(true);
@@ -71,7 +72,7 @@ export default function SecurityHandoverRoute() {
     try {
       const headers = await getHeaders();
       const ended = new Date();
-      const started = new Date(ended.getTime() - 8 * 60 * 60 * 1000);
+      const started = new Date(ended.getTime() - shiftDuration * 60 * 60 * 1000);
       const response = await fetch(base + "/v1/estates/" + encodeURIComponent(estate.id) + "/security/shift-handovers", {
         method: "POST", headers,
         body: JSON.stringify({
@@ -125,7 +126,11 @@ export default function SecurityHandoverRoute() {
           <View style={{ flexDirection: "row", gap: 7 }}>
             {SHIFTS.map(item => <TouchableOpacity key={item} onPress={() => setShiftLabel(item)} style={{ flex: 1, borderWidth: 1, borderColor: shiftLabel === item ? GOLD : "#494133", backgroundColor: shiftLabel === item ? "#302718" : "#101010", borderRadius: 9, padding: 11, alignItems: "center" }}><Text style={{ color: shiftLabel === item ? "#F5D58D" : "#B9B9B9", fontSize: 10, fontWeight: "800" }}>{item}</Text></TouchableOpacity>)}
           </View>
-          <Text style={{ color: "#A7A095", fontSize: 10, marginTop: 9 }}>The handover window is recorded as the last 8 hours up to submission time.</Text>
+          <Text style={{ color: "#A7A095", fontSize: 10, marginTop: 9 }}>The handover window ends at submission time; choose the shift duration below.</Text>
+          <Text style={label}>Shift duration</Text>
+          <View style={{ flexDirection: "row", gap: 7 }}>
+            {[8, 10, 12].map(hours => <TouchableOpacity key={hours} onPress={() => setShiftDuration(hours)} style={{ flex: 1, borderWidth: 1, borderColor: shiftDuration === hours ? GOLD : "#494133", backgroundColor: shiftDuration === hours ? "#302718" : "#101010", borderRadius: 9, padding: 10, alignItems: "center" }}><Text style={{ color: shiftDuration === hours ? "#F5D58D" : "#B9B9B9", fontSize: 10, fontWeight: "800" }}>{hours} hours</Text></TouchableOpacity>)}
+          </View>
           <Text style={label}>Handover notes</Text>
           <TextInput value={notes} onChangeText={setNotes} multiline maxLength={4000} placeholder="Summarise patrols, incidents, access issues and anything the next officer must know..." placeholderTextColor="#777" textAlignVertical="top" style={inputLarge} />
           <Text style={label}>Outstanding actions (optional)</Text>
