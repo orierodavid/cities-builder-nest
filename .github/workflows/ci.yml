@@ -61,6 +61,10 @@ jobs:
           deno-version: v2.x
       - name: Type-check onboarding Edge Function
         run: deno check supabase/functions/onboard-account/index.ts
+      - name: Type-check password update Edge Function
+        run: deno check supabase/functions/update-estate-user-password/index.ts
+      - name: Type-check welcome email Edge Function
+        run: deno check supabase/functions/send-welcome-email/index.ts
       - name: Type-check resident virtual account Edge Function
         run: deno check supabase/functions/create-resident-virtual-account/index.ts
       - name: Type-check resend invitation Edge Function
