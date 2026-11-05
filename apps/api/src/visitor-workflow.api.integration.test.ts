@@ -54,6 +54,16 @@ const passes: Record<string, unknown>[] = [
 ];
 const visits: Record<string, any>[] = [];
 const denials: Record<string, any>[] = [];
+const eventRecords: Record<string, any>[] = [
+  { id: "event-a", estate_id: estateA, title: "Estate A Gathering", venue: "Clubhouse", status: "published", starts_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(), ends_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() },
+];
+const eventGuestRecords: Record<string, any>[] = [
+  { id: "event-guest-a", estate_id: estateA, event_id: "event-a", guest_name: "Event Test Guest", email: "guest@example.test", phone: "08000000000" },
+];
+const eventInvitationRecords: Record<string, any>[] = [
+  { id: "event-invitation-a", estate_id: estateA, event_id: "event-a", guest_id: "event-guest-a", status: "active", code_hash: createHash("sha256").update("987654").digest("hex") },
+];
+const eventCheckinRecords: Record<string, any>[] = [];
 
 function sendJson(res: ServerResponse, status: number, body: unknown, objectResponse = false) {
   res.statusCode = status;
@@ -121,6 +131,16 @@ const mockSupabase = createServer(async (req, res) => {
   const objectResponse = (req.headers.accept ?? "").includes("application/vnd.pgrst.object+json");
 
   if (req.method === "GET" && table === "users") return sendJson(res, 200, [], objectResponse);
+  if (req.method === "GET" && table === "estate_events") return sendJson(res, 200, eventRecords.filter(matches), objectResponse);
+  if (req.method === "GET" && table === "estate_event_invitations") return sendJson(res, 200, eventInvitationRecords.filter(matches), objectResponse);
+  if (req.method === "GET" && table === "estate_event_guests") return sendJson(res, 200, eventGuestRecords.filter(matches), objectResponse);
+  if (req.method === "GET" && table === "estate_event_checkins") return sendJson(res, 200, eventCheckinRecords.filter(matches), objectResponse);
+  if (req.method === "POST" && table === "estate_event_checkins") {
+    const body = await readBody(req);
+    const row = { id: "event-checkin-" + (eventCheckinRecords.length + 1), checked_in_at: new Date().toISOString(), ...body };
+    eventCheckinRecords.push(row);
+    return sendJson(res, 201, row, objectResponse);
+  }
 
   if (req.method === "GET" && table === "estate_memberships") {
     return sendJson(res, 200, memberships.filter(matches), objectResponse);
@@ -366,6 +386,41 @@ test("only security assigned to the estate can deny visitor entry", async () => 
 
   const resident = await request(`/v1/estates/${estateA}/gate/visitor-passes/denial-test-pass/deny`, "resident-token", "POST", {
     reason: "Residents cannot deny entry.",
+  });
+  assert.equal(resident.status, 403);
+  assert.equal(resident.body.error, "security_membership_required");
+});
+
+test("security can verify and check in event guests only in the assigned estate", async () => {
+  const checkedIn = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "security-token", "POST", {
+    code: "987654",
+  });
+  assert.equal(checkedIn.status, 201);
+  assert.equal(checkedIn.body.event.id, "event-a");
+  assert.equal(checkedIn.body.guest.guest_name, "Event Test Guest");
+  assert.equal(checkedIn.body.checkIn.checked_in_by, securityId);
+  assert.equal(eventCheckinRecords.length, 1);
+
+  const duplicate = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "security-token", "POST", {
+    code: "987654",
+  });
+  assert.equal(duplicate.status, 409);
+  assert.equal(duplicate.body.error, "event_guest_already_checked_in");
+
+  const invalidCode = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "security-token", "POST", {
+    code: "98765",
+  });
+  assert.equal(invalidCode.status, 400);
+  assert.equal(invalidCode.body.error, "invalid_event_invitation_code");
+
+  const crossEstate = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "security-b-token", "POST", {
+    code: "987654",
+  });
+  assert.equal(crossEstate.status, 403);
+  assert.equal(crossEstate.body.error, "security_membership_required");
+
+  const resident = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "resident-token", "POST", {
+    code: "987654",
   });
   assert.equal(resident.status, 403);
   assert.equal(resident.body.error, "security_membership_required");
