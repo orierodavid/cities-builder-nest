@@ -203,8 +203,10 @@ export default function EventDashboard() {
             ) : null}
 
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your events</Text>
-              <Text style={styles.countText}>{events.length} total</Text>
+              <View><Text style={styles.sectionTitle}>Your events</Text><Text style={styles.countText}>{events.length} total</Text></View>
+              <TouchableOpacity onPress={() => router.push("/(organiser)/create-event")} style={styles.createButton}>
+                <MaterialCommunityIcons name="plus" size={17} color="#17130B" /><Text style={styles.createButtonText}>CREATE EVENT</Text>
+              </TouchableOpacity>
             </View>
 
             {events.length === 0 ? (
@@ -212,10 +214,11 @@ export default function EventDashboard() {
                 <View style={styles.emptyIcon}><MaterialCommunityIcons name="calendar-plus" size={30} color={t.goldSoft} /></View>
                 <Text style={styles.emptyTitle}>No events yet</Text>
                 <Text style={styles.emptyText}>Events you create for this estate will appear here with live guest and attendance figures.</Text>
+                <TouchableOpacity onPress={() => router.push("/(organiser)/create-event")} style={styles.createButton}><MaterialCommunityIcons name="plus" size={17} color="#17130B" /><Text style={styles.createButtonText}>CREATE FIRST EVENT</Text></TouchableOpacity>
               </View>
             ) : (
               events.map((event) => (
-                <View key={event.id} style={[CARD, styles.eventCard]}>
+                <TouchableOpacity key={event.id} activeOpacity={0.82} onPress={() => router.push({ pathname: "/(organiser)/[eventId]", params: { eventId: event.id } })} style={[CARD, styles.eventCard]}>
                   <View style={styles.eventTop}>
                     <View style={styles.eventTitleWrap}>
                       <Text style={styles.eventTitle}>{event.title}</Text>
@@ -235,7 +238,8 @@ export default function EventDashboard() {
                     <View><Text style={styles.eventStatValue}>{event.summary ? event.summary.checkedIn : "—"}</Text><Text style={styles.eventStatLabel}>Checked in</Text></View>
                     <View><Text style={styles.eventStatValue}>{event.summary ? event.summary.attendancePercentage + "%" : "—"}</Text><Text style={styles.eventStatLabel}>Attendance</Text></View>
                   </View>
-                </View>
+                  <View style={styles.openEventRow}><Text style={styles.openEventText}>MANAGE EVENT</Text><MaterialCommunityIcons name="arrow-right" size={16} color={t.goldSoft} /></View>
+                </TouchableOpacity>
               ))
             )}
           </>
@@ -270,7 +274,11 @@ const styles = StyleSheet.create({
   noticeText: { flex: 1, color: t.goldSoft, fontSize: 11, lineHeight: 17 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 26, marginBottom: 12 },
   sectionTitle: { color: t.text, fontSize: 17, fontWeight: "800" },
-  countText: { color: t.muted, fontSize: 11 },
+  countText: { color: t.muted, fontSize: 11, marginTop: 3 },
+  createButton: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: t.gold, paddingHorizontal: 11, paddingVertical: 10, borderRadius: 9 },
+  createButtonText: { color: "#17130B", fontSize: 9, fontWeight: "900" },
+  openEventRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTopWidth: 1, borderTopColor: "#292929" },
+  openEventText: { color: t.goldSoft, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
   emptyCard: { alignItems: "center", padding: 24, gap: 9 },
   emptyIcon: { width: 58, height: 58, borderRadius: 29, backgroundColor: "#211B10", alignItems: "center", justifyContent: "center" },
   emptyTitle: { color: t.text, fontSize: 16, fontWeight: "800" },
