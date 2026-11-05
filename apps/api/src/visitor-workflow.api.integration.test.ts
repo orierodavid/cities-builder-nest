@@ -117,6 +117,25 @@ const mockSupabase = createServer(async (req, res) => {
     });
   }
 
+  if (req.method === "POST" && url.pathname === "/rest/v1/rpc/publish_security_emergency_alert") {
+    const body = await readBody(req);
+    const alert = {
+      id: "emergency-alert-" + (emergencyAlertRecords.length + 1),
+      estate_id: body.p_estate_id,
+      created_by: req.headers.authorization === "Bearer security-token" ? securityId : "security-incoming",
+      alert_type: body.p_alert_type,
+      severity: body.p_severity,
+      title: body.p_title,
+      message: body.p_message,
+      location: body.p_location,
+      status: "active",
+      created_at: new Date().toISOString(),
+    };
+    emergencyAlertRecords.push(alert);
+    const recipientCount = memberships.filter(m => m.estate_id === body.p_estate_id && m.membership_role === "resident" && m.status === "active").length;
+    return sendJson(res, 200, { alert, notificationId: recipientCount ? "resident-notification-1" : null, recipientCount });
+  }
+
   if (!url.pathname.startsWith("/rest/v1/")) return sendJson(res, 404, { message: "Not found" });
   const table = url.pathname.slice("/rest/v1/".length);
   const filters = [...url.searchParams.entries()].filter(([key]) => key !== "select" && key !== "order" && key !== "limit");
