@@ -16,6 +16,7 @@ const memberships = [
   { estate_id: estateA, user_id: residentId, membership_role: "resident", status: "active" },
   { estate_id: estateA, user_id: "inactive-resident", membership_role: "resident", status: "inactive" },
   { estate_id: estateA, user_id: securityId, membership_role: "security", status: "active" },
+  { estate_id: estateA, user_id: "security-incoming", membership_role: "security", status: "active" },
   { estate_id: "disabled-estate", user_id: residentId, membership_role: "resident", status: "active" },
   { estate_id: estateB, user_id: "security-b", membership_role: "security", status: "active" },
   { estate_id: "disabled-estate", user_id: securityId, membership_role: "security", status: "active" },
@@ -66,6 +67,7 @@ const eventInvitationRecords: Record<string, any>[] = [
 const eventCheckinRecords: Record<string, any>[] = [];
 const incidentRecords: Record<string, any>[] = [];
 const emergencyAlertRecords: Record<string, any>[] = [];
+const shiftHandoverRecords: Record<string, any>[] = [];
 
 function sendJson(res: ServerResponse, status: number, body: unknown, objectResponse = false) {
   res.statusCode = status;
@@ -94,6 +96,7 @@ const mockSupabase = createServer(async (req, res) => {
       "manager-token": managerId,
       "manager-b-token": managerBId,
       "security-token": securityId,
+      "security-incoming-token": "security-incoming",
       "inactive-token": "inactive-resident",
       "other-token": "someone-else",
       "security-b-token": "security-b",
@@ -123,6 +126,7 @@ const mockSupabase = createServer(async (req, res) => {
     if (operator === "is") return expected === "null" ? row[key] === null || row[key] === undefined : String(row[key]) === expected;
     if (operator === "lte") return String(row[key]) <= expected;
     if (operator === "gt") return String(row[key]) > expected;
+    if (operator === "neq") return String(row[key]) !== expected;
     if (operator === "in") {
       const allowed = expected.replace(/^\(/, "").replace(/\)$/, "").split(",").map((item) => item.replace(/^"|"$/g, ""));
       return allowed.includes(String(row[key]));
@@ -133,6 +137,21 @@ const mockSupabase = createServer(async (req, res) => {
   const objectResponse = (req.headers.accept ?? "").includes("application/vnd.pgrst.object+json");
 
   if (req.method === "GET" && table === "users") return sendJson(res, 200, [], objectResponse);
+  if (req.method === "GET" && table === "security_shift_handovers") {
+    return sendJson(res, 200, shiftHandoverRecords.filter(matches).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, Number(url.searchParams.get("limit") ?? 100)), objectResponse);
+  }
+  if (req.method === "POST" && table === "security_shift_handovers") {
+    const body = await readBody(req);
+    const row = { id: "shift-handover-" + (shiftHandoverRecords.length + 1), created_at: new Date().toISOString(), status: "pending", ...body };
+    shiftHandoverRecords.push(row);
+    return sendJson(res, 201, row, objectResponse);
+  }
+  if (req.method === "PATCH" && table === "security_shift_handovers") {
+    const body = await readBody(req);
+    const updated = shiftHandoverRecords.filter(matches);
+    for (const row of updated) Object.assign(row, body);
+    return sendJson(res, 200, updated, objectResponse);
+  }
   if (req.method === "GET" && table === "security_emergency_alerts") {
     return sendJson(res, 200, emergencyAlertRecords.filter(matches).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, Number(url.searchParams.get("limit") ?? 100)), objectResponse);
   }
@@ -415,6 +434,43 @@ test("only security assigned to the estate can deny visitor entry", async () => 
   });
   assert.equal(resident.status, 403);
   assert.equal(resident.body.error, "security_membership_required");
+});
+
+test("security officers can create, view and acknowledge shift handovers only within their estate", async () => {
+  const started = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+  const ended = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const created = await request(`/v1/estates/${estateA}/security/shift-handovers`, "security-token", "POST", {
+    shiftLabel: "Night shift",
+    shiftStartedAt: started,
+    shiftEndedAt: ended,
+    handoverNotes: "Main gate patrol completed. Perimeter lighting at Block D requires attention.",
+    pendingActions: "Follow up with maintenance on the Block D perimeter lights.",
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.handover.outgoing_officer, securityId);
+  assert.equal(created.body.handover.estate_id, estateA);
+  assert.equal(created.body.handover.status, "pending");
+
+  const listed = await request(`/v1/estates/${estateA}/security/shift-handovers`, "security-incoming-token");
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.handovers.length, 1);
+
+  const selfAcknowledge = await request(`/v1/estates/${estateA}/security/shift-handovers/${created.body.handover.id}/acknowledge`, "security-token", "POST");
+  assert.equal(selfAcknowledge.status, 409);
+
+  const acknowledged = await request(`/v1/estates/${estateA}/security/shift-handovers/${created.body.handover.id}/acknowledge`, "security-incoming-token", "POST");
+  assert.equal(acknowledged.status, 200);
+  assert.equal(acknowledged.body.handover.status, "acknowledged");
+  assert.equal(acknowledged.body.handover.acknowledged_by, "security-incoming");
+
+  const invalid = await request(`/v1/estates/${estateA}/security/shift-handovers`, "security-token", "POST", {
+    shiftLabel: "Night", shiftStartedAt: ended, shiftEndedAt: started,
+    handoverNotes: "Invalid time order should be rejected.",
+  });
+  assert.equal(invalid.status, 400);
+
+  const crossEstate = await request(`/v1/estates/${estateA}/security/shift-handovers`, "security-b-token");
+  assert.equal(crossEstate.status, 403);
 });
 
 test("security can issue and resolve emergency alerts while estate members can read them", async () => {
