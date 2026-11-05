@@ -2,7 +2,7 @@ import React from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 const TITLES: Record<string, string> = {
-  "event-guests": "Event Guest Verification", vehicles: "Vehicle Registration", "entry-records": "Visitor Entry Records",
+  "event-guests": "Event Guest Verification", "entry-records": "Visitor Entry Records",
   "exit-records": "Visitor Exit Records", incidents: "Incident Reporting", emergency: "Emergency Alerts",
   handover: "Shift Handover", alerts: "Security Alerts", profile: "Security Profile",
 };
