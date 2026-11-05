@@ -243,6 +243,60 @@ function UsersPage() {
 }
 
 
+type PropertyUnitRow = { id:string; estate_id:string; building_id:string; unit_code:string; unit_type:string|null; status:string };
+function PropertiesPage(){
+ const [estates,setEstates]=useState<Estate[]>([]);
+ const [selected,setSelected]=useState("");
+ const [rows,setRows]=useState<Array<{id:string;estate:string;building:string;unit:string;type:string;resident:string;status:string}>>([]);
+ const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [search,setSearch]=useState("");
+ const load=useCallback(async()=>{
+  setLoading(true);setError("");
+  try{
+   const {data:{user},error:authError}=await supabase.auth.getUser();if(authError)throw authError;if(!user)throw new Error("Your session has expired. Sign in again.");
+   const [{data:globalRoles,error:roleError},{data:ownMemberships,error:membershipError}]=await Promise.all([
+    supabase.from("user_roles").select("role").eq("user_id",user.id),
+    supabase.from("estate_memberships").select("estate_id,membership_role,status").eq("user_id",user.id).eq("status","active")
+   ]);
+   if(roleError||membershipError)throw new Error("Your property access could not be verified.");
+   const admin=(globalRoles||[]).some(x=>x.role==="platform_admin");
+   const allowed=admin?[]:(ownMemberships||[]).filter(x=>["facility_manager","estate_manager","estate_admin"].includes(x.membership_role)).map(x=>x.estate_id);
+   if(!admin&&!allowed.length)throw new Error("You do not have permission to view property records.");
+   let estateQuery=supabase.from("estates").select("id,name").order("name");if(!admin)estateQuery=estateQuery.in("id",allowed);
+   const {data:estateData,error:estateError}=await estateQuery;if(estateError)throw new Error("Estate records could not be loaded.");
+   const estateList=(estateData||[]) as Estate[];setEstates(estateList);const estateIds=estateList.map(x=>x.id);
+   if(!estateIds.length){setRows([]);return;}
+   const [{data:buildings,error:buildingError},{data:units,error:unitError}]=await Promise.all([
+    supabase.from("buildings").select("id,estate_id,name").in("estate_id",estateIds).order("name"),
+    supabase.from("units").select("id,estate_id,building_id,unit_code,unit_type,status").in("estate_id",estateIds).order("unit_code")
+   ]);
+   if(buildingError||unitError)throw new Error("Building or property-unit records could not be loaded. Check estate-scoped read permissions.");
+   const unitRows=(units||[]) as PropertyUnitRow[];const unitIds=unitRows.map(x=>x.id);
+   let assignments:Array<{unit_id:string;resident_user_id:string}>=[];
+   if(unitIds.length){const {data,error}=await supabase.from("resident_units").select("unit_id,resident_user_id").in("unit_id",unitIds).is("end_date",null);if(error)throw new Error("Resident-to-property assignments could not be loaded.");assignments=data||[];}
+   const residentIds=[...new Set(assignments.map(x=>x.resident_user_id))];
+   const {data:profiles,error:profileError}=residentIds.length?await supabase.from("users").select("id,full_name").in("id",residentIds):{data:[],error:null};
+   if(profileError)throw new Error("Resident names could not be loaded for property assignments.");
+   const buildingMap=new Map((buildings||[]).map(x=>[x.id,x.name]));
+   const estateMap=new Map(estateList.map(x=>[x.id,x.name]));
+   const profileMap=new Map((profiles||[]).map(x=>[x.id,x.full_name]));
+   const residentByUnit=new Map(assignments.map(x=>[x.unit_id,profileMap.get(x.resident_user_id)||"Resident name unavailable"]));
+   setRows(unitRows.map(unit=>({id:unit.id,estate:estateMap.get(unit.estate_id)||"Estate unavailable",building:buildingMap.get(unit.building_id)||"Building unavailable",unit:unit.unit_code,type:unit.unit_type||"Not specified",resident:residentByUnit.get(unit.id)||"Unassigned",status:unit.status||"Unknown"})));
+  }catch(e){setRows([]);setError(e instanceof Error?e.message:"Property records could not be loaded.");}
+  finally{setLoading(false);}
+ },[]);
+ useEffect(()=>{void load();},[load]);
+ const visible=rows.filter(x=>(!selected||estates.find(e=>e.id===selected)?.name===x.estate)&&(!search||[x.estate,x.building,x.unit,x.type,x.resident,x.status].join(" ").toLowerCase().includes(search.toLowerCase())));
+ return <PortalFrame title="Properties" description="Live buildings, units and resident assignments across your authorized estates.">
+  <section className="panel module-panel"><div className="module-toolbar"><div><h3>Property register</h3><p>Live estate buildings, property units and resident assignments.</p></div><button className="secondary-action" onClick={()=>void load()}>Refresh records</button></div>
+   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
+   <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selected} onChange={e=>setSelected(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search estate, building, unit or resident…" aria-label="Search properties"/></div>
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Building</th><th>Unit / Property</th><th>Property type</th><th>Assigned resident</th><th>Status</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={6} className="empty-cell">Loading live property records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td>{x.estate}</td><td><strong>{x.building}</strong></td><td>{x.unit}</td><td>{x.type}</td><td>{x.resident}</td><td><span className={"status-pill status-"+x.status.toLowerCase().replace(/[^a-z0-9]+/g,"-")}>{x.status}</span></td></tr>):<tr><td colSpan={6} className="empty-cell"><strong>No property units found</strong><small>{estates.length?"No building or unit records match this estate and search.":"No estates are assigned to this account."}</small></td></tr>}
+   </tbody></table></div><p className="notice-line">Read-only property register. This view does not create, edit or delete buildings, units or resident assignments.</p>
+  </section>
+ </PortalFrame>;
+}
+
 type ResidentDirectoryRow = { id:string; user_id:string; estate_id:string; status:string; created_at:string; membership_role:string };
 type ResidentActivityRow = { id:string; title:string; status:string; date:string; detail:string };
 type ResidentActivity = {
@@ -369,6 +423,7 @@ export default function SectionPage(){
  if(section==="settings")return <SettingsPage/>;
  if(section==="profile")return <ProfilePage/>;
  if(section==="estates")return <EstatesPage/>;
+ if(section==="properties")return <PropertiesPage/>;
   if(section==="service-charges")return <ServiceChargesPage/>;
  if(section==="legal-documents")return <LegalDocumentsPage/>;
  const item=config[section]||{title:"Page not found",description:"This section is not available.",columns:[],intro:"The requested section could not be found."};
