@@ -7,6 +7,8 @@ import SettingsPage from "./SettingsPage";
 import ProfilePage from "./ProfilePage";
 import ServiceChargesPage from "./ServiceChargesPage";
 import LegalDocumentsPage from "./LegalDocumentsPage";
+import AuditLogsPage from "./AuditLogsPage";
+import AdminAlertsPage from "./AdminAlertsPage";
 
 type Estate = { id: string; name: string };
 type Membership = {
@@ -28,7 +30,8 @@ const config:Record<string,{title:string;description:string;columns:string[];int
  payments:{title:"Payments",description:"Review payments and transaction activity.",columns:["Reference","Payer","Estate","Amount","Date","Status"],intro:"Verified payment transactions will appear here."},
  analytics:{title:"Analytics",description:"Platform performance and estate growth insights.",columns:["Metric","Current period","Previous period","Change"],intro:"Analytics will appear when reporting data is connected."},
  support:{title:"Support",description:"Review and manage support requests.",columns:["Ticket","Submitted by","Category","Date","Status"],intro:"Support requests will appear here."},
- "system-logs":{title:"System Logs",description:"Review administrative and platform activity.",columns:["Activity","User","Module","Timestamp","Result"],intro:"System activity will appear here when audit logging is connected."},
+ "system-logs":{title:"Audit Logs",description:"Review who changed what, where and when across your authorised estates.",columns:["Who","What","Where","When","Severity"],intro:"Review the append-only audit history."},
+ alerts:{title:"Alerts & Notifications",description:"Review important administrative events.",columns:["Alert","Estate","Severity","Created","Status"],intro:"Review and acknowledge important admin alerts."},
  settings:{title:"Settings",description:"Manage platform preferences and configuration.",columns:["Setting","Current value","Last updated"],intro:"Platform settings will be made available here."},
  residents:{title:"Residents",description:"View resident accounts and estate membership.",columns:["Resident","Property","Email","Phone","Status"],intro:"Resident records will appear here."},
  "visitor-management":{title:"Visitor Management",description:"Review visitor passes and estate entry activity.",columns:["Visitor","Resident","Pass code","Visit date","Status"],intro:"Visitor records will appear here."},
@@ -426,6 +429,8 @@ export default function SectionPage(){
  if(section==="properties")return <PropertiesPage/>;
   if(section==="service-charges")return <ServiceChargesPage/>;
  if(section==="legal-documents")return <LegalDocumentsPage/>;
+ if(section==="system-logs")return <AuditLogsPage/>;
+ if(section==="alerts")return <AdminAlertsPage/>;
  const item=config[section]||{title:"Page not found",description:"This section is not available.",columns:[],intro:"The requested section could not be found."};
  return <PortalFrame title={item.title} description={item.description}><section className="panel module-panel"><div className="module-toolbar"><div><h3>{item.title} overview</h3><p>{item.intro}</p></div></div><div className="table-wrap"><table className="data-table"><thead><tr>{item.columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody><tr><td colSpan={Math.max(item.columns.length,1)} className="empty-cell"><span className="empty-mark">▤</span><strong>No records to display</strong><small>Records will appear here after the data connection and module workflow are implemented.</small></td></tr></tbody></table></div></section></PortalFrame>;
 }

@@ -111,6 +111,10 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    // This header is trusted only on service-role database requests and lets
+    // database audit triggers attribute privileged onboarding writes to the
+    // authenticated administrator who initiated the request.
+    global: { headers: { "x-cb-actor-id": authData.user.id } },
   });
   let input: Record<string, unknown>;
   try {

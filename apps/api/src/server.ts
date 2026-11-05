@@ -261,6 +261,8 @@ app.post("/v1/estates/:estateId/accounts", requireAuth, async (req, res) => {
 
   const adminSupabase = createClient(process.env.SUPABASE_URL, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    // Trusted by audit triggers only when the request JWT role is service_role.
+    global: { headers: { "x-cb-actor-id": authenticated.authUser.id } },
   });
 
   if (role === "resident") {
