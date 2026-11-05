@@ -7,8 +7,8 @@ import SettingsPage from "./SettingsPage";
 import ProfilePage from "./ProfilePage";
 import ServiceChargesPage from "./ServiceChargesPage";
 import LegalDocumentsPage from "./LegalDocumentsPage";
-import AuditLogsPage from "./AuditLogsPage";
-import AdminAlertsPage from "./AdminAlertsPage";
+import AuditLogsPage from "../AuditLogsPage";
+import AdminAlertsPage from "../AdminAlertsPage";
 
 type Estate = { id: string; name: string };
 type Membership = {

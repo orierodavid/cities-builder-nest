@@ -30,4 +30,4 @@ jobs:
         run: |
           test -n "$SUPABASE_ACCESS_TOKEN" || (echo "Missing SUPABASE_ACCESS_TOKEN secret" && exit 1)
       - name: Deploy onboarding function
-        run: supabase functions deploy onboard-account --project-ref "$PROJECT_ID"
+        run: supabase functions deploy onboard-account --project-ref "$PROJECT_ID" --yes
