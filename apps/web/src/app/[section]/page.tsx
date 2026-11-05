@@ -219,7 +219,6 @@ function UsersPage() {
   <section className="panel module-panel">
    <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents, security personnel and event coordinators in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);}}>{showForm?"Close":"＋ Add user"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
-   {resendMessage&&<div className="user-alert user-alert-success" role="status">{resendMessage}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">
     <strong>Account created successfully</strong><p>{success}</p>
     {inviteCredentials&&<div style={{display:"grid",gap:10,marginTop:12}}>
