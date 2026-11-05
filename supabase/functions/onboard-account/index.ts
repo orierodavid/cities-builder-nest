@@ -200,44 +200,23 @@ Deno.serve(async (req: Request) => {
     if (assignment) return json(409, { error: "unit_already_assigned" });
   }
 
-  // Build the callback from the domain currently hosting the web portal.
-  // Supabase Auth must allow the matching domain (prefer a wildcard for Vercel
-  // preview domains plus the production/custom domain).
-  const requestOrigin = req.headers.get("origin");
-  let redirectTo: string;
-  try {
-    if (!requestOrigin) throw new Error("missing_origin");
-    const originUrl = new URL(requestOrigin);
-    if (originUrl.protocol !== "https:" && originUrl.hostname !== "localhost") throw new Error("invalid_origin");
-    redirectTo = new URL("/invitation/accepted", originUrl.origin).toString();
-  } catch {
-    return json(400, { error: "invalid_portal_origin", message: "The invitation must be created from the active Cities Builder Nest web portal domain." });
-  }
-  const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: fullName },
-    ...(redirectTo ? { redirectTo } : {}),
+  // Create the account directly. Account creation must not send an invitation
+  // or any other email; the administrator shares the initial password separately.
+  const { data: createdAuth, error: createAuthError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: fullName },
   });
-  if (inviteError || !invited.user) {
-    const duplicate = /already|registered|exists/i.test(inviteError?.message ?? "");
+  if (createAuthError || !createdAuth.user) {
+    const duplicate = /already|registered|exists/i.test(createAuthError?.message ?? "");
     return json(duplicate ? 409 : 400, {
-      error: duplicate ? "email_already_registered" : "invitation_failed",
-      message: duplicate ? "An account already exists for this email address." : (inviteError?.message ?? "Could not send invitation email."),
+      error: duplicate ? "email_already_registered" : "account_creation_failed",
+      message: duplicate ? "An account already exists for this email address." : (createAuthError?.message ?? "Could not create the account."),
     });
   }
 
-  const invitedUserId = invited.user.id;
-
-  // Set the administrator-created initial password while the account is still
-  // awaiting email invitation acceptance. The password is never added to
-  // user metadata, database profile rows, or the invitation URL.
-  const { error: passwordError } = await admin.auth.admin.updateUserById(invitedUserId, { password });
-  if (passwordError) {
-    await rollbackOnboarding(admin, invitedUserId, estateId);
-    return json(500, {
-      error: "initial_password_setup_failed",
-      message: "The initial password could not be set. The pending invitation was rolled back; please retry.",
-    });
-  }
+  const createdUserId = createdAuth.user.id;
 
   if (role === "resident" && !requestedUnitId) {
     let targetBuildingId = buildingId;
@@ -245,8 +224,8 @@ Deno.serve(async (req: Request) => {
       const { data: createdBuilding, error: createBuildingError } = await admin.from("buildings")
         .insert({ estate_id: estateId, name: buildingName }).select("id").single();
       if (createBuildingError || !createdBuilding) {
-        await rollbackOnboarding(admin, invitedUserId, estateId);
-        return json(500, { error: "apartment_building_creation_failed", message: "The invitation could not be completed because the building could not be created." });
+        await rollbackOnboarding(admin, createdUserId, estateId);
+        return json(500, { error: "apartment_building_creation_failed", message: "The account could not be completed because the building could not be created." });
       }
       targetBuildingId = createdBuilding.id;
       createdBuildingId = targetBuildingId;
@@ -256,42 +235,42 @@ Deno.serve(async (req: Request) => {
       .insert({ estate_id: estateId, building_id: targetBuildingId, unit_code: unitCode, unit_type: unitType || null, status: "available" })
       .select("id").single();
     if (createUnitError || !createdUnit) {
-      await rollbackOnboarding(admin, invitedUserId, estateId, undefined, undefined, createdBuildingId || undefined);
-      return json(500, { error: "apartment_creation_failed", message: "The invitation could not be completed because the apartment could not be created. Check the apartment number and building." });
+      await rollbackOnboarding(admin, createdUserId, estateId, undefined, undefined, createdBuildingId || undefined);
+      return json(500, { error: "apartment_creation_failed", message: "The account could not be completed because the apartment could not be created. Check the apartment number and building." });
     }
     createdUnitId = createdUnit.id;
     residentUnitId = createdUnit.id;
   }
 
   const { error: profileError } = await admin.from("users")
-    .upsert({ id: invitedUserId, full_name: fullName, phone_e164: null, is_active: true }, { onConflict: "id" });
+    .upsert({ id: createdUserId, full_name: fullName, phone_e164: null, is_active: true }, { onConflict: "id" });
   if (profileError) {
-    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? residentUnitId : undefined, createdUnitId || undefined, createdBuildingId || undefined);
+    const rolledBack = await rollbackOnboarding(admin, createdUserId, estateId, role === "resident" ? residentUnitId : undefined, createdUnitId || undefined, createdBuildingId || undefined);
     return json(500, {
       error: "account_profile_setup_failed",
-      message: rolledBack ? "Profile setup failed and the pending account was rolled back. You can retry the invitation." : "Profile setup failed and automatic cleanup was incomplete. Review the pending account before retrying.",
+      message: rolledBack ? "Profile setup failed and the new account was rolled back. You can retry account creation." : "Profile setup failed and automatic cleanup was incomplete. Review the new account before retrying.",
     });
   }
 
   const { data: membership, error: membershipError } = await admin.from("estate_memberships")
-    .insert({ estate_id: estateId, user_id: invitedUserId, membership_role: role, status: "active" })
+    .insert({ estate_id: estateId, user_id: createdUserId, membership_role: role, status: "active" })
     .select("id, estate_id, user_id, membership_role, status, created_at").single();
   if (membershipError || !membership) {
-    const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, role === "resident" ? residentUnitId : undefined, createdUnitId || undefined, createdBuildingId || undefined);
+    const rolledBack = await rollbackOnboarding(admin, createdUserId, estateId, role === "resident" ? residentUnitId : undefined, createdUnitId || undefined, createdBuildingId || undefined);
     return json(500, {
       error: "account_membership_setup_failed",
-      message: rolledBack ? "Estate access setup failed and the pending account was rolled back. You can retry the invitation." : "Estate access setup failed and automatic cleanup was incomplete. Review the pending account before retrying.",
+      message: rolledBack ? "Estate access setup failed and the new account was rolled back. You can retry account creation." : "Estate access setup failed and automatic cleanup was incomplete. Review the new account before retrying.",
     });
   }
 
   if (role === "resident") {
     const { error: residentUnitError } = await admin.from("resident_units")
-      .insert({ unit_id: residentUnitId, estate_id: estateId, resident_user_id: invitedUserId });
+      .insert({ unit_id: residentUnitId, estate_id: estateId, resident_user_id: createdUserId });
     if (residentUnitError) {
-      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, residentUnitId || undefined, createdUnitId || undefined, createdBuildingId || undefined);
+      const rolledBack = await rollbackOnboarding(admin, createdUserId, estateId, residentUnitId || undefined, createdUnitId || undefined, createdBuildingId || undefined);
       return json(500, {
         error: "resident_unit_assignment_failed",
-        message: rolledBack ? "Unit assignment failed and the pending account was rolled back. You can retry the invitation." : "Unit assignment failed and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
+        message: rolledBack ? "Unit assignment failed and the new account was rolled back. You can retry account creation." : "Unit assignment failed and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
       });
     }
     // Compare-and-set protects against two concurrent invitations claiming the
@@ -301,18 +280,18 @@ Deno.serve(async (req: Request) => {
       .eq("id", residentUnitId).eq("estate_id", estateId).eq("status", "available")
       .select("id").maybeSingle();
     if (unitUpdateError || !updatedUnit) {
-      const rolledBack = await rollbackOnboarding(admin, invitedUserId, estateId, residentUnitId || undefined, createdUnitId || undefined, createdBuildingId || undefined);
+      const rolledBack = await rollbackOnboarding(admin, createdUserId, estateId, residentUnitId || undefined, createdUnitId || undefined, createdBuildingId || undefined);
       return json(unitUpdateError ? 500 : 409, {
         error: unitUpdateError ? "unit_status_update_failed" : "unit_no_longer_available",
         message: rolledBack
-          ? "The unit became unavailable during onboarding and the pending account was rolled back. Select an available unit and retry."
+          ? "The unit became unavailable during onboarding and the new account was rolled back. Select an available unit and retry."
           : "The unit became unavailable during onboarding and automatic cleanup was incomplete. Review the resident account and unit before retrying.",
       });
     }
   }
 
   return json(201, {
-    account: { id: invitedUserId, fullName, email, role, estateId, unitId: role === "resident" ? residentUnitId : null, invitationSent: true },
+    account: { id: createdUserId, fullName, email, role, estateId, unitId: role === "resident" ? residentUnitId : null, invitationSent: false, emailSent: false },
     membership,
   });
 });
