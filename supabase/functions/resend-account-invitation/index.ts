@@ -30,10 +30,10 @@ Deno.serve(async (req: Request) => {
   if (actorError || !actorData.user) return json(401, { error: "invalid_session" });
 
   const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
-  let body: { estateId?: string; userId?: string };
+  let body: { estateId?: string; userId?: string; delivery?: "invitation" | "password_setup" };
   try { body = await req.json(); } catch { return json(400, { error: "invalid_json" }); }
   const estateId = body.estateId?.trim() ?? "";
-  const targetUserId = body.userId?.trim() ?? "";
+  const targetUserId = body.userId?.trim() ?? "";\n  const delivery = body.delivery ?? "invitation";\n  if (!["invitation", "password_setup"].includes(delivery)) return json(400, { error: "invalid_delivery_type" });
   if (!estateId || !targetUserId) return json(400, { error: "estate_and_user_required" });
 
   const [{ data: platformAdmin, error: roleError }, { data: managerMembership, error: managerError },
@@ -65,6 +65,16 @@ Deno.serve(async (req: Request) => {
   if (targetUserError || !target.user?.email) return json(404, { error: "account_email_not_found" });
   const email = target.user.email;
 
+  if (delivery === "password_setup") {
+    // Send a one-time password setup/reset link. Never email the user's actual password.
+    const { error } = await auth.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) return json(502, {
+      error: "password_setup_email_failed",
+      message: "The password setup email could not be sent. Check Supabase Auth email delivery settings and try again.",
+    });
+    return json(200, { success: true, email, delivery: "password_setup" });
+  }
+
   // Pending invitations get a fresh signup/confirmation email. Already-confirmed
   // accounts get a password-reset email; no duplicate Auth user or membership is created.
   if (!target.user.email_confirmed_at) {
@@ -86,4 +96,3 @@ Deno.serve(async (req: Request) => {
     message: "The account exists, but its password-reset email could not be sent. Check Supabase Auth email delivery settings.",
   });
   return json(200, { success: true, email, delivery: "password_reset" });
-});
