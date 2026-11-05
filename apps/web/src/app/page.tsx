@@ -10,8 +10,8 @@ const emptyManagerMetrics: Record<string,ManagerMetric> = Object.fromEntries(["p
 const managerNav = [["⌂","Dashboard"],["▣","Properties"],["♙","Residents"],["♟","Users"],["⌕","Visitor Management"],["▦","Events"],["▤","Service Charges"],["▣","Payments"],["⚒","Maintenance"],["⌂","Facility Management"],["▤","Communications"],["▥","Reports"],["⚙","Settings"],["◉","My Profile"]];
 const adminNav = [["⌂","Dashboard"],["▦","Estates"],["♙","Users"],["⌂","Properties"],["▤","Subscriptions"],["▣","Payments"],["▥","Analytics"],["?","Support"],["☷","System Logs"],["▤","Legal Documents"],["⚙","Settings"]];
 const metrics = [
- ["⌂","TOTAL PROPERTIES"],["♙","REGISTERED RESIDENTS"],["♟","TODAY'S VISITORS"],["▦","TODAY'S EVENTS"],
- ["▤","TOTAL SERVICE CHARGES"],["▣","SUCCESSFUL PAYMENTS"],["⚠","OUTSTANDING BALANCE"],["⚒","MAINTENANCE REQUESTS"]
+ ["⌂","TOTAL PROPERTIES","properties"],["♙","REGISTERED RESIDENTS","residents"],["♟","TODAY'S VISITORS","visitors"],["▦","TODAY'S EVENTS","events"],
+ ["▤","TOTAL SERVICE CHARGES","charges"],["▣","SUCCESSFUL PAYMENTS","payments"],["⚠","OUTSTANDING BALANCE","outstanding"],["⚒","MAINTENANCE REQUESTS","maintenance"]
 ];
 const adminMetrics = [
  ["▦","TOTAL ESTATES","estates"],["♙","TOTAL USERS","users"],["⌂","TOTAL PROPERTIES","properties"],["♙","ACTIVE RESIDENTS","residents"],
