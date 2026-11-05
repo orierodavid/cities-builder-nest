@@ -18,12 +18,11 @@ export default function SecurityHomeRoute() {
     let active = true;
     (async () => {
       try {
-        const [{ data: { user }, error: authError }, { data: profile }] = await Promise.all([
-          supabase.auth.getUser(),
-          supabase.from("users").select("full_name").maybeSingle(),
-        ]);
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
         if (!user) throw new Error("Your session has expired. Sign in again.");
+        const { data: profile, error: profileError } = await supabase.from("users").select("full_name").eq("id", user.id).maybeSingle();
+        if (profileError) throw profileError;
         if (active && profile?.full_name) setOfficerName(profile.full_name);
         const base = getApiBaseUrl();
         if (!base) throw new Error("Security services are not configured.");

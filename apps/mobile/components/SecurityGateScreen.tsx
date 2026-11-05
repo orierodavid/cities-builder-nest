@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import VisitorDetails, { type Visitor } from "./VisitorDetails";
 
@@ -27,11 +27,12 @@ type Props = {
   onRefreshVisits: () => void;
   onCheckout: (visitId: string) => void;
   onClearVisitor: () => void;
+  initialScannerOpen?: boolean;
 };
 
 export default function SecurityGateScreen(props: Props) {
   const [permission, requestPermission] = useCameraPermissions();
-  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(Boolean(props.initialScannerOpen));
   const [scanMessage, setScanMessage] = useState("");
   const scanHandled = useRef(false);
 
@@ -52,7 +53,7 @@ export default function SecurityGateScreen(props: Props) {
   const muted = { color: "#B9B9B9", fontSize: 12, lineHeight: 18 } as const;
   const button = { minHeight: 47, borderRadius: 10, alignItems: "center" as const, justifyContent: "center" as const, paddingHorizontal: 14 };
   return (
-    <View style={{ backgroundColor: "#080808", gap: 15, paddingBottom: 24 }}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ backgroundColor: "#080808", gap: 15, paddingBottom: 24 }}>
       <View style={{ gap: 5 }}>
         <Text style={{ color: "#D4A84B", fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }}>GATE OPERATIONS</Text>
         <Text style={{ color: "#FFFFFF", fontSize: 26, fontWeight: "900" }}>Verify Visitor</Text>
@@ -128,6 +129,6 @@ export default function SecurityGateScreen(props: Props) {
           </View>
         )) : <View style={card}><Text style={{ color: "#FFFFFF", fontWeight: "800" }}>No active visits</Text><Text style={muted}>Visitors currently inside the estate will appear here.</Text></View>}
       </View>
-    </View>
+    </ScrollView>
   );
 }
