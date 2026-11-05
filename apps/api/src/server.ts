@@ -1070,16 +1070,18 @@ app.post("/v1/estates/:estateId/emergency-alerts", requireAuth, async (req, res)
       location.length > 240) {
     res.status(400).json({ error: "invalid_emergency_alert", message: "Provide a valid emergency type, high or critical severity, title and message." }); return;
   }
-  const { data, error } = await authenticated.userSupabase.from("security_emergency_alerts")
-    .insert({
-      estate_id: estateId, created_by: authenticated.authUser.id,
-      alert_type: alertType, severity, title, message,
-      location: location || null, status: "active",
-    })
-    .select("id, estate_id, created_by, alert_type, severity, title, message, location, status, created_at")
-    .single();
-  if (error || !data) { res.status(400).json({ error: "emergency_alert_create_failed" }); return; }
-  res.status(201).json({ alert: data });
+  const { data, error } = await authenticated.userSupabase.rpc("publish_security_emergency_alert", {
+    p_estate_id: estateId,
+    p_alert_type: alertType,
+    p_severity: severity,
+    p_title: title,
+    p_message: message,
+    p_location: location || null,
+  });
+  if (error || !data || typeof data !== "object" || !("alert" in data)) {
+    res.status(400).json({ error: error?.message?.includes("security_membership_required") ? "security_membership_required" : "emergency_alert_create_failed" }); return;
+  }
+  res.status(201).json(data);
 });
 
 app.post("/v1/estates/:estateId/emergency-alerts/:alertId/resolve", requireAuth, async (req, res) => {
