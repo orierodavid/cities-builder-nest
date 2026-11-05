@@ -65,6 +65,7 @@ const eventInvitationRecords: Record<string, any>[] = [
 ];
 const eventCheckinRecords: Record<string, any>[] = [];
 const incidentRecords: Record<string, any>[] = [];
+const emergencyAlertRecords: Record<string, any>[] = [];
 
 function sendJson(res: ServerResponse, status: number, body: unknown, objectResponse = false) {
   res.statusCode = status;
@@ -132,6 +133,21 @@ const mockSupabase = createServer(async (req, res) => {
   const objectResponse = (req.headers.accept ?? "").includes("application/vnd.pgrst.object+json");
 
   if (req.method === "GET" && table === "users") return sendJson(res, 200, [], objectResponse);
+  if (req.method === "GET" && table === "security_emergency_alerts") {
+    return sendJson(res, 200, emergencyAlertRecords.filter(matches).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, Number(url.searchParams.get("limit") ?? 100)), objectResponse);
+  }
+  if (req.method === "POST" && table === "security_emergency_alerts") {
+    const body = await readBody(req);
+    const row = { id: "emergency-alert-" + (emergencyAlertRecords.length + 1), created_at: new Date().toISOString(), status: "active", ...body };
+    emergencyAlertRecords.push(row);
+    return sendJson(res, 201, row, objectResponse);
+  }
+  if (req.method === "PATCH" && table === "security_emergency_alerts") {
+    const body = await readBody(req);
+    const updated = emergencyAlertRecords.filter(matches);
+    for (const row of updated) Object.assign(row, body);
+    return sendJson(res, 200, updated, objectResponse);
+  }
   if (req.method === "GET" && table === "security_incident_reports") {
     return sendJson(res, 200, incidentRecords.filter(matches).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, Number(url.searchParams.get("limit") ?? 100)), objectResponse);
   }
@@ -399,6 +415,46 @@ test("only security assigned to the estate can deny visitor entry", async () => 
   });
   assert.equal(resident.status, 403);
   assert.equal(resident.body.error, "security_membership_required");
+});
+
+test("security can issue and resolve emergency alerts while estate members can read them", async () => {
+  const created = await request(`/v1/estates/${estateA}/emergency-alerts`, "security-token", "POST", {
+    alertType: "fire", severity: "critical", title: "Fire reported at Block C",
+    message: "A fire has been reported near Block C. Avoid the area and follow security instructions.",
+    location: "Block C",
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.alert.estate_id, estateA);
+  assert.equal(created.body.alert.created_by, securityId);
+  assert.equal(created.body.alert.status, "active");
+
+  const residentRead = await request(`/v1/estates/${estateA}/emergency-alerts`, "resident-token");
+  assert.equal(residentRead.status, 200);
+  assert.equal(residentRead.body.alerts.length, 1);
+  assert.equal(residentRead.body.alerts[0].title, "Fire reported at Block C");
+
+  const invalid = await request(`/v1/estates/${estateA}/emergency-alerts`, "security-token", "POST", {
+    alertType: "fire", severity: "low", title: "Test", message: "Short",
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body.error, "invalid_emergency_alert");
+
+  const crossEstate = await request(`/v1/estates/${estateA}/emergency-alerts`, "security-b-token", "POST", {
+    alertType: "other", severity: "high", title: "Wrong estate alert",
+    message: "This must not be broadcast to another estate.",
+  });
+  assert.equal(crossEstate.status, 403);
+
+  const residentCreate = await request(`/v1/estates/${estateA}/emergency-alerts`, "resident-token", "POST", {
+    alertType: "other", severity: "high", title: "Resident alert",
+    message: "Residents cannot issue security emergency broadcasts.",
+  });
+  assert.equal(residentCreate.status, 403);
+
+  const resolved = await request(`/v1/estates/${estateA}/emergency-alerts/${created.body.alert.id}/resolve`, "security-token", "POST");
+  assert.equal(resolved.status, 200);
+  assert.equal(resolved.body.alert.status, "resolved");
+  assert.equal(resolved.body.alert.resolved_by, securityId);
 });
 
 test("security can create and list incident reports only in the assigned estate", async () => {
