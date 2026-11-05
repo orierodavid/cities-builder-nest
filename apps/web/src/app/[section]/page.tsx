@@ -126,7 +126,7 @@ function UsersPage() {
  const [error,setError]=useState("");
  const [success,setSuccess]=useState("");
  const [inviteCredentials,setInviteCredentials]=useState<{email:string;password:string}|null>(null);
- const [resendingUserId,setResendingUserId]=useState<string|null>(null);
+ const [resendingUserId,setResendingUserId]=useState<string|null>(null);\n const [sendingPasswordUserId,setSendingPasswordUserId]=useState<string|null>(null);
  const [resendMessage,setResendMessage]=useState("");
  const [fullName,setFullName]=useState("");
  const [email,setEmail]=useState("");
@@ -195,6 +195,22 @@ function UsersPage() {
   setResendingUserId(null);
  }
  
+ async function sendPasswordSetupEmail(membership:Membership){
+  setResendMessage("");setError("");setSendingPasswordUserId(membership.user_id);
+  const {data,error:invokeError}=await supabase.functions.invoke("resend-account-invitation",{
+   body:{estateId:membership.estate_id,userId:membership.user_id,delivery:"password_setup"}
+  });
+  if(invokeError){
+   let message=invokeError.message||"The password setup email could not be sent.";
+   const context=(invokeError as typeof invokeError & {context?:Response}).context;
+   if(context){try{const detail=await context.clone().json() as {message?:string};message=detail.message||message;}catch{/* keep SDK message */}}
+   setError(message);setSendingPasswordUserId(null);return;
+  }
+  if(data?.error){setError(data.message||"The password setup email could not be sent.");setSendingPasswordUserId(null);return;}
+  setResendMessage("A password setup email with a secure, one-time link was sent to "+data.email+". The user's current password was not emailed or changed.");
+  setSendingPasswordUserId(null);
+ }
+
  async function createUser(e:FormEvent){
   e.preventDefault();setSaving(true);setError("");setSuccess("");
   const payload:Record<string,string>={estateId:selectedEstate,fullName:fullName.trim(),email:email.trim().toLowerCase(),password,role};
@@ -215,7 +231,7 @@ function UsersPage() {
  return <PortalFrame title="User Management" description="Invite people, assign roles and manage access within your estate.">
   <section className="panel module-panel">
    <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents, security personnel and event coordinators in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);setResendMessage("");}}>{showForm?"Close":"＋ Add user"}</button></div>
-   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
+   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}\n   {resendMessage&&<div className="user-alert user-alert-success" role="status">{resendMessage}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">
     <strong>Invitation created successfully</strong><p>{success}</p>
     {inviteCredentials&&<div style={{display:"grid",gap:10,marginTop:12}}>
@@ -239,7 +255,7 @@ function UsersPage() {
    </form>}
    <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, role or phone…" aria-label="Search users"/></div>
    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Name</th><th>Role</th><th>Estate</th><th>Phone</th><th>Status</th><th>Date added</th><th>Actions</th></tr></thead><tbody>
-    {loading?<tr><td colSpan={7} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td><button type="button" className="secondary-action" disabled={resendingUserId===m.user_id} onClick={()=>void resendInvitation(m)}>{resendingUserId===m.user_id?"Sending…":"Resend invitation"}</button></td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Invited users will appear here once their accounts are provisioned.</small></td></tr>}
+    {loading?<tr><td colSpan={7} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="secondary-action" disabled={resendingUserId===m.user_id||sendingPasswordUserId===m.user_id} onClick={()=>void resendInvitation(m)}>{resendingUserId===m.user_id?"Sending…":"Resend invitation"}</button><button type="button" className="secondary-action" disabled={resendingUserId===m.user_id||sendingPasswordUserId===m.user_id} onClick={()=>void sendPasswordSetupEmail(m)}>{sendingPasswordUserId===m.user_id?"Sending…":"Send password setup email"}</button></td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Invited users will appear here once their accounts are provisioned.</small></td></tr>}
    </tbody></table></div>
   </section>
  </PortalFrame>;
