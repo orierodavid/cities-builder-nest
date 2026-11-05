@@ -8,7 +8,6 @@ type Props = { officerName?: string; estateName?: string; statusMessage?: string
 type Tile = { label: string; route: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"]; danger?: boolean };
 const TILES: Tile[] = [
   { label: "Event Guest\nVerification", route: "/event-guests", icon: "account-check-outline" },
-  { label: "Vehicle\nRegistration", route: "/vehicles", icon: "car-outline" },
   { label: "Visitor Entry\nRecords", route: "/entry-records", icon: "login" },
   { label: "Visitor Exit\nRecords", route: "/exit-records", icon: "logout" },
   { label: "Incident\nReporting", route: "/incidents", icon: "shield-alert-outline" },
