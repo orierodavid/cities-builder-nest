@@ -985,6 +985,64 @@ async function requireSecurityEventAccess(req: import("express").Request, res: i
   return authenticated;
 }
 
+app.get("/v1/estates/:estateId/emergency-alerts", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const authenticated = req as AuthenticatedRequest;
+  const { data: membership, error: membershipError } = await authenticated.userSupabase.from("estate_memberships")
+    .select("estate_id, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+    .eq("status", "active").maybeSingle();
+  const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
+  if (membershipError || (!membership && !platformAdmin)) { res.status(403).json({ error: "active_estate_membership_required" }); return; }
+  const enabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!enabled) { rejectInactiveEstate(res); return; }
+  const { data, error } = await authenticated.userSupabase.from("security_emergency_alerts")
+    .select("id, estate_id, created_by, alert_type, severity, title, message, location, status, resolved_by, resolved_at, created_at, updated_at")
+    .eq("estate_id", estateId).order("created_at", { ascending: false }).limit(100);
+  if (error) { res.status(400).json({ error: "emergency_alerts_load_failed" }); return; }
+  res.status(200).json({ alerts: data ?? [] });
+});
+
+app.post("/v1/estates/:estateId/emergency-alerts", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const authenticated = await requireSecurityEventAccess(req, res, estateId);
+  if (!authenticated) return;
+  const alertType = typeof req.body?.alertType === "string" ? req.body.alertType.trim() : "";
+  const severity = typeof req.body?.severity === "string" ? req.body.severity.trim() : "";
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  const location = typeof req.body?.location === "string" ? req.body.location.trim() : "";
+  const alertTypes = ["security_threat", "fire", "medical", "utility", "weather", "other"];
+  if (!alertTypes.includes(alertType) || !["high", "critical"].includes(severity) ||
+      title.length < 3 || title.length > 160 || message.length < 10 || message.length > 3000 ||
+      location.length > 240) {
+    res.status(400).json({ error: "invalid_emergency_alert", message: "Provide a valid emergency type, high or critical severity, title and message." }); return;
+  }
+  const { data, error } = await authenticated.userSupabase.from("security_emergency_alerts")
+    .insert({
+      estate_id: estateId, created_by: authenticated.authUser.id,
+      alert_type: alertType, severity, title, message,
+      location: location || null, status: "active",
+    })
+    .select("id, estate_id, created_by, alert_type, severity, title, message, location, status, created_at")
+    .single();
+  if (error || !data) { res.status(400).json({ error: "emergency_alert_create_failed" }); return; }
+  res.status(201).json({ alert: data });
+});
+
+app.post("/v1/estates/:estateId/emergency-alerts/:alertId/resolve", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const alertId = Array.isArray(req.params.alertId) ? req.params.alertId[0] : req.params.alertId;
+  const authenticated = await requireSecurityEventAccess(req, res, estateId);
+  if (!authenticated) return;
+  const { data, error } = await authenticated.userSupabase.from("security_emergency_alerts")
+    .update({ status: "resolved", resolved_by: authenticated.authUser.id, resolved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", alertId).eq("estate_id", estateId).eq("status", "active")
+    .select("id, estate_id, title, status, resolved_by, resolved_at").maybeSingle();
+  if (error || !data) { res.status(404).json({ error: "active_emergency_alert_not_found_or_resolve_failed" }); return; }
+  res.status(200).json({ alert: data });
+});
+
 app.get("/v1/estates/:estateId/security/incidents", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const authenticated = await requireSecurityEventAccess(req, res, estateId);
