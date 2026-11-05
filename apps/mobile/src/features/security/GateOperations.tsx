@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "../../../lib/supabase";
 import { getApiBaseUrl } from "../..//lib/api-url";
 import SecurityGateScreen from "../../../components/SecurityGateScreen";
+import VisitorDetails, { type Visitor } from "../../../components/VisitorDetails";
 
 type Estate = { id: string; name: string; membershipRole?: string | null };
 type GateVisitor = { visitor: { name: string; phone: string | null }; host: { name: string | null }; pass: { id: string; validFrom: string; validUntil: string; status: string }; availabilityError: string | null };
@@ -120,6 +121,37 @@ export default function GateOperations({ initialScannerOpen = false }: Props) {
 
   if (loading) return <View style={{ flex: 1, backgroundColor: "#080808", alignItems: "center", justifyContent: "center" }}><ActivityIndicator color="#D4A84B" size="large" /></View>;
   if (!estate) return <View style={{ flex: 1, backgroundColor: "#080808", padding: 24, justifyContent: "center" }}><Text style={{ color: "#FFFFFF", fontSize: 19, fontWeight: "800", marginBottom: 8 }}>Security access unavailable</Text><Text style={{ color: "#B9B9B9", lineHeight: 20 }}>{message || "An active Security estate membership is required."}</Text></View>;
+  if (visitor) {
+    const validFrom = new Date(visitor.pass.validFrom);
+    const validUntil = new Date(visitor.pass.validUntil);
+    const valid = !visitor.availabilityError
+      && visitor.pass.status === "active"
+      && Number.isFinite(validFrom.getTime())
+      && Number.isFinite(validUntil.getTime())
+      && validFrom.getTime() <= Date.now()
+      && Date.now() <= validUntil.getTime();
+    const details: Visitor = {
+      name: visitor.visitor.name,
+      category: "Personal Visitor",
+      valid,
+      accessCode: visitorCode,
+      host: visitor.host.name || "Not available",
+      property: estate.name,
+      date: Number.isFinite(validFrom.getTime()) ? validFrom.toLocaleDateString() : "Not available",
+      time: Number.isFinite(validFrom.getTime()) && Number.isFinite(validUntil.getTime())
+        ? validFrom.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + " – " + validUntil.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+        : "Not available",
+      accessType: "Visitor pass",
+    };
+    return <VisitorDetails
+      visitor={details}
+      busy={busy}
+      onBack={() => { setVisitor(null); setVisitorCode(""); setMessage(""); }}
+      onApprove={approve}
+      onDeny={deny}
+    />;
+  }
+
   return <View style={{ flex: 1, backgroundColor: "#080808", paddingTop: 12 }}>
     <View style={{ paddingHorizontal: 16, paddingBottom: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
       <Text onPress={() => router.back()} style={{ color: "#D4A84B", fontWeight: "700" }}>‹ Back</Text>
@@ -129,7 +161,7 @@ export default function GateOperations({ initialScannerOpen = false }: Props) {
     <SecurityGateScreen
       estateName={estate.name}
       visitorCode={visitorCode}
-      visitor={visitor}
+      visitor={null}
       busy={busy}
       message={message}
       visits={visits}
