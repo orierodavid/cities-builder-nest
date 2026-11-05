@@ -1244,7 +1244,7 @@ app.post("/v1/estates/:estateId/events/:eventId/check-in", requireAuth, async (r
   const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return;
   const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
-  if (!/^\\d{6}$/.test(code)) { res.status(400).json({ error: "invalid_event_invitation_code" }); return; }
+  if (!/^\d{6}$/.test(code)) { res.status(400).json({ error: "invalid_event_invitation_code" }); return; }
   const codeHash = createHash("sha256").update(code).digest("hex");
   const { data: invitation, error: invitationError } = await authenticated.userSupabase.from("estate_event_invitations")
     .select("id, guest_id, status, estate_event_guests!inner(id, guest_name, email, phone)")
