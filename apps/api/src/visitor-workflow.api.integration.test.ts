@@ -278,6 +278,41 @@ test("resident membership and estate checks fail closed for another estate and d
   assert.equal(disabledEstate.body.error, "estate_subscription_inactive");
 });
 
+test("security can look up visitor passes only inside the assigned estate", async () => {
+  const lookup = await request(`/v1/estates/${estateA}/gate/visitor-lookup`, "security-token", "POST", {
+    accessCode: "123456",
+  });
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.visitor.name, "Gate Test Visitor");
+  assert.equal(lookup.body.pass.status, "active");
+  assert.equal(lookup.body.pass.id, "other-host-pass");
+  assert.equal(lookup.body.availabilityError, null);
+
+  const invalidCode = await request(`/v1/estates/${estateA}/gate/visitor-lookup`, "security-token", "POST", {
+    accessCode: "12345",
+  });
+  assert.equal(invalidCode.status, 400);
+  assert.equal(invalidCode.body.error, "invalid_access_code");
+
+  const unknownCode = await request(`/v1/estates/${estateA}/gate/visitor-lookup`, "security-token", "POST", {
+    accessCode: "999999",
+  });
+  assert.equal(unknownCode.status, 404);
+  assert.equal(unknownCode.body.error, "visitor_pass_not_found_or_invalid");
+
+  const crossEstate = await request(`/v1/estates/${estateA}/gate/visitor-lookup`, "security-b-token", "POST", {
+    accessCode: "123456",
+  });
+  assert.equal(crossEstate.status, 403);
+  assert.equal(crossEstate.body.error, "security_membership_required");
+
+  const resident = await request(`/v1/estates/${estateA}/gate/visitor-lookup`, "resident-token", "POST", {
+    accessCode: "123456",
+  });
+  assert.equal(resident.status, 403);
+  assert.equal(resident.body.error, "security_membership_required");
+});
+
 test("authenticated security can check in, list, and check out only visits in the assigned estate", async () => {
   const checkIn = await request(`/v1/estates/${estateA}/gate/check-in`, "security-token", "POST", {
     accessCode: "123456",
