@@ -966,6 +966,25 @@ app.post("/v1/estates/:estateId/gate/visits/:visitId/check-out", requireAuth, as
   res.status(200).json({ visit: data });
 });
 
+async function requireSecurityEventAccess(req: import("express").Request, res: import("express").Response, estateId: string): Promise<AuthenticatedRequest | null> {
+  const authenticated = req as AuthenticatedRequest;
+  const { data: membership, error } = await authenticated.userSupabase
+    .from("estate_memberships")
+    .select("estate_id, membership_role, status")
+    .eq("estate_id", estateId)
+    .eq("user_id", authenticated.authUser.id)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error) { res.status(403).json({ error: "security_membership_check_failed" }); return null; }
+  if (!canUseGateWorkflow(membership, estateId)) {
+    res.status(403).json({ error: "security_membership_required" }); return null;
+  }
+  const enabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return null; }
+  if (!enabled) { rejectInactiveEstate(res); return null; }
+  return authenticated;
+}
+
 async function requireEventOrganiser(req: import("express").Request, res: import("express").Response, estateId: string): Promise<AuthenticatedRequest | null> {
   const authenticated = req as AuthenticatedRequest;
   const { data: membership, error } = await authenticated.userSupabase
@@ -1244,6 +1263,62 @@ app.post("/v1/estates/:estateId/events/:eventId/check-in", requireAuth, async (r
     res.status(400).json({ error: "event_guest_checkin_failed" }); return;
   }
   res.status(201).json({ checkIn, guest });
+});
+
+app.post("/v1/estates/:estateId/events/:eventId/security-check-in", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
+  const authenticated = await requireSecurityEventAccess(req, res, estateId);
+  if (!authenticated) return;
+
+  const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+  if (!/^\\d{6}$/.test(code)) {
+    res.status(400).json({ error: "invalid_event_invitation_code" }); return;
+  }
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey || !process.env.SUPABASE_URL) {
+    res.status(503).json({ error: "event_verification_service_not_configured" }); return;
+  }
+  const adminSupabase = createClient(process.env.SUPABASE_URL, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    global: { headers: { "x-cb-actor-id": authenticated.authUser.id } },
+  });
+
+  const { data: event, error: eventError } = await adminSupabase.from("estate_events")
+    .select("id, estate_id, title, venue, starts_at, ends_at, status")
+    .eq("id", eventId).eq("estate_id", estateId).maybeSingle();
+  if (eventError || !event) { res.status(404).json({ error: "estate_event_not_found" }); return; }
+  if (event.status !== "published") { res.status(409).json({ error: "event_not_open_for_guest_checkin" }); return; }
+
+  const codeHash = createHash("sha256").update(code).digest("hex");
+  const { data: invitation, error: invitationError } = await adminSupabase.from("estate_event_invitations")
+    .select("id, guest_id, status")
+    .eq("estate_id", estateId).eq("event_id", eventId).eq("code_hash", codeHash).eq("status", "active")
+    .maybeSingle();
+  if (invitationError || !invitation) { res.status(404).json({ error: "event_invitation_not_found_or_inactive" }); return; }
+
+  const { data: guest, error: guestError } = await adminSupabase.from("estate_event_guests")
+    .select("id, guest_name, email, phone")
+    .eq("id", invitation.guest_id).eq("estate_id", estateId).eq("event_id", eventId)
+    .maybeSingle();
+  if (guestError || !guest) { res.status(404).json({ error: "event_invitation_guest_not_found" }); return; }
+
+  const { data: existing, error: existingError } = await adminSupabase.from("estate_event_checkins")
+    .select("id, checked_in_at")
+    .eq("estate_id", estateId).eq("event_id", eventId).eq("guest_id", guest.id)
+    .maybeSingle();
+  if (existingError) { res.status(503).json({ error: "event_guest_checkin_lookup_failed" }); return; }
+  if (existing) { res.status(409).json({ error: "event_guest_already_checked_in", checkIn: existing, guest }); return; }
+
+  const { data: checkIn, error: checkInError } = await adminSupabase.from("estate_event_checkins")
+    .insert({ estate_id: estateId, event_id: eventId, guest_id: guest.id, invitation_id: invitation.id, checked_in_by: authenticated.authUser.id })
+    .select("id, guest_id, invitation_id, checked_in_at").single();
+  if (checkInError || !checkIn) {
+    if (checkInError?.code === "23505") { res.status(409).json({ error: "event_guest_already_checked_in", guest }); return; }
+    res.status(400).json({ error: "event_guest_checkin_failed" }); return;
+  }
+  res.status(201).json({ event, guest, checkIn });
 });
 
 app.get("/v1/me", requireAuth, async (req, res) => {
