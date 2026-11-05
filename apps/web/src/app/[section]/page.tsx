@@ -126,7 +126,8 @@ function UsersPage() {
  const [error,setError]=useState("");
  const [success,setSuccess]=useState("");
  const [inviteCredentials,setInviteCredentials]=useState<{email:string;password:string}|null>(null);
- const [resendingUserId,setResendingUserId]=useState<string|null>(null);\n const [sendingPasswordUserId,setSendingPasswordUserId]=useState<string|null>(null);
+ const [resendingUserId,setResendingUserId]=useState<string|null>(null);
+ const [sendingPasswordUserId,setSendingPasswordUserId]=useState<string|null>(null);
  const [resendMessage,setResendMessage]=useState("");
  const [fullName,setFullName]=useState("");
  const [email,setEmail]=useState("");
@@ -231,7 +232,8 @@ function UsersPage() {
  return <PortalFrame title="User Management" description="Invite people, assign roles and manage access within your estate.">
   <section className="panel module-panel">
    <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents, security personnel and event coordinators in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);setResendMessage("");}}>{showForm?"Close":"＋ Add user"}</button></div>
-   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}\n   {resendMessage&&<div className="user-alert user-alert-success" role="status">{resendMessage}</div>}
+   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
+   {resendMessage&&<div className="user-alert user-alert-success" role="status">{resendMessage}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">
     <strong>Invitation created successfully</strong><p>{success}</p>
     {inviteCredentials&&<div style={{display:"grid",gap:10,marginTop:12}}>
