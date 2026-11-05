@@ -62,11 +62,9 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Pro
               <Pressable onPress={() => setShow(v => !v)} hitSlop={10}><MaterialCommunityIcons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color={C.muted} /></Pressable>
             </View>
             {!!error && <View style={s.errorBox}><MaterialCommunityIcons name="alert-circle-outline" size={17} color={C.danger}/><Text style={s.error}>{error}</Text></View>}
-            <View style={s.signInActions}>
-              <Pressable onPress={submit} disabled={!canSubmit} style={({ pressed }) => [s.button, s.signInButton, !canSubmit && s.disabled, pressed && { opacity: .86 }]}>
-                {loading ? <ActivityIndicator color="#17130B" /> : <><Text style={s.buttonText}>SIGN IN</Text><MaterialCommunityIcons name="arrow-right" size={19} color="#17130B"/></>}
-              </Pressable>
-            </View>
+            <Pressable onPress={submit} disabled={!canSubmit} style={({ pressed }) => [s.button, !canSubmit && s.disabled, pressed && { opacity: .86 }]}>
+              {loading ? <ActivityIndicator color="#17130B" /> : <><Text style={s.buttonText}>SIGN IN</Text><MaterialCommunityIcons name="arrow-right" size={19} color="#17130B"/></>}
+            </Pressable>
             {onCreateAccount && <Pressable onPress={onCreateAccount} style={s.contact}><Text style={s.contactText}>Need access? <Text style={s.contactGold}>Contact estate management</Text></Text></Pressable>}
           </View>
           <View style={s.security}><MaterialCommunityIcons name="shield-check-outline" size={16} color={C.gold}/><Text style={s.securityText}>SECURE ACCESS TO YOUR ESTATE</Text></View>
