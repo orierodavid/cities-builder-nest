@@ -24,7 +24,7 @@ const roleLabels: Record<string,string> = {
 };
 const config:Record<string,{title:string;description:string;columns:string[];intro:string}> = {
  estates:{title:"Estates",description:"Create and manage estates across the CB Nest platform.",columns:["Estate name","Location","Properties","Manager","Status"],intro:"Estate records will appear here when connected."},
- users:{title:"User Management",description:"Invite people, assign roles and manage estate access.",columns:["Name","Role","Estate","Phone","Status","Date added"],intro:"Create and manage accounts for the estates you administer."},
+ users:{title:"User Management",description:"Create accounts, assign roles and manage estate access.",columns:["Name","Role","Estate","Phone","Status","Date added"],intro:"Create and manage accounts for the estates you administer."},
  properties:{title:"Properties",description:"View and manage properties and units.",columns:["Property","Estate","Type","Units","Status"],intro:"Property records will appear here."},
  subscriptions:{title:"Subscriptions",description:"Monitor estate plans and subscription status.",columns:["Estate","Plan","Billing cycle","Renewal date","Status"],intro:"Subscription records will appear here."},
  payments:{title:"Payments",description:"Review payments and transaction activity.",columns:["Reference","Payer","Estate","Amount","Date","Status"],intro:"Verified payment transactions will appear here."},
@@ -218,46 +218,46 @@ function UsersPage() {
   if(role==="resident"){payload.buildingName=buildingName.trim();payload.unitCode=unitCode.trim();if(unitType.trim())payload.unitType=unitType.trim();}
   const {data,error:invokeError}=await supabase.functions.invoke("onboard-account",{body:payload});
   if(invokeError){
-   let message=invokeError.message||"Invitation could not be sent.";
+   let message=invokeError.message||"Account could not be created.";
    const context=(invokeError as typeof invokeError & {context?:Response}).context;
    if(context){try{const detail=await context.clone().json() as {message?:string;error?:string};message=detail.message||detail.error||message;}catch{/* retain the SDK error */}}
    setError(message);setSaving(false);return;
   }
-  if(data?.error){setError(data.message||data.error||"Invitation could not be completed.");setSaving(false);return;}
+  if(data?.error){setError(data.message||data.error||"Account could not be created.");setSaving(false);return;}
   setInviteCredentials({email:email.trim().toLowerCase(),password});
-  setSuccess("Invitation email sent successfully. Give the user the initial password below through a separate secure channel.");
+  setSuccess("Account created successfully. No email was sent. Copy the initial password below and share it securely with the user.");
   setFullName("");setEmail("");setPassword("");setBuildingName("");setUnitCode("");setUnitType("");setShowForm(false);
   await load();setSaving(false);
  }
- return <PortalFrame title="User Management" description="Invite people, assign roles and manage access within your estate.">
+ return <PortalFrame title="User Management" description="Create accounts, assign roles and manage access within your estate.">
   <section className="panel module-panel">
    <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents, security personnel and event coordinators in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);setResendMessage("");}}>{showForm?"Close":"＋ Add user"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {resendMessage&&<div className="user-alert user-alert-success" role="status">{resendMessage}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">
-    <strong>Invitation created successfully</strong><p>{success}</p>
+    <strong>Account created successfully</strong><p>{success}</p>
     {inviteCredentials&&<div style={{display:"grid",gap:10,marginTop:12}}>
-     <div><span className="optional-label">INVITATION EMAIL</span><div style={{fontWeight:800,overflowWrap:"anywhere"}}>{inviteCredentials.email}</div><button type="button" className="secondary-action" style={{marginTop:6}} onClick={()=>void navigator.clipboard.writeText(inviteCredentials.email)}>Copy email</button></div>
+     <div><span className="optional-label">USER EMAIL</span><div style={{fontWeight:800,overflowWrap:"anywhere"}}>{inviteCredentials.email}</div><button type="button" className="secondary-action" style={{marginTop:6}} onClick={()=>void navigator.clipboard.writeText(inviteCredentials.email)}>Copy email</button></div>
      <div><span className="optional-label">INITIAL PASSWORD</span><div style={{fontWeight:800,overflowWrap:"anywhere",fontFamily:"monospace"}}>{inviteCredentials.password}</div><button type="button" className="secondary-action" style={{marginTop:6}} onClick={()=>void navigator.clipboard.writeText(inviteCredentials.password)}>Copy password</button></div>
-     <small>Keep this password private. Do not forward it in the invitation email; share it with the user separately and securely.</small>
+     <small>No email was sent. Keep this password private and share it with the user through a secure channel.</small>
      <button type="button" className="secondary-action" onClick={()=>{setInviteCredentials(null);setSuccess("");}}>Hide credentials</button>
     </div>}
    </div>}
    {showForm&&<form className="user-form" onSubmit={createUser}>
-    <div className="user-form-heading"><strong>Invite a new user</strong><span>Create their login password here. They will receive a separate email link to accept the invitation.</span></div>
+    <div className="user-form-heading"><strong>Create a new user</strong><span>Create the account and set its initial password. No email will be sent automatically.</span></div>
     <div className="user-form-grid">
      <label>Full name<input required minLength={2} maxLength={120} value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Enter full name"/></label>
      <label>Email address<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com"/></label>
-     <label>Initial password<input required type="password" minLength={8} autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password (8+ characters)"/><span className="optional-label">Share this password with the user securely, separately from the invitation email.</span></label>
+     <label>Initial password<input required type="password" minLength={8} autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password (8+ characters)"/><span className="optional-label">Copy the password after account creation and share it securely.</span></label>
      <label>Estate<select required value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
      <label>Role<select value={role} onChange={e=>setRole(e.target.value as Role)}>{allowedRoles.map(x=><option key={x} value={x}>{roleLabels[x]}</option>)}</select></label>
      {role==="resident"&&<><label>Building name<input required value={buildingName} onChange={e=>setBuildingName(e.target.value)} placeholder="e.g. Block A"/></label><label>Apartment / unit number<input required value={unitCode} onChange={e=>setUnitCode(e.target.value)} placeholder="e.g. A-04"/></label><label>Apartment type <span className="optional-label">Optional</span><input value={unitType} onChange={e=>setUnitType(e.target.value)} placeholder="e.g. 3-bedroom"/></label></>}
     </div>
-    <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving||!selectedEstate}>{saving?"Sending invitation…":"Send invitation"}</button></div>
+    <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving||!selectedEstate}>{saving?"Creating account…":"Create account"}</button></div>
    </form>}
    <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, role or phone…" aria-label="Search users"/></div>
    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Name</th><th>Role</th><th>Estate</th><th>Phone</th><th>Status</th><th>Date added</th><th>Actions</th></tr></thead><tbody>
-    {loading?<tr><td colSpan={7} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="secondary-action" disabled={resendingUserId===m.user_id||sendingPasswordUserId===m.user_id} onClick={()=>void resendInvitation(m)}>{resendingUserId===m.user_id?"Sending…":"Resend invitation"}</button><button type="button" className="secondary-action" disabled={resendingUserId===m.user_id||sendingPasswordUserId===m.user_id} onClick={()=>void sendPasswordSetupEmail(m)}>{sendingPasswordUserId===m.user_id?"Sending…":"Send password setup email"}</button></td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Invited users will appear here once their accounts are provisioned.</small></td></tr>}
+    {loading?<tr><td colSpan={7} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="secondary-action" disabled={resendingUserId===m.user_id||sendingPasswordUserId===m.user_id} onClick={()=>void resendInvitation(m)}>{resendingUserId===m.user_id?"Sending…":"Resend invitation"}</button><button type="button" className="secondary-action" disabled={resendingUserId===m.user_id||sendingPasswordUserId===m.user_id} onClick={()=>void sendPasswordSetupEmail(m)}>{sendingPasswordUserId===m.user_id?"Sending…":"Send password setup email"}</button></td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Users will appear here once their accounts are created.</small></td></tr>}
    </tbody></table></div>
   </section>
  </PortalFrame>;
