@@ -33,7 +33,8 @@ Deno.serve(async (req: Request) => {
   let body: { estateId?: string; userId?: string; delivery?: "invitation" | "password_setup" };
   try { body = await req.json(); } catch { return json(400, { error: "invalid_json" }); }
   const estateId = body.estateId?.trim() ?? "";
-  const targetUserId = body.userId?.trim() ?? "";\n  const delivery = body.delivery ?? "invitation";\n  if (!["invitation", "password_setup"].includes(delivery)) return json(400, { error: "invalid_delivery_type" });
+  const targetUserId = body.userId?.trim() ?? "";
+  const delivery = body.delivery ?? "invitation";\n  if (!["invitation", "password_setup"].includes(delivery)) return json(400, { error: "invalid_delivery_type" });
   if (!estateId || !targetUserId) return json(400, { error: "estate_and_user_required" });
 
   const [{ data: platformAdmin, error: roleError }, { data: managerMembership, error: managerError },
