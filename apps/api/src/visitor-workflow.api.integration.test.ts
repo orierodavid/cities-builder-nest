@@ -43,8 +43,17 @@ const passes: Record<string, unknown>[] = [
     valid_until: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     status: "active", created_at: new Date().toISOString(),
   },
+  {
+    id: "denial-test-pass", estate_id: estateA, host_user_id: residentId,
+    visitor_name: "Denial Test Visitor", visitor_phone: null,
+    access_code_hash: createHash("sha256").update("654321").digest("hex"),
+    valid_from: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    valid_until: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    status: "active", created_at: new Date().toISOString(),
+  },
 ];
 const visits: Record<string, any>[] = [];
+const denials: Record<string, any>[] = [];
 
 function sendJson(res: ServerResponse, status: number, body: unknown, objectResponse = false) {
   res.statusCode = status;
@@ -100,6 +109,8 @@ const mockSupabase = createServer(async (req, res) => {
     const [operator, ...rest] = value.split(".");
     const expected = rest.join(".");
     if (operator === "is") return expected === "null" ? row[key] === null || row[key] === undefined : String(row[key]) === expected;
+    if (operator === "lte") return String(row[key]) <= expected;
+    if (operator === "gt") return String(row[key]) > expected;
     if (operator === "in") {
       const allowed = expected.replace(/^\(/, "").replace(/\)$/, "").split(",").map((item) => item.replace(/^"|"$/g, ""));
       return allowed.includes(String(row[key]));
@@ -108,6 +119,8 @@ const mockSupabase = createServer(async (req, res) => {
     return String(row[key]) === expected;
   });
   const objectResponse = (req.headers.accept ?? "").includes("application/vnd.pgrst.object+json");
+
+  if (req.method === "GET" && table === "users") return sendJson(res, 200, [], objectResponse);
 
   if (req.method === "GET" && table === "estate_memberships") {
     return sendJson(res, 200, memberships.filter(matches), objectResponse);
@@ -148,6 +161,18 @@ const mockSupabase = createServer(async (req, res) => {
     const body = await readBody(req);
     const row = { id: "assignment-" + (assignments.length + 1), created_at: new Date().toISOString(), end_date: null, ...body };
     assignments.push(row);
+    return sendJson(res, 201, row, objectResponse);
+  }
+  if (table === "visitor_passes" && req.method === "PATCH") {
+    const body = await readBody(req);
+    const updated = passes.filter(matches);
+    for (const row of updated) Object.assign(row, body);
+    return sendJson(res, 200, updated, objectResponse);
+  }
+  if (table === "visitor_pass_denials" && req.method === "POST") {
+    const body = await readBody(req);
+    const row = { id: "denial-" + (denials.length + 1), created_at: new Date().toISOString(), ...body };
+    denials.push(row);
     return sendJson(res, 201, row, objectResponse);
   }
   if (table === "visitor_passes" && req.method === "POST") {
@@ -211,6 +236,7 @@ const mockPort = await listen(mockSupabase);
 process.env.NODE_ENV = "test";
 process.env.SUPABASE_URL = `http://127.0.0.1:${mockPort}`;
 process.env.SUPABASE_ANON_KEY = "isolated-test-anon-key";
+process.env.SUPABASE_SERVICE_ROLE_KEY = "isolated-test-service-role-key";
 const { app } = await import("./server.js");
 const api = createServer(app);
 const apiPort = await listen(api);
@@ -308,6 +334,37 @@ test("security can look up visitor passes only inside the assigned estate", asyn
 
   const resident = await request(`/v1/estates/${estateA}/gate/visitor-lookup`, "resident-token", "POST", {
     accessCode: "123456",
+  });
+  assert.equal(resident.status, 403);
+  assert.equal(resident.body.error, "security_membership_required");
+});
+
+test("security denial revokes an active pass and records who denied it", async () => {
+  const denied = await request(`/v1/estates/${estateA}/gate/visitor-passes/denial-test-pass/deny`, "security-token", "POST", {
+    reason: "Visitor identity could not be verified.",
+  });
+  assert.equal(denied.status, 200);
+  assert.equal(denied.body.pass.id, "denial-test-pass");
+  assert.equal(denied.body.pass.status, "revoked");
+
+  const storedPass = passes.find((pass) => pass.id === "denial-test-pass");
+  assert.equal(storedPass?.status, "revoked");
+  assert.equal(denials.length, 1);
+  assert.equal(denials[0]?.denied_by, securityId);
+  assert.equal(denials[0]?.estate_id, estateA);
+  assert.equal(denials[0]?.visitor_pass_id, "denial-test-pass");
+  assert.equal(denials[0]?.reason, "Visitor identity could not be verified.");
+});
+
+test("only security assigned to the estate can deny visitor entry", async () => {
+  const crossEstate = await request(`/v1/estates/${estateA}/gate/visitor-passes/denial-test-pass/deny`, "security-b-token", "POST", {
+    reason: "Not assigned to this estate.",
+  });
+  assert.equal(crossEstate.status, 403);
+  assert.equal(crossEstate.body.error, "security_membership_required");
+
+  const resident = await request(`/v1/estates/${estateA}/gate/visitor-passes/denial-test-pass/deny`, "resident-token", "POST", {
+    reason: "Residents cannot deny entry.",
   });
   assert.equal(resident.status, 403);
   assert.equal(resident.body.error, "security_membership_required");
