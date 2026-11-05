@@ -98,3 +98,4 @@ Deno.serve(async (req: Request) => {
     message: "The account exists, but its password-reset email could not be sent. Check Supabase Auth email delivery settings.",
   });
   return json(200, { success: true, email, delivery: "password_reset" });
+});
