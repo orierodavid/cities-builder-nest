@@ -395,7 +395,7 @@ test("security can verify and check in event guests only in the assigned estate"
   const checkedIn = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "security-token", "POST", {
     code: "987654",
   });
-  assert.equal(checkedIn.status, 201);
+  assert.equal(checkedIn.status, 201, JSON.stringify(checkedIn.body));
   assert.equal(checkedIn.body.event.id, "event-a");
   assert.equal(checkedIn.body.guest.guest_name, "Event Test Guest");
   assert.equal(checkedIn.body.checkIn.checked_in_by, securityId);
