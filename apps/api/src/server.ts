@@ -15,6 +15,7 @@ import { canUseGateWorkflow } from "./gate-workflow-policy.js";
 import { isValidVisitorAccessCode, visitorCheckInFailure, visitorPassAvailabilityError } from "./visitor-pass-lifecycle-policy.js";
 import { isAllowedCorsOrigin } from "./cors-policy.js";
 import { trustedProxyHops } from "./proxy-config.js";
+import type { ErrorRequestHandler } from "express";
 
 export const app = express();
 // The production API runs behind one trusted platform ingress proxy. Keep this
@@ -49,8 +50,7 @@ app.use((req, res, next) => {
     const authenticated = req as AuthenticatedRequest;
     const estateId = req.params?.estateId;
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-    console.info(JSON.stringify({
-      event: "api_request",
+    const logEntry = {
       requestId,
       method: req.method,
       route: req.route?.path ?? req.path,
@@ -59,7 +59,15 @@ app.use((req, res, next) => {
       actorUserId: authenticated.authUser?.id ?? null,
       estateId: typeof estateId === "string" ? estateId : null,
       occurredAt: new Date().toISOString(),
-    }));
+    };
+    if (res.statusCode >= 500 || durationMs >= 2_000) {
+      console.error(JSON.stringify({
+        event: "api_request_alert",
+        severity: res.statusCode >= 500 ? "error" : "warning",
+        ...logEntry,
+      }));
+    }
+    console.info(JSON.stringify({ event: "api_request", ...logEntry }));
   });
   next();
 });
@@ -1601,6 +1609,37 @@ app.get("/v1/me", requireAuth, async (req, res) => {
     res.status(500).json({ error: "profile_lookup_failed" });
   }
 });
+
+app.use((_req, res) => {
+  res.status(404).json({ error: "route_not_found" });
+});
+
+const apiErrorHandler: ErrorRequestHandler = (error, req, res, _next) => {
+  const candidate = error as { status?: unknown; statusCode?: unknown; name?: unknown; code?: unknown };
+  const rawStatus = typeof candidate?.statusCode === "number"
+    ? candidate.statusCode
+    : typeof candidate?.status === "number" ? candidate.status : 500;
+  const statusCode = rawStatus >= 400 && rawStatus < 600 ? rawStatus : 500;
+  const requestId = res.getHeader("x-request-id")?.toString() ?? null;
+
+  console.error(JSON.stringify({
+    event: "api_unhandled_error",
+    requestId,
+    method: req.method,
+    path: req.path,
+    statusCode,
+    errorName: typeof candidate?.name === "string" ? candidate.name : "Error",
+    errorCode: typeof candidate?.code === "string" ? candidate.code : null,
+    occurredAt: new Date().toISOString(),
+  }));
+
+  if (res.headersSent) return;
+  res.status(statusCode).json({
+    error: statusCode >= 500 ? "internal_server_error" : "request_failed",
+    requestId,
+  });
+};
+app.use(apiErrorHandler);
 
 if (process.env.NODE_ENV !== "test") {
   startApiServer(app, port);
