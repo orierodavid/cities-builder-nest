@@ -332,12 +332,13 @@ function ManagementPaymentsPage(){
   setEstates(estateList);
   const estateIds=estateList.map(x=>x.id);
   if(!estateIds.length){setRows([]);setLoading(false);return;}
-  const [charges,savings]=await Promise.all([
+  const [charges,savings,electricity]=await Promise.all([
    supabase.from("service_charge_payments").select("id,estate_id,resident_user_id,charge_id,amount_kobo,currency,status,provider_reference,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200),
-   supabase.from("rent_savings_contributions").select("id,estate_id,resident_user_id,amount_kobo,currency,status,provider_reference,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200)
+   supabase.from("rent_savings_contributions").select("id,estate_id,resident_user_id,amount_kobo,currency,status,provider_reference,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200),
+   supabase.from("electricity_recharge_orders").select("id,estate_id,resident_user_id,amount_kobo,status,units_purchased,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200)
   ]);
-  if(charges.error||savings.error){setRows([]);setError("Payment records could not be loaded. Please refresh and try again.");setLoading(false);return;}
-  const residentIds=[...new Set([...(charges.data||[]).map(x=>x.resident_user_id),...(savings.data||[]).map(x=>x.resident_user_id)])];
+  if(charges.error||savings.error||electricity.error){setRows([]);setError("Payment records could not be loaded. Please refresh and try again.");setLoading(false);return;}
+  const residentIds=[...new Set([...(charges.data||[]).map(x=>x.resident_user_id),...(savings.data||[]).map(x=>x.resident_user_id),...(electricity.data||[]).map(x=>x.resident_user_id)])];
   const chargeIds=[...new Set((charges.data||[]).map(x=>x.charge_id).filter(Boolean))];
   const [{data:profiles},{data:chargeNames}]=await Promise.all([
    residentIds.length?supabase.from("users").select("id,full_name").in("id",residentIds):Promise.resolve({data:[],error:null}),
@@ -355,13 +356,14 @@ function ManagementPaymentsPage(){
   };
   const chargeRows=(charges.data||[]).map(x=>({id:"charge-"+x.id,estateId:x.estate_id,type:"Service charge",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:titles.get(x.charge_id)||"Service charge"}));
   const savingsRows=(savings.data||[]).map(x=>({id:"savings-"+x.id,estateId:x.estate_id,type:"Rent savings",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:"Rent savings contribution"}));
-  setRows([...chargeRows,...savingsRows].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
+  const electricityRows=(electricity.data||[]).map(x=>({id:"electricity-"+x.id,estateId:x.estate_id,type:"Electricity",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:"NGN",status:statusName(x.status,x.verified_at),reference:null,createdAt:x.verified_at||x.created_at,description:"Electricity purchase"+(x.units_purchased?" · "+x.units_purchased+" units":"")}));
+  setRows([...chargeRows,...savingsRows,...electricityRows].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
   setLoading(false);
  },[]);
  useEffect(()=>{void load();},[load]);
  const visible=rows.filter(row=>(!selectedEstate||selectedEstate===row.estateId)&&(status==="all"||row.status.toLowerCase()===status)&&(!search||[row.resident,row.estate,row.type,row.description,row.reference].join(" ").toLowerCase().includes(search.toLowerCase())));
  const money=(amount:number,currency:string)=>new Intl.NumberFormat("en-NG",{style:"currency",currency:currency||"NGN",maximumFractionDigits:2}).format(amount/100);
- return <PortalFrame title="Payments" description="Review service charge payments and rent savings contributions across your authorised estates.">
+ return <PortalFrame title="Payments" description="Review service charge, rent savings and electricity transactions across your authorised estates.">
   <section className="panel module-panel">
    <div className="module-toolbar"><div><h3>Payment history</h3><p>Recent transactions and their current payment status.</p></div><button className="secondary-action" onClick={()=>void load()} disabled={loading}>{loading?"Refreshing…":"Refresh records"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
