@@ -1,0 +1,105 @@
+name: Encrypted database backup and restore verification
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 2 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cbnest-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup-and-restore:
+    if: ${{ vars.CBNEST_BACKUPS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CBNEST_DATABASE_URL: ${{ secrets.CBNEST_DATABASE_URL }}
+      CBNEST_BACKUP_AGE_RECIPIENT: ${{ vars.CBNEST_BACKUP_AGE_RECIPIENT }}
+      CBNEST_BACKUP_AGE_IDENTITY: ${{ secrets.CBNEST_BACKUP_AGE_IDENTITY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate backup configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$CBNEST_DATABASE_URL" || -z "$CBNEST_BACKUP_AGE_RECIPIENT" || -z "$CBNEST_BACKUP_AGE_IDENTITY" ]]; then
+            echo "::error::Configure CBNEST_DATABASE_URL and CBNEST_BACKUP_AGE_IDENTITY as GitHub Actions secrets, CBNEST_BACKUP_AGE_RECIPIENT as a repository variable, then set CBNEST_BACKUPS_ENABLED=true."
+            exit 1
+          fi
+
+      - name: Start isolated Supabase restore environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cbnest-restore"
+          cd "$RUNNER_TEMP/cbnest-restore"
+          supabase init
+          supabase start --exclude studio,mail,functions
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          if [[ -z "$DB_CONTAINER" ]]; then
+            echo "::error::Local Supabase PostgreSQL container was not found."
+            exit 1
+          fi
+          echo "CBNEST_LOCAL_DB_CONTAINER=$DB_CONTAINER" >> "$GITHUB_ENV"
+
+      - name: Create encrypted production database backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          BACKUP_NAME="cbnest-$(date -u +'%Y%m%dT%H%M%SZ').dump"
+          DB_CONTAINER="$CBNEST_LOCAL_DB_CONTAINER"
+          docker exec "$DB_CONTAINER" pg_dump --format=custom --no-owner --no-acl --verbose --file="/tmp/$BACKUP_NAME" "$CBNEST_DATABASE_URL"
+          docker cp "$DB_CONTAINER:/tmp/$BACKUP_NAME" "$RUNNER_TEMP/$BACKUP_NAME"
+
+          printf '%s\n' "$CBNEST_BACKUP_AGE_IDENTITY" > "$RUNNER_TEMP/age-identity"
+          chmod 600 "$RUNNER_TEMP/age-identity"
+          age --encrypt --recipient "$CBNEST_BACKUP_AGE_RECIPIENT" --output "$RUNNER_TEMP/$BACKUP_NAME.age" "$RUNNER_TEMP/$BACKUP_NAME"
+
+          # Verify encryption can be reversed and the PostgreSQL archive is readable.
+          age --decrypt --identity "$RUNNER_TEMP/age-identity" --output "$RUNNER_TEMP/verified-$BACKUP_NAME" "$RUNNER_TEMP/$BACKUP_NAME.age"
+          docker cp "$RUNNER_TEMP/verified-$BACKUP_NAME" "$DB_CONTAINER:/tmp/verified-$BACKUP_NAME"
+          docker exec "$DB_CONTAINER" pg_restore --list "/tmp/verified-$BACKUP_NAME" > /dev/null
+          echo "CBNEST_BACKUP_FILE=$BACKUP_NAME.age" >> "$GITHUB_ENV"
+
+      - name: Store encrypted backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cbnest-encrypted-database-backup
+          path: ${{ runner.temp }}/${{ env.CBNEST_BACKUP_FILE }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Restore backup into isolated PostgreSQL database
+        shell: bash
+        run: |
+          set -euo pipefail
+          DB_CONTAINER="$CBNEST_LOCAL_DB_CONTAINER"
+          BACKUP_NAME="${CBNEST_BACKUP_FILE%.age}"
+          docker exec "$DB_CONTAINER" createdb --username=postgres cbnest_restore_test
+          docker exec "$DB_CONTAINER" pg_restore --no-owner --no-acl --exit-on-error --dbname=postgresql://postgres:postgres@localhost:5432/cbnest_restore_test "/tmp/verified-$BACKUP_NAME"
+          TABLE_COUNT="$(docker exec "$DB_CONTAINER" psql --username=postgres --dbname=cbnest_restore_test --tuples-only --no-align --command="select count(*) from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE'")"
+          if [[ "$TABLE_COUNT" -lt 1 ]]; then
+            echo "::error::Restore completed but no public application tables were found."
+            exit 1
+          fi
+          echo "Restore verification passed: $TABLE_COUNT public tables restored into an isolated local database."
+
+      - name: Stop isolated Supabase environment
+        if: always()
+        shell: bash
+        run: |
+          if [[ -d "$RUNNER_TEMP/cbnest-restore" ]]; then
+            cd "$RUNNER_TEMP/cbnest-restore"
+            supabase stop || true
+          fi
