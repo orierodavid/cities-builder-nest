@@ -35,7 +35,7 @@ export default function WelcomeEmailPage() {
       });
       if (!active) return;
       if (invokeError || data?.error) {
-        setError(data?.message || data?.error || invokeError?.message || "Unable to load the selected recipient.");
+        setError("Recipient details could not be loaded. Please return to User Management and try again.");
       } else {
         setRecipient(data.recipient as Recipient);
         setMessage(`Welcome to Cities Builder Nest, {{name}}.\n\nYour account has been created. You can now sign in using the email address provided to you by estate management.\n\nPlease contact your Facility Manager if you need assistance.`);
@@ -56,11 +56,11 @@ export default function WelcomeEmailPage() {
       body: { action: "send", userId, estateId, subject, message: finalMessage }
     });
     if (invokeError || data?.error) {
-      setError(data?.message || data?.error || invokeError?.message || "Welcome email could not be sent.");
+      setError("The welcome email could not be sent. Please try again.");
     } else if (data?.sent === true) {
       setSuccess(`Welcome email sent successfully to ${recipient?.email}.`);
     } else {
-      setError("The email provider did not confirm delivery. No success has been recorded.");
+      setError("Delivery could not be confirmed. Please check the recipient address and try again.");
     }
     setSending(false);
   }
