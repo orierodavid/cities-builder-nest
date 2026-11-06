@@ -16,14 +16,14 @@ export default function MaintainScreen(){
   const {data:unit,error:unitError}=await supabase.from('resident_units').select('unit_id').eq('resident_user_id',user.id).eq('estate_id',membership.estate_id).is('end_date',null).limit(1).maybeSingle();if(unitError)throw unitError;setUnitId(unit?.unit_id||'');
   const {data:requests,error:requestError}=await supabase.from('maintenance_requests').select('id,title,description,status,priority,created_at').eq('estate_id',membership.estate_id).eq('created_by',user.id).order('created_at',{ascending:false});
   if(requestError)throw requestError;setItems((requests||[]) as Request[]);
- }catch(e){setMessage(e instanceof Error?e.message:'Maintenance requests could not be loaded.');}finally{setLoading(false);}},[]);
+ }catch(e){setMessage('We could not load your maintenance requests. Please try again.');}finally{setLoading(false);}},[]);
  useEffect(()=>{void load()},[load]);
- async function submit(){if(title.trim().length<3){setMessage('Enter a clear maintenance request title.');return;}if(description.trim().length<5){setMessage('Please describe the issue in a little more detail.');return;}if(!apiUrl){setMessage('API address is not configured. Set EXPO_PUBLIC_API_URL and restart Expo.');return;}setSaving(true);setMessage('');
-  try{const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Your session has expired. Please sign in again.');
+ async function submit(){if(title.trim().length<3){setMessage('Enter a clear maintenance request title.');return;}if(description.trim().length<5){setMessage('Please describe the issue in a little more detail.');return;}if(!apiUrl){setMessage('Maintenance requests are temporarily unavailable. Please try again later.');return;}setSaving(true);setMessage('');
+  try{const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Please sign in again.');
    const response=await fetch(apiUrl+'/v1/estates/'+encodeURIComponent(estateId)+'/maintenance',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,Accept:'application/json','Content-Type':'application/json'},body:JSON.stringify({title:title.trim(),description:description.trim(),priority,...(unitId?{unitId}:{})})});
    const result=await response.json() as {error?:string;message?:string;maintenanceRequest?:Request};if(!response.ok)throw new Error(result.message||result.error||'Maintenance request could not be submitted.');
    setTitle('');setDescription('');setMessage('Maintenance request submitted successfully.');await load();
-  }catch(e){const detail=e instanceof Error?e.message:'Maintenance request could not be submitted.';setMessage(/fetch failed|network request failed|network error/i.test(detail)?'CB Nest could not reach its API. Confirm the API is running and EXPO_PUBLIC_API_URL points to your computer’s LAN IP or deployed API URL.':detail);}finally{setSaving(false);}
+  }catch(e){setMessage(e instanceof Error && e.message==='Please sign in again.' ? e.message : 'We could not submit your request. Please try again.');}finally{setSaving(false);}
  }
  return <Screen title="Maintenance Requests" subtitle="Report a problem and track its progress">
   <Card><SectionTitle>Submit a request</SectionTitle><Text style={{color:theme.text,fontSize:12,marginTop:8}}>Request title</Text>
