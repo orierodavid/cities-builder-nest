@@ -57,7 +57,7 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   finally{setProfileLoading(false);}
  };
  useEffect(()=>{void loadResidentDetails();},[role,providedName]);
- const signOut=async()=>{if(signingOut)return;setSigningOut(true);try{const {error}=await supabase.auth.signOut();if(error)throw error;router.replace('/' as never);}catch(error){Alert.alert('Could not log out',error instanceof Error?error.message:'Please check your connection and try again.');}finally{setSigningOut(false);}};
+ const signOut=async()=>{if(signingOut)return;setSigningOut(true);try{const {error}=await supabase.auth.signOut();if(error)throw error;router.replace('/' as never);}catch(error){Alert.alert('Could not log out','Please try again.');}finally{setSigningOut(false);}};
  const tileBasis=cfg.columns===3?'31%':'48%';
  return <SafeAreaView style={s.safe} edges={['top']}><ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
  <View style={s.brandRow}><MaterialCommunityIcons name="home-city" size={26} color={C.gold}/><Text style={s.brand}>CB NEST</Text></View>
