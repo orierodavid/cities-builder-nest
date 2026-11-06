@@ -1388,53 +1388,71 @@ app.get("/v1/estates/:estateId/events/:eventId/attendance-report", requireAuth, 
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
   const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return;
+  const page = getPageWindow(req);
 
-  const [eventResult, guestResult, invitationResult, checkInResult] = await Promise.all([
+  const [eventResult, guestResult, invitationCountResult, checkInCountResult] = await Promise.all([
     authenticated.userSupabase.from("estate_events")
       .select("id, title, venue, starts_at, ends_at, status")
       .eq("id", eventId).eq("estate_id", estateId).maybeSingle(),
     authenticated.userSupabase.from("estate_event_guests")
-      .select("id, guest_name, email, phone")
-      .eq("estate_id", estateId).eq("event_id", eventId).order("guest_name"),
+      .select("id, guest_name, email, phone", { count: "exact" })
+      .eq("estate_id", estateId).eq("event_id", eventId).order("guest_name")
+      .range(page.from, page.to),
     authenticated.userSupabase.from("estate_event_invitations")
-      .select("id, guest_id, status")
-      .eq("estate_id", estateId).eq("event_id", eventId),
+      .select("id", { count: "exact", head: true })
+      .eq("estate_id", estateId).eq("event_id", eventId).eq("status", "active"),
     authenticated.userSupabase.from("estate_event_checkins")
-      .select("id, guest_id, checked_in_at")
-      .eq("estate_id", estateId).eq("event_id", eventId).order("checked_in_at", { ascending: true }),
+      .select("id", { count: "exact", head: true })
+      .eq("estate_id", estateId).eq("event_id", eventId),
   ]);
 
   if (eventResult.error || !eventResult.data) { res.status(404).json({ error: "estate_event_not_found" }); return; }
-  if (guestResult.error || invitationResult.error || checkInResult.error) {
-    res.status(400).json({ error: "event_attendance_report_load_failed" }); return;
+  if (guestResult.error || invitationCountResult.error || checkInCountResult.error) {
+    res.status(503).json({ error: "event_attendance_report_load_failed" }); return;
   }
 
-  const guests = guestResult.data ?? [];
-  const invitations = invitationResult.data ?? [];
-  const checkIns = checkInResult.data ?? [];
-  const checkInByGuest = new Map(checkIns.map((item) => [item.guest_id, item]));
-  const activeInvitationByGuest = new Set(invitations.filter((item) => item.status === "active").map((item) => item.guest_id));
-  const rows = guests.map((guest) => {
+  const guestPage = pageResult(guestResult.data, page);
+  const guestIds = guestPage.items.map((guest) => guest.id);
+  let activeInvitationGuestIds = new Set<string>();
+  let checkInByGuest = new Map<string, { checked_in_at: string }>();
+  if (guestIds.length > 0) {
+    const [invitationRows, checkInRows] = await Promise.all([
+      authenticated.userSupabase.from("estate_event_invitations")
+        .select("guest_id").eq("estate_id", estateId).eq("event_id", eventId)
+        .eq("status", "active").in("guest_id", guestIds),
+      authenticated.userSupabase.from("estate_event_checkins")
+        .select("guest_id, checked_in_at").eq("estate_id", estateId).eq("event_id", eventId)
+        .in("guest_id", guestIds),
+    ]);
+    if (invitationRows.error || checkInRows.error) {
+      res.status(503).json({ error: "event_attendance_report_load_failed" }); return;
+    }
+    activeInvitationGuestIds = new Set((invitationRows.data ?? []).map((item) => item.guest_id));
+    checkInByGuest = new Map((checkInRows.data ?? []).map((item) => [item.guest_id, item]));
+  }
+
+  const rows = guestPage.items.map((guest) => {
     const checkIn = checkInByGuest.get(guest.id);
     return {
       ...guest,
-      invitationStatus: activeInvitationByGuest.has(guest.id) ? "active" : "none",
+      invitationStatus: activeInvitationGuestIds.has(guest.id) ? "active" : "none",
       checkedInAt: checkIn?.checked_in_at ?? null,
       attendanceStatus: checkIn ? "checked_in" : "not_checked_in",
     };
   });
-  const checkedIn = checkIns.length;
-  const totalGuests = guests.length;
+  const totalGuests = guestResult.count ?? 0;
+  const checkedIn = checkInCountResult.count ?? 0;
   res.status(200).json({
     event: eventResult.data,
     summary: {
       totalGuests,
       checkedIn,
       outstanding: Math.max(0, totalGuests - checkedIn),
-      activeInvitations: activeInvitationByGuest.size,
+      activeInvitations: invitationCountResult.count ?? 0,
       attendancePercentage: totalGuests ? Math.round((checkedIn / totalGuests) * 100) : 0,
     },
     guests: rows,
+    pagination: guestPage.pagination,
   });
 });
 
