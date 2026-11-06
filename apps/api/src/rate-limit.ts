@@ -71,7 +71,11 @@ export const sharedRateLimit: RequestHandler = (req, res, next) => {
     return;
   }
 
-  void client.rpc("consume_api_rate_limit", {
+  const rpc = client.rpc.bind(client) as unknown as (
+    functionName: string,
+    args: { p_bucket_key: string; p_window_seconds: number; p_max_requests: number },
+  ) => Promise<{ data: boolean | null; error: { code?: string } | null }>;
+  void rpc("consume_api_rate_limit", {
     p_bucket_key: bucketKey,
     p_window_seconds: WINDOW_SECONDS,
     p_max_requests: maxRequests,
