@@ -57,7 +57,7 @@ export async function requireAuth(
     // locally without signature validation is deliberately not used here.
     const { data, error } = await userSupabase.auth.getUser(token);
     if (error) {
-      if (typeof error.status === "number" && (error.status >= 500 || error.status === 429)) {
+      if (typeof error.status === "number" && (error.status >= 500 || error.status === 429 || error.status === 408)) {
         res.setHeader("Retry-After", "5");
         res.status(503).json({ error: "authentication_service_unavailable" });
         return;
