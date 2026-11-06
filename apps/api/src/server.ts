@@ -7,6 +7,7 @@ import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "
 import { checkDatabase } from "./storage.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
+import { getPageWindow, pageResult } from "./pagination.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
 import { canCreateVisitorPass } from "./visitor-pass-policy.js";
 import { parseVisitorPassInput } from "./visitor-pass-input-policy.js";
@@ -414,10 +415,13 @@ app.get("/v1/estates/:estateId/buildings", requireAuth, async (req, res) => {
     res.status(403).json({ error: "estate_manager_access_required" });
     return;
   }
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("buildings")
-    .select("id, estate_id, name, created_at").eq("estate_id", estateId).order("name");
+    .select("id, estate_id, name, created_at").eq("estate_id", estateId).order("name")
+    .range(page.from, page.to);
   if (error) { res.status(403).json({ error: "building_list_access_denied" }); return; }
-  res.status(200).json({ buildings: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ buildings: result.items, pagination: result.pagination });
 });
 
 app.get("/v1/estates/:estateId/units", requireAuth, async (req, res) => {
@@ -431,10 +435,13 @@ app.get("/v1/estates/:estateId/units", requireAuth, async (req, res) => {
     res.status(403).json({ error: "estate_manager_access_required" });
     return;
   }
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("units")
-    .select("id, estate_id, building_id, unit_code, unit_type, status").eq("estate_id", estateId).order("unit_code");
+    .select("id, estate_id, building_id, unit_code, unit_type, status").eq("estate_id", estateId).order("unit_code")
+    .range(page.from, page.to);
   if (error) { res.status(403).json({ error: "unit_list_access_denied" }); return; }
-  res.status(200).json({ units: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ units: result.items, pagination: result.pagination });
 });
 
 app.get("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
@@ -448,15 +455,18 @@ app.get("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
     res.status(403).json({ error: "estate_manager_access_required" });
     return;
   }
+  const page = getPageWindow(req);
   const { data: memberships, error } = await authenticated.userSupabase.from("estate_memberships")
-    .select("user_id").eq("estate_id", estateId).eq("membership_role", "resident").eq("status", "active");
+    .select("user_id").eq("estate_id", estateId).eq("membership_role", "resident").eq("status", "active")
+    .order("created_at", { ascending: true }).range(page.from, page.to);
   if (error) { res.status(403).json({ error: "resident_list_access_denied" }); return; }
-  const ids = [...new Set((memberships ?? []).map((item) => item.user_id))];
-  if (!ids.length) { res.status(200).json({ residents: [] }); return; }
+  const membershipPage = pageResult(memberships, page);
+  const ids = [...new Set(membershipPage.items.map((item) => item.user_id))];
+  if (!ids.length) { res.status(200).json({ residents: [], pagination: membershipPage.pagination }); return; }
   const { data: residents, error: residentError } = await authenticated.userSupabase.from("users")
     .select("id, full_name, phone_e164").in("id", ids).order("full_name");
   if (residentError) { res.status(403).json({ error: "resident_directory_access_denied" }); return; }
-  res.status(200).json({ residents: residents ?? [] });
+  res.status(200).json({ residents: residents ?? [], pagination: membershipPage.pagination });
 });
 
 app.post("/v1/estates/:estateId/buildings", requireAuth, async (req, res) => {
@@ -851,19 +861,21 @@ app.get("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =>
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
 
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase
     .from("visitor_passes")
     .select("id, estate_id, visitor_name, visitor_phone, valid_from, valid_until, status, created_at")
     .eq("estate_id", estateId)
     .eq("host_user_id", authenticated.authUser.id)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(page.from, page.to);
 
   if (error) {
     res.status(400).json({ error: "visitor_pass_list_failed" });
     return;
   }
-  res.status(200).json({ visitorPasses: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ visitorPasses: result.items, pagination: result.pagination });
 });
 
 app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, res) => {
@@ -965,11 +977,14 @@ app.get("/v1/estates/:estateId/gate/visits", requireAuth, async (req, res) => {
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("visitor_visits")
     .select("id, visitor_pass_id, checked_in_at, visitor_passes(visitor_name, visitor_phone)")
-    .eq("estate_id", estateId).is("checked_out_at", null).order("checked_in_at", { ascending: false });
+    .eq("estate_id", estateId).is("checked_out_at", null).order("checked_in_at", { ascending: false })
+    .range(page.from, page.to);
   if (error) { res.status(400).json({ error: "active_visits_load_failed" }); return; }
-  res.status(200).json({ visits: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ visits: result.items, pagination: result.pagination });
 });
 
 app.post("/v1/estates/:estateId/gate/visits/:visitId/check-out", requireAuth, async (req, res) => {
@@ -1014,11 +1029,13 @@ app.get("/v1/estates/:estateId/security/shift-handovers", requireAuth, async (re
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const authenticated = await requireSecurityEventAccess(req, res, estateId);
   if (!authenticated) return;
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("security_shift_handovers")
     .select("id, estate_id, outgoing_officer, shift_label, shift_started_at, shift_ended_at, handover_notes, pending_actions, status, acknowledged_by, acknowledged_at, created_at")
-    .eq("estate_id", estateId).order("created_at", { ascending: false }).limit(100);
+    .eq("estate_id", estateId).order("created_at", { ascending: false }).range(page.from, page.to);
   if (error) { res.status(400).json({ error: "security_shift_handovers_load_failed" }); return; }
-  res.status(200).json({ handovers: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ handovers: result.items, pagination: result.pagination });
 });
 
 app.post("/v1/estates/:estateId/security/shift-handovers", requireAuth, async (req, res) => {
@@ -1073,11 +1090,13 @@ app.get("/v1/estates/:estateId/emergency-alerts", requireAuth, async (req, res) 
   const enabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!enabled) { rejectInactiveEstate(res); return; }
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("security_emergency_alerts")
     .select("id, estate_id, created_by, alert_type, severity, title, message, location, status, resolved_by, resolved_at, created_at, updated_at")
-    .eq("estate_id", estateId).order("created_at", { ascending: false }).limit(100);
+    .eq("estate_id", estateId).order("created_at", { ascending: false }).range(page.from, page.to);
   if (error) { res.status(400).json({ error: "emergency_alerts_load_failed" }); return; }
-  res.status(200).json({ alerts: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ alerts: result.items, pagination: result.pagination });
 });
 
 app.post("/v1/estates/:estateId/emergency-alerts", requireAuth, async (req, res) => {
@@ -1126,11 +1145,13 @@ app.get("/v1/estates/:estateId/security/incidents", requireAuth, async (req, res
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const authenticated = await requireSecurityEventAccess(req, res, estateId);
   if (!authenticated) return;
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("security_incident_reports")
     .select("id, estate_id, reported_by, title, category, severity, description, location, occurred_at, status, reviewed_by, reviewed_at, resolution_note, created_at, updated_at")
-    .eq("estate_id", estateId).order("created_at", { ascending: false }).limit(100);
+    .eq("estate_id", estateId).order("created_at", { ascending: false }).range(page.from, page.to);
   if (error) { res.status(400).json({ error: "security_incidents_load_failed" }); return; }
-  res.status(200).json({ incidents: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ incidents: result.items, pagination: result.pagination });
 });
 
 app.post("/v1/estates/:estateId/security/incidents", requireAuth, async (req, res) => {
@@ -1200,11 +1221,13 @@ app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const enabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!enabled) { rejectInactiveEstate(res); return; }
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("estate_events")
     .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at")
-    .eq("estate_id", estateId).order("starts_at", { ascending: true });
+    .eq("estate_id", estateId).order("starts_at", { ascending: true }).range(page.from, page.to);
   if (error) { res.status(403).json({ error: "estate_events_load_failed" }); return; }
-  res.status(200).json({ events: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ events: result.items, pagination: result.pagination });
 });
 
 app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
@@ -1261,11 +1284,13 @@ app.get("/v1/estates/:estateId/events/:eventId/guests", requireAuth, async (req,
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
   const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return;
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("estate_event_guests")
     .select("id, estate_id, event_id, guest_name, email, phone, notes, created_at, updated_at")
-    .eq("estate_id", estateId).eq("event_id", eventId).order("created_at", { ascending: true });
+    .eq("estate_id", estateId).eq("event_id", eventId).order("created_at", { ascending: true }).range(page.from, page.to);
   if (error) { res.status(403).json({ error: "event_guest_list_load_failed" }); return; }
-  res.status(200).json({ guests: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ guests: result.items, pagination: result.pagination });
 });
 
 app.post("/v1/estates/:estateId/events/:eventId/guests", requireAuth, async (req, res) => {
@@ -1310,11 +1335,13 @@ app.get("/v1/estates/:estateId/events/:eventId/invitations", requireAuth, async 
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
   const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return;
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("estate_event_invitations")
     .select("id, guest_id, status, created_at, estate_event_guests!inner(guest_name, email, phone)")
-    .eq("estate_id", estateId).eq("event_id", eventId).order("created_at", { ascending: false });
+    .eq("estate_id", estateId).eq("event_id", eventId).order("created_at", { ascending: false }).range(page.from, page.to);
   if (error) { res.status(403).json({ error: "event_invitations_load_failed" }); return; }
-  res.status(200).json({ invitations: data ?? [] });
+  const result = pageResult(data, page);
+  res.status(200).json({ invitations: result.items, pagination: result.pagination });
 });
 
 app.post("/v1/estates/:estateId/events/:eventId/guests/:guestId/invitations", requireAuth, async (req, res) => {
@@ -1416,11 +1443,13 @@ app.get("/v1/estates/:estateId/events/:eventId/check-ins", requireAuth, async (r
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
   const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return;
+  const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("estate_event_checkins")
     .select("id, guest_id, invitation_id, checked_in_at, estate_event_guests!inner(guest_name, email, phone)")
-    .eq("estate_id", estateId).eq("event_id", eventId).order("checked_in_at", { ascending: false });
+    .eq("estate_id", estateId).eq("event_id", eventId).order("checked_in_at", { ascending: false }).range(page.from, page.to);
   if (error) { res.status(400).json({ error: "event_checkins_load_failed" }); return; }
-  res.status(200).json({ checkIns: data ?? [], total: data?.length ?? 0 });
+  const result = pageResult(data, page);
+  res.status(200).json({ checkIns: result.items, total: result.items.length, pagination: result.pagination });
 });
 
 app.post("/v1/estates/:estateId/events/:eventId/check-in", requireAuth, async (req, res) => {
