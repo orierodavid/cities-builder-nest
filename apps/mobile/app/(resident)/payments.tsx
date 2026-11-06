@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { Screen, SectionTitle, EmptyState, Card } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
 import { theme } from '../../src/theme/theme';
