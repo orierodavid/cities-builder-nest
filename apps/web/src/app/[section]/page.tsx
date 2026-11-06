@@ -23,14 +23,14 @@ const roleLabels: Record<string,string> = {
   finance_admin:"Finance Admin"
 };
 const config:Record<string,{title:string;description:string;columns:string[];intro:string}> = {
- estates:{title:"Estates",description:"Create and manage estates across the CB Nest platform.",columns:["Estate name","Location","Properties","Manager","Status"],intro:"Estate records will appear here when connected."},
+ estates:{title:"Estates",description:"Create and manage estates across the CB Nest platform.",columns:["Estate name","Location","Properties","Manager","Status"],intro:"No estate records are available yet."},
  users:{title:"User Management",description:"Create accounts, assign roles and manage estate access.",columns:["Name","Role","Estate","Phone","Status","Date added"],intro:"Create and manage accounts for the estates you administer."},
  properties:{title:"Properties",description:"View and manage properties and units.",columns:["Property","Estate","Type","Units","Status"],intro:"Property records will appear here."},
  subscriptions:{title:"Subscriptions",description:"Monitor estate plans and subscription status.",columns:["Estate","Plan","Billing cycle","Renewal date","Status"],intro:"Subscription records will appear here."},
  payments:{title:"Payments",description:"Review payments and transaction activity.",columns:["Reference","Payer","Estate","Amount","Date","Status"],intro:"Verified payment transactions will appear here."},
- analytics:{title:"Analytics",description:"Platform performance and estate growth insights.",columns:["Metric","Current period","Previous period","Change"],intro:"Analytics will appear when reporting data is connected."},
+ analytics:{title:"Analytics",description:"Platform performance and estate growth insights.",columns:["Metric","Current period","Previous period","Change"],intro:"Analytics will appear here when reporting periods are available."},
  support:{title:"Support",description:"Review and manage support requests.",columns:["Ticket","Submitted by","Category","Date","Status"],intro:"Support requests will appear here."},
- "system-logs":{title:"Audit Logs",description:"Review who changed what, where and when across your authorised estates.",columns:["Who","What","Where","When","Severity"],intro:"Review the append-only audit history."},
+ "system-logs":{title:"Audit Logs",description:"Review who changed what, where and when across your authorised estates.",columns:["Who","What","Where","When","Severity"],intro:"Review recorded activity across your authorised estates."},
  alerts:{title:"Alerts & Notifications",description:"Review important administrative events.",columns:["Alert","Estate","Severity","Created","Status"],intro:"Review and acknowledge important admin alerts."},
  settings:{title:"Settings",description:"Manage platform preferences and configuration.",columns:["Setting","Current value","Last updated"],intro:"Platform settings will be made available here."},
  residents:{title:"Residents",description:"View resident accounts and estate membership.",columns:["Resident","Property","Email","Phone","Status"],intro:"Resident records will appear here."},
@@ -40,7 +40,7 @@ const config:Record<string,{title:string;description:string;columns:string[];int
  maintenance:{title:"Maintenance",description:"Track maintenance requests and work orders.",columns:["Request","Property","Category","Submitted","Priority","Status"],intro:"Maintenance requests will appear here."},
  "facility-management":{title:"Facility Management",description:"Oversee estate facilities and operational services.",columns:["Facility","Estate","Condition","Last inspection","Status"],intro:"Facility records will appear here."},
  communications:{title:"Communications",description:"Manage notices and resident communications.",columns:["Subject","Audience","Created","Channel","Status"],intro:"Communication records will appear here."},
- reports:{title:"Reports",description:"Review estate operations and performance reports.",columns:["Report","Period","Generated","Owner","Status"],intro:"Reports will appear when verified reporting data is connected."}
+ reports:{title:"Reports",description:"Review estate operations and performance reports.",columns:["Report","Period","Generated","Owner","Status"],intro:"Reports will appear here when reporting periods are available."}
 };
 
 
@@ -68,7 +68,7 @@ function EstatesPage() {
    setError("Only Super Administrators can create and manage estates.");setLoading(false);return;
   }
   const {data,error:queryError}=await supabase.from("estates").select("id,name,address,city,state,country_code,is_enabled,created_at").order("created_at",{ascending:false});
-  if(queryError)setError("Unable to load estates. Check your platform permissions.");
+  if(queryError)setError("Estates could not be loaded. Please refresh and try again.");
   else setRows((data||[]) as EstateRecord[]);
   setLoading(false);
  },[]);
@@ -85,7 +85,7 @@ function EstatesPage() {
   const {data,error:insertError}=await supabase.from("estates").insert({
    name:name.trim(),address:address.trim(),city:city.trim(),state:state.trim(),country_code:country.trim().toUpperCase(),is_enabled:true
   }).select("id,name,address,city,state,country_code,is_enabled,created_at").single();
-  if(insertError){setError(insertError.message.includes("duplicate")?"An estate with these details may already exist. Please check the estate list.":"Estate could not be created. "+insertError.message);setSaving(false);return;}
+  if(insertError){setError(insertError.message.includes("duplicate")?"An estate with these details may already exist. Please check the estate list.":"The estate could not be created. Please check the details and try again.");setSaving(false);return;}
   setRows(current=>[insertedEstate(data),...current]);
   setSuccess("Estate created successfully. You can now open User Management and assign its Facility Manager.");
   setName("");setAddress("");setCity("");setState("");setCountry("NG");setShowForm(false);setSaving(false);
@@ -275,7 +275,7 @@ function PropertiesPage(){
     supabase.from("buildings").select("id,estate_id,name").in("estate_id",estateIds).order("name"),
     supabase.from("units").select("id,estate_id,building_id,unit_code,unit_type,status").in("estate_id",estateIds).order("unit_code")
    ]);
-   if(buildingError||unitError)throw new Error("Building or property-unit records could not be loaded. Check estate-scoped read permissions.");
+   if(buildingError||unitError)throw new Error("Property details could not be loaded. Please refresh and try again.");
    const unitRows=(units||[]) as PropertyUnitRow[];const unitIds=unitRows.map(x=>x.id);
    let assignments:Array<{unit_id:string;resident_user_id:string}>=[];
    if(unitIds.length){const {data,error}=await supabase.from("resident_units").select("unit_id,resident_user_id").in("unit_id",unitIds).is("end_date",null);if(error)throw new Error("Resident-to-property assignments could not be loaded.");assignments=data||[];}
@@ -287,7 +287,7 @@ function PropertiesPage(){
    const profileMap=new Map((profiles||[]).map(x=>[x.id,x.full_name]));
    const residentByUnit=new Map(assignments.map(x=>[x.unit_id,profileMap.get(x.resident_user_id)||"Resident name unavailable"]));
    setRows(unitRows.map(unit=>({id:unit.id,estate:estateMap.get(unit.estate_id)||"Estate unavailable",building:buildingMap.get(unit.building_id)||"Building unavailable",unit:unit.unit_code,type:unit.unit_type||"Not specified",resident:residentByUnit.get(unit.id)||"Unassigned",status:unit.status||"Unknown"})));
-  }catch(e){setRows([]);setError(e instanceof Error?e.message:"Property records could not be loaded.");}
+  }catch(e){setRows([]);setError("Property records could not be loaded. Please refresh and try again.");}
   finally{setLoading(false);}
  },[]);
  useEffect(()=>{void load();},[load]);
@@ -335,7 +335,7 @@ function ResidentsPage(){
   const estateIds=estateList.map(x=>x.id);
   if(!estateIds.length){setRows([]);setLoading(false);return;}
   const {data:members,error:memberError}=await supabase.from("estate_memberships").select("id,user_id,estate_id,status,created_at,membership_role").in("estate_id",estateIds).eq("membership_role","resident").order("created_at",{ascending:false});
-  if(memberError){setError("Resident membership records could not be loaded. Check database read permissions.");setLoading(false);return;}
+  if(memberError){setError("Resident records could not be loaded. Please refresh and try again.");setLoading(false);return;}
   const ids=[...new Set((members||[]).map(x=>x.user_id))];
   const [{data:profiles,error:profileError},{data:units,error:unitError}]=await Promise.all([
    ids.length?supabase.from("users").select("id,full_name,phone_e164").in("id",ids):Promise.resolve({data:[],error:null}),
@@ -361,20 +361,20 @@ function ResidentsPage(){
    supabase.from("visitor_passes").select("id,visitor_name,status,created_at,valid_from,valid_until").eq("host_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(50),
    supabase.from("maintenance_requests").select("id,title,status,priority,created_at").eq("created_by",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(50),
    supabase.from("rent_savings_goals").select("id,name,status,target_amount_kobo,target_date,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(50),
-   supabase.from("rent_savings_contributions").select("id,amount_kobo,status,provider,verified_at,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(100),
-   supabase.from("electricity_recharge_orders").select("id,amount_kobo,status,provider,units_purchased,verified_at,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(100),
+   supabase.from("rent_savings_contributions").select("id,amount_kobo,status,verified_at,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(100),
+   supabase.from("electricity_recharge_orders").select("id,amount_kobo,status,units_purchased,verified_at,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(100),
    supabase.from("resident_electricity_meters").select("id,meter_number,disco,meter_type,label,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(30),
-   supabase.from("service_charge_payments").select("id,amount_kobo,status,provider,verified_at,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(100)
+   supabase.from("service_charge_payments").select("id,amount_kobo,status,verified_at,created_at").eq("resident_user_id",resident.userId).eq("estate_id",resident.estateId).order("created_at",{ascending:false}).limit(100)
   ]);
   const warnings:string[]=[];
   const sources=[passes,maintenance,goals,contributions,electricity,meters,charges];
   const labels=["Visitor passes","Maintenance requests","Rent savings goals","Rent savings contributions","Electricity purchases","Electricity meters","Service charge payments"];
-  sources.forEach((result,index)=>{if(result.error)warnings.push(labels[index]+" could not be loaded: "+result.error.message);});
+  sources.forEach((result,index)=>{if(result.error)warnings.push(labels[index]+" could not be loaded. Refresh to try again.");});
   const passRows=passes.data||[];
   let visitRows:Array<{id:string;visitor_pass_id:string;checked_in_at:string|null;checked_out_at:string|null}>=[];
   if(passRows.length){
    const visits=await supabase.from("visitor_visits").select("id,visitor_pass_id,checked_in_at,checked_out_at").eq("estate_id",resident.estateId).in("visitor_pass_id",passRows.map(x=>x.id)).order("checked_in_at",{ascending:false}).limit(100);
-   if(visits.error)warnings.push("Visitor check-in history could not be loaded: "+visits.error.message);
+   if(visits.error)warnings.push("Visitor check-in history could not be loaded. Refresh to try again.");
    else visitRows=visits.data||[];
   }
   const date=(value:string|null)=>value?new Date(value).toLocaleString("en-NG"):"—";
@@ -384,10 +384,10 @@ function ResidentsPage(){
    visitorVisits:visitRows.map(x=>({id:x.id,title:"Visitor check-in",status:x.checked_out_at?"Checked out":"Checked in",date:date(x.checked_in_at),detail:x.checked_out_at?"Checked out "+date(x.checked_out_at):"Visitor currently checked in"})),
    maintenance:(maintenance.data||[]).map(x=>({id:x.id,title:x.title||"Maintenance request",status:x.status||"unknown",date:date(x.created_at),detail:"Priority: "+(x.priority||"Not specified")})),
    savingsGoals:(goals.data||[]).map(x=>({id:x.id,title:x.name||"Rent savings goal",status:String(x.status||"unknown"),date:date(x.created_at),detail:money(x.target_amount_kobo)+" target • due "+(x.target_date||"Not set")})),
-   savingsContributions:(contributions.data||[]).map(x=>({id:x.id,title:"Rent savings contribution",status:x.status||"unknown",date:date(x.created_at),detail:money(x.amount_kobo)+" • "+(x.provider||"Provider unavailable")+(x.verified_at?" • verified "+date(x.verified_at):"")})),
-   electricityOrders:(electricity.data||[]).map(x=>({id:x.id,title:"Electricity purchase",status:x.status||"unknown",date:date(x.created_at),detail:money(x.amount_kobo)+" • "+(x.units_purchased??"Units unavailable")+" units • "+(x.provider||"Provider unavailable")})),
+   savingsContributions:(contributions.data||[]).map(x=>({id:x.id,title:"Rent savings contribution",status:x.status||"unknown",date:date(x.created_at),detail:money(x.amount_kobo)+(x.verified_at?" • confirmed "+date(x.verified_at):"")})),
+   electricityOrders:(electricity.data||[]).map(x=>({id:x.id,title:"Electricity purchase",status:x.status||"unknown",date:date(x.created_at),detail:money(x.amount_kobo)+" • "+(x.units_purchased??"Units unavailable")+" units"})),
    electricityMeters:(meters.data||[]).map(x=>({id:x.id,title:x.label||x.meter_number,status:x.meter_type||"Meter",date:date(x.created_at),detail:(x.disco||"Disco unavailable")+" • "+x.meter_number})),
-   serviceChargePayments:(charges.data||[]).map(x=>({id:x.id,title:"Service charge payment",status:x.status||"unknown",date:date(x.created_at),detail:money(x.amount_kobo)+" • "+(x.provider||"Provider unavailable")+(x.verified_at?" • verified "+date(x.verified_at):"")}))
+   serviceChargePayments:(charges.data||[]).map(x=>({id:x.id,title:"Service charge payment",status:x.status||"unknown",date:date(x.created_at),detail:money(x.amount_kobo)+(x.verified_at?" • confirmed "+date(x.verified_at):"")}))
   });
   setActivityWarnings(warnings);setActivityLoading(false);
  };
@@ -435,5 +435,5 @@ export default function SectionPage(){
  if(section==="system-logs")return <AuditLogsPage/>;
  if(section==="alerts")return <AdminAlertsPage/>;
  const item=config[section]||{title:"Page not found",description:"This section is not available.",columns:[],intro:"The requested section could not be found."};
- return <PortalFrame title={item.title} description={item.description}><section className="panel module-panel"><div className="module-toolbar"><div><h3>{item.title} overview</h3><p>{item.intro}</p></div></div><div className="table-wrap"><table className="data-table"><thead><tr>{item.columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody><tr><td colSpan={Math.max(item.columns.length,1)} className="empty-cell"><span className="empty-mark">▤</span><strong>No records to display</strong><small>Records will appear here after the data connection and module workflow are implemented.</small></td></tr></tbody></table></div></section></PortalFrame>;
+ return <PortalFrame title={item.title} description={item.description}><section className="panel module-panel"><div className="module-toolbar"><div><h3>{item.title} overview</h3><p>{item.intro}</p></div></div><div className="table-wrap"><table className="data-table"><thead><tr>{item.columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody><tr><td colSpan={Math.max(item.columns.length,1)} className="empty-cell"><span className="empty-mark">▤</span><strong>No records to display</strong><small>This section is being prepared. Please check back later.</small></td></tr></tbody></table></div></section></PortalFrame>;
 }
