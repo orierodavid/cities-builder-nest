@@ -5,8 +5,8 @@ import PortalFrame from "@/components/PortalFrame";
 import { supabase } from "@/lib/supabase";
 
 type AuditRow = {
-  id: string; actor_user_id: string | null; actor_role: string | null; estate_id: string | null;
-  action: string; resource_type: string; resource_id: string | null; module: string | null;
+  id: string; actor_role: string | null;
+  action: string; resource_type: string; module: string | null;
   outcome: string; severity: string;
   changes: Record<string, { before: unknown; after: unknown }>; ip_address: string | null;
   user_agent: string | null; request_id: string | null; created_at: string;
@@ -25,7 +25,7 @@ export default function AuditLogsPage() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     const { data, error: queryError } = await supabase.from("audit_logs")
-      .select("id,actor_user_id,actor_role,estate_id,action,resource_type,resource_id,module,outcome,severity,changes,created_at,actor:users!audit_logs_actor_user_id_fkey(full_name),estate:estates!audit_logs_estate_id_fkey(name)")
+      .select("id,actor_role,action,resource_type,module,outcome,severity,changes,created_at,actor:users!audit_logs_actor_user_id_fkey(full_name),estate:estates!audit_logs_estate_id_fkey(name)")
       .order("created_at", { ascending: false }).limit(300);
     if (queryError) { setError("Activity history could not be loaded. Please refresh and try again."); setRows([]); }
     else setRows((data || []) as unknown as AuditRow[]);
