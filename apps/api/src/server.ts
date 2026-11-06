@@ -14,8 +14,12 @@ import { parseVisitorPassInput } from "./visitor-pass-input-policy.js";
 import { canUseGateWorkflow } from "./gate-workflow-policy.js";
 import { isValidVisitorAccessCode, visitorCheckInFailure, visitorPassAvailabilityError } from "./visitor-pass-lifecycle-policy.js";
 import { isAllowedCorsOrigin } from "./cors-policy.js";
+import { trustedProxyHops } from "./proxy-config.js";
 
 export const app = express();
+// The production API runs behind one trusted platform ingress proxy. Keep this
+// configurable so direct/local deployments do not trust arbitrary forwarded IPs.
+app.set("trust proxy", trustedProxyHops(process.env.TRUST_PROXY_HOPS, process.env.NODE_ENV));
 const port = Number(process.env.PORT ?? 4000);
 
 const allowedOrigins = new Set(
