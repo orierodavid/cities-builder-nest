@@ -16,7 +16,7 @@ function apiMessage(code?: string) {
   if (code === 'estate_subscription_inactive') return 'This estate is temporarily unavailable because its subscription is inactive.';
   if (code === 'visitor_pass_create_failed') return 'The visitor pass could not be created. Confirm your estate membership and try again.';
   if (code === 'visitor_pass_list_failed') return 'Visitor pass history could not be loaded.';
-  return code ? 'Visitor request failed (' + code + ').' : 'The request failed. Check your connection and try again.';
+  return 'Visitor management is temporarily unavailable. Please try again.';
 }
 
 export default function VisitorsScreen() {
@@ -49,10 +49,10 @@ export default function VisitorsScreen() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Your session has expired. Please sign in again.');
-      if (!apiUrl) throw new Error('API address is not configured. Set EXPO_PUBLIC_API_URL and restart the app.');
+      if (!apiUrl) throw new Error('Visitor management is temporarily unavailable. Please try again later.');
       const response = await fetch(apiUrl + '/v1/estates', { headers: { Authorization: 'Bearer ' + session.access_token, Accept: 'application/json' } });
       const result = await response.json() as { estates?: Estate[]; error?: string };
-      if (!response.ok) throw new Error(result.error || 'Could not load your estate membership.');
+      if (!response.ok) throw new Error('Could not load your estate details. Please try again.');
       const residentEstate = (result.estates || []).find(e => (e.membershipRole || '').toLowerCase().replace(/-/g, '_') === 'resident');
       if (!residentEstate) throw new Error('No active resident estate membership was found for this account.');
       setEstateId(residentEstate.id);
@@ -77,7 +77,7 @@ export default function VisitorsScreen() {
       if (!session?.access_token || !estateId) throw new Error('Your session or estate membership is unavailable. Please refresh and try again.');
       const result = await request('/visitor-passes', 'POST', session.access_token, { visitorName: name });
       const code = result.accessCode || '';
-      if (!code) throw new Error('The pass was created, but the API did not return an access code. Refresh pass history and contact support.');
+      if (!code) throw new Error('The visitor pass was created, but its access code is not available yet. Please refresh your visitor history.');
       setIssuedCode(code); setVisitorName('');
       await Clipboard.setStringAsync(code);
       setMessage('Visitor pass generated. The access code has been copied to your clipboard.');
