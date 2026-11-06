@@ -44,14 +44,13 @@ export default function ProfileScreen() {
           <Text style={{ color: '#B9B9B9', fontSize: 12 }}>{email || 'Email unavailable'}</Text>
           {!!phone && <Text style={{ color: '#B9B9B9', fontSize: 12 }}>{phone}</Text>}
         </View>}
-        <ListRow icon="account-outline" title="Personal details" subtitle="View your resident account information" />
         <ListRow icon="home-city-outline" title="My property" subtitle="View your assigned property" onPress={() => router.push('/property' as never)} />
       </Card>
       <Card>
         <SectionTitle>Preferences & support</SectionTitle>
         <ListRow icon="bell-outline" title="Notifications" subtitle="Estate updates and alerts" onPress={() => router.push('/notifications' as never)} />
-        <ListRow icon="shield-check-outline" title="Privacy & security" subtitle="Account security and privacy settings" />
-        <ListRow icon="help-circle-outline" title="Help & support" subtitle="Get assistance from estate management" />
+        <ListRow icon="shield-check-outline" title="Terms & Privacy" subtitle="Review the current legal documents" onPress={() => router.push("/legal-documents" as never)} />
+        <Text style={{ color: "#B9B9B9", fontSize: 11, lineHeight: 17, marginTop: 2 }}>For help with your account or property, contact your estate management team.</Text>
       </Card>
       <Card>
         <SectionTitle>Account access</SectionTitle>
