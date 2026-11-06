@@ -110,13 +110,13 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
       });
       if (error) throw error;
       if (!data?.checkoutUrl || typeof data.checkoutUrl !== "string" || !data.checkoutUrl.startsWith("https://")) {
-        throw new Error(data?.error || "Squad did not return a valid checkout link.");
+        throw new Error("We could not open the payment page. Please try again.");
       }
       await Linking.openURL(data.checkoutUrl);
       setContributionAmount("");
-      setMessage("Squad checkout opened. This screen will refresh when you return. Your contribution appears only after Squad verifies the payment.");
+      setMessage("Payment page opened. Return here after payment; your contribution will appear once the payment is confirmed.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to start Squad checkout.");
+      setMessage("Unable to start your payment. Please try again.");
     } finally { setFundingGoalId(null); }
   }
 
@@ -132,7 +132,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
         <View style={styles.noticeIcon}><Ionicons name="shield-checkmark-outline" size={22} color="#D4A84B"/></View>
         <View style={styles.noticeCopy}>
           <Text style={styles.noticeTitle}>A committed savings plan</Text>
-          <Text style={styles.noticeText}>Once started, a goal runs for its full 3- or 6-month term. It cannot be paused or cancelled. You can contribute through Squad checkout. Only server-verified payments appear in your contribution history; this is not a withdrawable wallet balance.</Text>
+          <Text style={styles.noticeText}>Once started, a goal runs for its full 3- or 6-month term. It cannot be paused or cancelled. You can add money to your goal at any time during its term. Contributions appear in your history after payment is confirmed. This is not a withdrawable wallet balance.</Text>
         </View>
       </View>
 
@@ -190,7 +190,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
             );
           })()}
           <TextInput style={styles.input} value={contributionAmount} onChangeText={setContributionAmount} placeholder="Contribution amount (NGN)" placeholderTextColor="#888" keyboardType="numeric"/>
-          <TouchableOpacity style={[styles.primaryButton, fundingGoalId === goal.id && styles.disabled]} onPress={() => void fundGoal(goal.id)} disabled={!!fundingGoalId || goal.status !== "active"}>{fundingGoalId === goal.id ? <ActivityIndicator color="#071A3A"/> : <Text style={styles.primaryText}>Add money with Squad</Text>}</TouchableOpacity>
+          <TouchableOpacity style={[styles.primaryButton, fundingGoalId === goal.id && styles.disabled]} onPress={() => void fundGoal(goal.id)} disabled={!!fundingGoalId || goal.status !== "active"}>{fundingGoalId === goal.id ? <ActivityIndicator color="#071A3A"/> : <Text style={styles.primaryText}>Add Money</Text>}</TouchableOpacity>
           <View style={styles.historyHeader}><Text style={styles.targetLabel}>CONTRIBUTION HISTORY</Text><Text style={styles.date}>{contributions.filter(x => x.goal_id === goal.id).length} records</Text></View>
           {contributions.filter(x => x.goal_id === goal.id).length === 0 ? <Text style={styles.date}>No contributions yet.</Text> : contributions.filter(x => x.goal_id === goal.id).map((item) => (
             <View key={item.id} style={styles.historyRow}>
@@ -205,7 +205,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
         </View>
       ))}
       {!!message && <Text style={message.includes("created") ? styles.success : styles.error}>{message}</Text>}
-      <Text style={styles.footnote}>Payments are collected through the configured Squad merchant account. CB Nest records only server-verified transactions; this screen does not represent funds as segregated or withdrawable savings.</Text>
+      <Text style={styles.footnote}>Your contributions count toward your rent goal after payment is confirmed. This feature tracks progress toward your goal and is not a withdrawable wallet.</Text>
     </View>
   );
 }
