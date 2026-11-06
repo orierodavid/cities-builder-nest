@@ -318,6 +318,9 @@ function listen(server: Server): Promise<number> {
 
 const mockPort = await listen(mockSupabase);
 process.env.NODE_ENV = "test";
+// Give each integration request an isolated synthetic client IP. The suite tests
+// estate/auth workflows, not cumulative per-IP quota exhaustion.
+process.env.TRUST_PROXY_HOPS = "1";
 process.env.SUPABASE_URL = `http://127.0.0.1:${mockPort}`;
 process.env.SUPABASE_ANON_KEY = "isolated-test-anon-key";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "isolated-test-service-role-key";
@@ -333,10 +336,14 @@ after(async () => {
   ]);
 });
 
+let integrationRequestIp = 1;
+
 async function request(path: string, token: string, method = "GET", body?: unknown) {
+  const clientIp = `198.51.100.${integrationRequestIp++}`;
   const response = await fetch(apiBase + path, {
     method,
     headers: {
+      "x-forwarded-for": clientIp,
       authorization: `Bearer ${token}`,
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
