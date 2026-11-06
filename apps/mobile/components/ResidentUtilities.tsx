@@ -36,12 +36,12 @@ export default function ResidentUtilities({estateId}:{estateId:string}){
    <Text style={{color:"#D4A84B",fontSize:23,fontWeight:"800",marginTop:10}}>{naira(c.amount_kobo)}</Text>
    <Text style={muted}>Due: {c.due_date?new Date(c.due_date+"T00:00:00").toLocaleDateString():"Date not specified"}</Text>
    <View style={{backgroundColor:"#514326",padding:12,borderRadius:9,marginTop:12}}>
-    <Text style={{color:"#F7F1E5",textAlign:"center",fontWeight:"700"}}>Payment collection is not connected yet</Text>
+    <Text style={{color:"#F7F1E5",textAlign:"center",fontWeight:"700"}}>View payment options in Service Charges</Text>
    </View>
   </View>):<View style={card}>
    <Text style={{color:"#F7F1E5",fontWeight:"700"}}>No service charges published</Text>
    <Text style={[muted,{marginTop:5}]}>Your estate has not published a service charge yet.</Text>
   </View>}
-  <Text style={[muted,{lineHeight:19}]}>Only your Facility Manager can set or change these fees. A charge will not be marked as paid until a payment provider confirms the transaction.</Text>
+  <Text style={[muted,{lineHeight:19}]}>Only your Facility Manager can set or change these fees. A charge is marked as paid only after your payment is confirmed.</Text>
  </View>;
 }
