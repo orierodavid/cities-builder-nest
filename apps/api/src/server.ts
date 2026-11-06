@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
+import { startApiServer } from "./lifecycle.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
 import { canCreateVisitorPass } from "./visitor-pass-policy.js";
 import { parseVisitorPassInput } from "./visitor-pass-input-policy.js";
@@ -1527,7 +1528,5 @@ app.get("/v1/me", requireAuth, async (req, res) => {
 });
 
 if (process.env.NODE_ENV !== "test") {
-  app.listen(port, "0.0.0.0", () => {
-    console.log(`Cities Builder Nest API listening on port ${port}`);
-  });
+  startApiServer(app, port);
 }
