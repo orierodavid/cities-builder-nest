@@ -29,7 +29,7 @@ export default function VisitorsScreen() {
   const [issuedCode, setIssuedCode] = useState('');
 
   const request = useCallback(async (path: string, method: 'GET' | 'POST', token: string, body?: unknown) => {
-    if (!apiUrl) throw new Error('API address is not configured. Set EXPO_PUBLIC_API_URL and restart the app.');
+    if (!apiUrl) throw new Error('Visitor passes are temporarily unavailable. Please try again later.');
     const response = await fetch(apiUrl + '/v1/estates/' + encodeURIComponent(estateId) + path, {
       method, headers: { Authorization: 'Bearer ' + token, Accept: 'application/json', 'Content-Type': 'application/json' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -62,7 +62,7 @@ export default function VisitorsScreen() {
       setPasses(passResult.visitorPasses || []);
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Could not load visitor management.';
-      setMessage(/fetch failed|network request failed|network error/i.test(detail) ? 'CB Nest could not reach its API. Confirm the API is running and EXPO_PUBLIC_API_URL points to your computer’s LAN IP or deployed API URL.' : detail);
+      setMessage(/fetch failed|network request failed|network error/i.test(detail) ? 'Visitor management is temporarily unavailable. Please try again.' : detail);
     } finally { setLoading(false); }
   }, []);
 
@@ -83,7 +83,7 @@ export default function VisitorsScreen() {
       setMessage('Visitor pass generated. The access code has been copied to your clipboard.');
       await loadPasses(session.access_token);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not create visitor pass.');
+      setMessage('We could not create the visitor pass. Please try again.');
     } finally { setBusy(false); }
   }
 
