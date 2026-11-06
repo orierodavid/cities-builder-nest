@@ -132,7 +132,7 @@ export default function ActivityScreen() {
           <ActivityIndicator color={theme.gold} />
           <Text style={{ color: theme.muted, marginTop: 10 }}>Loading your activity…</Text>
         </View>
-      ) : error ? (
+      ) : error && items.length === 0 ? (
         <Card>
           <Text accessibilityRole="alert" style={{ color: '#F2A5A5', fontSize: 13 }}>{error}</Text>
           <Text onPress={() => void load()} style={{ color: theme.goldSoft, fontWeight: '700', marginTop: 12 }}>Try again</Text>
@@ -156,6 +156,7 @@ export default function ActivityScreen() {
           );
         })
       )}
+      {!!error && items.length > 0 && <Text accessibilityRole="alert" style={{ color: theme.goldSoft, fontSize: 11 }}>{error}</Text>}
     </Screen>
   );
 }
