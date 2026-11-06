@@ -304,7 +304,7 @@ function PropertiesPage(){
 }
 
 type ManagementPayment = {
- id:string; type:string; resident:string; estate:string; amount:number; currency:string;
+ id:string; estateId:string; type:string; resident:string; estate:string; amount:number; currency:string;
  status:string; reference:string|null; createdAt:string;
 };
 function ManagementPaymentsPage(){
@@ -355,13 +355,13 @@ function ManagementPaymentsPage(){
    if(value==="reversed")return "Reversed";
    return "Processing";
   };
-  const chargeRows=(charges.data||[]).map(x=>({id:"charge-"+x.id,type:"Service charge",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:titles.get(x.charge_id)||"Service charge"}));
-  const savingsRows=(savings.data||[]).map(x=>({id:"savings-"+x.id,type:"Rent savings",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:"Rent savings contribution"}));
+  const chargeRows=(charges.data||[]).map(x=>({id:"charge-"+x.id,estateId:x.estate_id,type:"Service charge",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:titles.get(x.charge_id)||"Service charge"}));
+  const savingsRows=(savings.data||[]).map(x=>({id:"savings-"+x.id,estateId:x.estate_id,type:"Rent savings",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:"Rent savings contribution"}));
   setRows([...chargeRows,...savingsRows].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
   setLoading(false);
  },[]);
  useEffect(()=>{void load();},[load]);
- const visible=rows.filter(row=>(!selectedEstate||estates.find(x=>x.id===selectedEstate)?.name===row.estate)&&(status==="all"||row.status.toLowerCase()===status)&&(!search||[row.resident,row.estate,row.type,row.description,row.reference].join(" ").toLowerCase().includes(search.toLowerCase())));
+ const visible=rows.filter(row=>(!selectedEstate||selectedEstate===row.estateId)&&(status==="all"||row.status.toLowerCase()===status)&&(!search||[row.resident,row.estate,row.type,row.description,row.reference].join(" ").toLowerCase().includes(search.toLowerCase())));
  const money=(amount:number,currency:string)=>new Intl.NumberFormat("en-NG",{style:"currency",currency:currency||"NGN",maximumFractionDigits:2}).format(amount/100);
  return <PortalFrame title="Payments" description="Review service charge payments and rent savings contributions across your authorised estates.">
   <section className="panel module-panel">
@@ -501,7 +501,8 @@ function ResidentsPage(){
 
 export default function SectionPage(){
  const params=useParams<{section:string}>();const section=Array.isArray(params.section)?params.section[0]:params.section;
- if(section==="users")return <UsersPage/>;\n if(section==="payments")return <ManagementPaymentsPage/>;
+ if(section==="users")return <UsersPage/>;
+ if(section==="payments")return <ManagementPaymentsPage/>;
  if(section==="residents")return <ResidentsPage/>;
  if(section==="settings")return <SettingsPage/>;
  if(section==="profile")return <ProfilePage/>;
