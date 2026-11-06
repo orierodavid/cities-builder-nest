@@ -5,11 +5,11 @@ import PortalFrame from "@/components/PortalFrame";
 import { supabase } from "@/lib/supabase";
 
 type AlertRow = {
-  id: string; estate_id: string | null; actor_user_id: string | null; alert_type: string;
+  id: string; alert_type: string;
   severity: "warning" | "critical"; title: string; message: string;
   status: "new" | "acknowledged"; created_at: string; acknowledged_at: string | null;
   actor: { full_name: string } | null; estate: { name: string } | null;
-  audit: { actor_role: string | null; module: string | null; page_path: string | null; platform: string | null; action: string; resource_type: string } | null;
+  audit: { actor_role: string | null; module: string | null; action: string; resource_type: string } | null;
 };
 const displayDate = (value: string) => new Date(value).toLocaleString("en-NG", { timeZone: "Africa/Lagos" });
 
@@ -22,7 +22,7 @@ export default function AdminAlertsPage() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     const { data, error: queryError } = await supabase.from("admin_alerts")
-      .select("id,estate_id,actor_user_id,alert_type,severity,title,message,status,created_at,acknowledged_at,actor:users!admin_alerts_actor_user_id_fkey(full_name),estate:estates!admin_alerts_estate_id_fkey(name),audit:audit_logs!admin_alerts_audit_log_id_fkey(actor_role,module,page_path,platform,action,resource_type)")
+      .select("id,alert_type,severity,title,message,status,created_at,acknowledged_at,actor:users!admin_alerts_actor_user_id_fkey(full_name),estate:estates!admin_alerts_estate_id_fkey(name),audit:audit_logs!admin_alerts_audit_log_id_fkey(actor_role,module,action,resource_type)")
       .order("created_at", { ascending: false }).limit(100);
     if (queryError) { setError("Alerts could not be loaded. Please refresh and try again."); setRows([]); }
     else setRows((data || []) as unknown as AlertRow[]);
