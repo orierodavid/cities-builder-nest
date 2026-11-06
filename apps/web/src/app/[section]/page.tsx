@@ -335,7 +335,7 @@ function ManagementPaymentsPage(){
   const [charges,savings,electricity]=await Promise.all([
    supabase.from("service_charge_payments").select("id,estate_id,resident_user_id,charge_id,amount_kobo,currency,status,provider_reference,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200),
    supabase.from("rent_savings_contributions").select("id,estate_id,resident_user_id,amount_kobo,currency,status,provider_reference,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200),
-   supabase.from("electricity_recharge_orders").select("id,estate_id,resident_user_id,amount_kobo,status,units_purchased,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200)
+   supabase.from("electricity_recharge_orders").select("id,estate_id,resident_user_id,amount_kobo,currency,status,units_purchased,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200)
   ]);
   if(charges.error||savings.error||electricity.error){setRows([]);setError("Payment records could not be loaded. Please refresh and try again.");setLoading(false);return;}
   const residentIds=[...new Set([...(charges.data||[]).map(x=>x.resident_user_id),...(savings.data||[]).map(x=>x.resident_user_id),...(electricity.data||[]).map(x=>x.resident_user_id)])];
@@ -356,7 +356,7 @@ function ManagementPaymentsPage(){
   };
   const chargeRows=(charges.data||[]).map(x=>({id:"charge-"+x.id,estateId:x.estate_id,type:"Service charge",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:titles.get(x.charge_id)||"Service charge"}));
   const savingsRows=(savings.data||[]).map(x=>({id:"savings-"+x.id,estateId:x.estate_id,type:"Rent savings",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:"Rent savings contribution"}));
-  const electricityRows=(electricity.data||[]).map(x=>({id:"electricity-"+x.id,estateId:x.estate_id,type:"Electricity",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:"NGN",status:statusName(x.status,x.verified_at),reference:null,createdAt:x.verified_at||x.created_at,description:"Electricity purchase"+(x.units_purchased?" · "+x.units_purchased+" units":"")}));
+  const electricityRows=(electricity.data||[]).map(x=>({id:"electricity-"+x.id,estateId:x.estate_id,type:"Electricity",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:null,createdAt:x.verified_at||x.created_at,description:"Electricity purchase"+(x.units_purchased?" · "+x.units_purchased+" units":"")}));
   setRows([...chargeRows,...savingsRows,...electricityRows].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
   setLoading(false);
  },[]);
