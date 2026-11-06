@@ -186,7 +186,6 @@ function UsersPage() {
   });
   if(invokeError||data?.error){
    let message="Password could not be updated. Please try again.";
-   const context=(invokeError as typeof invokeError & {context?:Response}|null)?.context;
    
    setError(message);setSendingPasswordUserId(null);return;
   }
@@ -205,7 +204,6 @@ function UsersPage() {
   const {data,error:invokeError}=await supabase.functions.invoke("onboard-account",{body:payload});
   if(invokeError){
    let message="The account could not be created. Please check the details and try again.";
-   const context=(invokeError as typeof invokeError & {context?:Response}).context;
    
    setError(message);setSaving(false);return;
   }
