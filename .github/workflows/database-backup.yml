@@ -28,6 +28,9 @@ jobs:
         with:
           version: latest
 
+      - name: Install age utility
+        run: sudo apt-get update && sudo apt-get install --yes age
+
       - name: Validate backup configuration
         shell: bash
         run: |
@@ -75,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cbnest-encrypted-database-backup
-          path: ${{ runner.temp }}/${{ env.CBNEST_BACKUP_FILE }}
+          path: ${{ runner.temp }}/cbnest-*.dump.age
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
