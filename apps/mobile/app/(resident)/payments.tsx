@@ -51,7 +51,7 @@ export default function PaymentsScreen() {
         .eq('resident_user_id', user.id)
         .order('created_at', { ascending: false }),
       supabase.from('electricity_recharge_orders')
-        .select('id,amount_kobo,status,units_purchased,verified_at,created_at')
+        .select('id,amount_kobo,currency,status,units_purchased,verified_at,created_at')
         .eq('resident_user_id', user.id)
         .order('created_at', { ascending: false }),
     ]);
@@ -86,7 +86,7 @@ export default function PaymentsScreen() {
     const electricityRows = (electricity.data || []).map((row: any) => ({
       id: 'electricity-' + row.id,
       amount_kobo: Number(row.amount_kobo),
-      currency: 'NGN',
+      currency: row.currency || 'NGN',
       status: row.status,
       provider_reference: null,
       verified_at: row.verified_at,
