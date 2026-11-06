@@ -6,6 +6,7 @@ import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
 import { startApiServer } from "./lifecycle.js";
+import { sharedRateLimit } from "./rate-limit.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
 import { canCreateVisitorPass } from "./visitor-pass-policy.js";
 import { parseVisitorPassInput } from "./visitor-pass-input-policy.js";
@@ -35,6 +36,7 @@ app.use(cors({
   },
 }));
 app.use(express.json({ limit: "1mb" }));
+app.use("/v1", sharedRateLimit);
 
 app.get("/health", async (_req, res) => {
   let database = "not-configured";
