@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { Screen, SectionTitle, EmptyState, Card, ListRow } from '../../src/components/ui';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
@@ -22,6 +22,9 @@ export default function ServiceChargesScreen() {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [paidChargeIds, setPaidChargeIds] = useState<string[]>([]);
+  const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
+  const [paymentMessage, setPaymentMessage] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,6 +56,21 @@ export default function ServiceChargesScreen() {
       return;
     }
 
+    const { data: paidRows, error: paidError } = await supabase
+      .from('service_charge_payments')
+      .select('charge_id')
+      .eq('resident_user_id', user.id)
+      .eq('status', 'successful')
+      .in('estate_id', estateIds);
+
+    if (paidError) {
+      setError('We could not verify your payment status. Please try again before making a payment.');
+      setCharges([]);
+      setLoading(false);
+      return;
+    }
+    setPaidChargeIds([...new Set((paidRows || []).map((row) => row.charge_id).filter(Boolean))]);
+
     const { data, error: chargesError } = await supabase
       .from('estate_service_charges')
       .select('id,title,description,amount_kobo,due_date,created_at')
@@ -71,6 +89,33 @@ export default function ServiceChargesScreen() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void load();
+    });
+    return () => subscription.remove();
+  }, [load]);
+
+  const payCharge = async (chargeId: string) => {
+    setPaymentBusyId(chargeId);
+    setPaymentMessage('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('initiate-squad-payment', {
+        body: { paymentType: 'service_charge', chargeId },
+      });
+      if (invokeError) throw invokeError;
+      if (!data?.checkoutUrl || typeof data.checkoutUrl !== 'string' || !data.checkoutUrl.startsWith('https://')) {
+        throw new Error(data?.error || 'Squad did not return a valid checkout link.');
+      }
+      await Linking.openURL(data.checkoutUrl);
+      setPaymentMessage('Squad checkout opened. Your charge will show as paid only after the server verifies the transaction.');
+    } catch (e) {
+      setPaymentMessage(e instanceof Error ? e.message : 'Unable to start the payment. Please try again.');
+    } finally {
+      setPaymentBusyId(null);
+    }
+  };
 
   return (
     <Screen title="Service Charges" subtitle="Published fees for your estate">
