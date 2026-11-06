@@ -61,7 +61,7 @@ export default function ServiceChargesPage(){
    </div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}{notice&&<div className="user-alert user-alert-success" role="status">{notice}</div>}
    {!isAdmin&&<form className="user-form" onSubmit={create}>
-    <div className="user-form-heading"><strong>Publish a service charge</strong><span>Set the actual amount residents in the selected estate will see. Amounts are stored in kobo.</span></div>
+    <div className="user-form-heading"><strong>Publish a service charge</strong><span>Set the amount residents in the selected estate will be asked to pay.</span></div>
     <div className="user-form-grid">
      <label>Charge name<input required minLength={2} maxLength={140} value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Monthly Estate Service Fee"/></label>
      <label>Amount (NGN)<input required type="number" min="1" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="e.g. 25000"/></label>
