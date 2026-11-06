@@ -10,7 +10,7 @@ export default function ProfilePage() {
  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false);
  const [error,setError]=useState(""); const [success,setSuccess]=useState("");
  useEffect(()=>{let alive=true;(async()=>{const {data:{user}}=await supabase.auth.getUser();if(!user){if(alive){setError("Your session has expired. Please sign in again.");setLoading(false);}return;}const {data,error}=await supabase.from("users").select("full_name,phone_e164").eq("id",user.id).maybeSingle();if(!alive)return;setUserId(user.id);setEmail(user.email||"");setName(data?.full_name||"");setPhone(data?.phone_e164||"");if(error)setError("We could not load your profile details.");setLoading(false);})();return()=>{alive=false;};},[]);
- async function save(e:FormEvent){e.preventDefault();setSaving(true);setError("");setSuccess("");const {error}=await supabase.from("users").update({full_name:name.trim(),phone_e164:phone.trim()||null,updated_at:new Date().toISOString()}).eq("id",userId);if(error)setError("Profile could not be saved: "+error.message);else setSuccess("Your profile has been updated.");setSaving(false);}
+ async function save(e:FormEvent){e.preventDefault();setSaving(true);setError("");setSuccess("");const {error}=await supabase.from("users").update({full_name:name.trim(),phone_e164:phone.trim()||null,updated_at:new Date().toISOString()}).eq("id",userId);if(error)setError("Your profile could not be saved. Please try again.");else setSuccess("Your profile has been updated.");setSaving(false);}
  return <PortalFrame title="My Profile" description="View and update your personal account information.">
   <div className={styles.profileLayout}>
    <section className={styles.card}>
@@ -24,7 +24,7 @@ export default function ProfilePage() {
      <div className={styles.actions}><button disabled={saving||loading}>{saving?"Saving…":"Save changes"}</button></div>
     </form>}
    </section>
-   <aside className={styles.sideCard}><span className={styles.eyebrow}>ACCOUNT</span><h3>Profile details</h3><p>Your management account is connected to the CB Nest identity system.</p><div className={styles.detail}><small>Account ID</small><strong>{userId||"—"}</strong></div><a href="/settings">Manage account security →</a><a href="/settings#legal-documents">View terms and privacy documents →</a></aside>
+   <aside className={styles.sideCard}><span className={styles.eyebrow}>ACCOUNT</span><h3>Profile details</h3><p>Keep your contact information up to date so your estate team can reach you when needed.</p><a href="/settings">Manage account security →</a><a href="/settings#legal-documents">View terms and privacy documents →</a></aside>
   </div>
  </PortalFrame>;
 }
