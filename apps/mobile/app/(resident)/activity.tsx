@@ -24,7 +24,9 @@ const displayStatus = (status: string, verifiedAt?: string | null) => {
   if (status === 'successful' || status === 'pending') return 'Pending';
   if (status === 'failed') return 'Failed';
   if (status === 'reversed') return 'Reversed';
-  return status.replaceAll('_', ' ');
+  if (status === 'awaiting_provider') return 'Processing';
+  const label = status.replaceAll('_', ' ');
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : 'Processing';
 };
 
 export default function ActivityScreen() {
