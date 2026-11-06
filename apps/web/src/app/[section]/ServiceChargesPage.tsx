@@ -34,7 +34,7 @@ export default function ServiceChargesPage(){
     supabase.from("estate_service_charges").select("id,estate_id,title,description,amount_kobo,due_date,is_active,created_at").eq("estate_id",chosen).order("created_at",{ascending:false}),
     supabase.from("service_charge_payments").select("charge_id,status,amount_kobo").eq("estate_id",chosen)
    ]);
-   if(ce||pe)setError("Charges could not be loaded. Check the database permissions.");
+   if(ce||pe)setError("Service charges could not be loaded. Please refresh and try again.");
    else{setRows((charges||[]) as Charge[]);setPayments((paid||[]) as Payment[]);}
   }else{setRows([]);setPayments([]);}
   setLoading(false);
@@ -47,12 +47,12 @@ export default function ServiceChargesPage(){
   const naira=Number(amount);
   if(!Number.isFinite(naira)||naira<=0||naira>100000000){setError("Enter a valid service fee in NGN.");setSaving(false);return;}
   const {error:insertError}=await supabase.from("estate_service_charges").insert({estate_id:estateId,title:title.trim(),description:description.trim()||null,amount_kobo:Math.round(naira*100),due_date:dueDate||null,created_by:user.id});
-  if(insertError){setError("Could not save this service charge. "+insertError.message);setSaving(false);return;}
+  if(insertError){setError("This service charge could not be saved. Please try again.");setSaving(false);return;}
   setTitle("");setDescription("");setAmount("");setDueDate("");setNotice("Service charge published. Residents in this estate can now see the amount due.");await load();setSaving(false);
  }
  async function toggle(row:Charge){
   const {error:updateError}=await supabase.from("estate_service_charges").update({is_active:!row.is_active,updated_at:new Date().toISOString()}).eq("id",row.id);
-  if(updateError)setError("Could not update this charge. "+updateError.message);else await load();
+  if(updateError)setError("This charge could not be updated. Please try again.");else await load();
  }
  return <PortalFrame title="Service Charges" description="Set estate service fees and publish the amounts residents need to pay.">
   <section className="panel module-panel">
@@ -73,7 +73,7 @@ export default function ServiceChargesPage(){
    <div className="table-wrap"><table className="data-table"><thead><tr><th>Charge</th><th>Amount</th><th>Due date</th><th>Paid records</th><th>Status</th>{!isAdmin&&<th>Action</th>}</tr></thead><tbody>
     {loading?<tr><td colSpan={6} className="empty-cell">Loading charges…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.title}</strong><small>{x.description||"Estate service charge"}</small></td><td>{money(x.amount_kobo)}</td><td>{x.due_date?new Date(x.due_date+"T00:00:00").toLocaleDateString():"Not set"}</td><td>{payments.filter(p=>p.charge_id===x.id&&p.status==="successful").length}</td><td><span className={"status-pill "+(x.is_active?"status-active":"status-suspended")}>{x.is_active?"Published":"Archived"}</span></td>{!isAdmin&&<td><button className="secondary-action" onClick={()=>void toggle(x)}>{x.is_active?"Archive":"Republish"}</button></td>}</tr>):<tr><td colSpan={6} className="empty-cell"><strong>No service charges yet</strong><small>Publish a charge to make the amount visible to residents.</small></td></tr>}
    </tbody></table></div>
-   <p className="optional-label">Payment collection and payment-status confirmation remain disabled until a payment provider is connected. No bill is marked paid from this screen.</p>
+   <p className="optional-label">Residents can pay published charges from the Service Charges section of their app. A charge is marked paid only after the payment is confirmed.</p>
   </section>
  </PortalFrame>;
 }
