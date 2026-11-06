@@ -30,7 +30,7 @@ The payment gateway settles to the merchant account. It does not by itself creat
 ## Deployment and verification checklist
 
 1. Apply migration `20261104120000_squad_payment_ledger.sql`.
-2. Deploy `initiate-squad-payment` and `squad-payment-webhook`.
+2. Deploy `initiate-squad-payment` and `squad-payment-webhook`. The webhook deployment is automated by `.github/workflows/deploy-squad-payment-webhook.yml`; the workflow reads the repository secret `SUPABASE_ACCESS_TOKEN` and uses `supabase/config.toml` to deploy the webhook with platform JWT verification disabled.
 3. Set the sandbox secret and `SQUAD_ENVIRONMENT=sandbox`.
 4. Register the webhook URL in Squad's sandbox dashboard.
 5. Run a sandbox service-charge transaction and a sandbox rent-goal contribution.
@@ -39,6 +39,8 @@ The payment gateway settles to the merchant account. It does not by itself creat
 8. Test wrong amount, currency, email, reference, invalid signature, abandoned and failed transactions; none may be marked successful.
 9. Switch to live only after merchant KYC/approval, dashboard configuration, and successful sandbox sign-off.
 
-## Important current limitation
+## Current app integration and remaining validation
 
-The Edge Functions and database ledger are the server-side integration layer. The resident mobile checkout controls and post-checkout refresh/reconciliation still need to be wired and device-tested before residents can use this flow in the app. Dedicated Virtual Accounts remain a separate Squad product and are not enabled by this checkout integration.
+The resident app now starts Squad checkout for published service charges and Save for Rent contributions. The service-charge amount is fetched by the server from the active charge record; residents cannot override it. The Save for Rent screen refreshes when the app returns to the foreground. Service-charge and savings histories must continue to show a contribution as successful only after the signed webhook and server-side transaction verification update the ledger.
+
+Before residents use this in production, complete sandbox device tests for successful, failed, abandoned, duplicate, wrong-amount, wrong-currency, wrong-email, wrong-reference, and invalid-signature events. Register the webhook URL in Squad's sandbox dashboard. Dedicated Virtual Accounts remain a separate Squad product and are not enabled by this checkout integration.
