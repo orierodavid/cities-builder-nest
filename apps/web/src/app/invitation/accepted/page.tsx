@@ -56,7 +56,7 @@ export default function InvitationAcceptedPage() {
       }
 
       if (!session.user.email_confirmed_at) {
-        throw new Error("Supabase did not confirm this email address. Ask your administrator to resend the invitation.");
+        throw new Error("Your email address could not be verified. Ask your administrator to send a new invitation.");
       }
 
       if (!active) return;
@@ -70,7 +70,7 @@ export default function InvitationAcceptedPage() {
 
     void finish().catch((error: unknown) => {
       if (!active) return;
-      setMessage(error instanceof Error ? error.message : "We could not verify this link. Ask your administrator to send a fresh email.");
+      setMessage(error instanceof Error && /missing its verification token|could not establish a valid account session|could not be verified/i.test(error.message) ? error.message : "We could not verify this link. Ask your administrator to send a new invitation.");
       setState("invalid");
     });
 
@@ -95,7 +95,7 @@ export default function InvitationAcceptedPage() {
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       setState("setup");
-      setMessage(error.message);
+      setMessage("Your password could not be updated. Please try again.");
       return;
     }
     setState("complete");
