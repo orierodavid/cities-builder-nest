@@ -1,0 +1,45 @@
+name: Deploy Squad Payment Webhook
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/functions/squad-payment-webhook/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy-squad-payment-webhook.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_ID: ldnxotehzkrrtovelmiz
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check Squad webhook
+        run: deno check supabase/functions/squad-payment-webhook/index.ts
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate required secret
+        shell: bash
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN" || (echo "Missing SUPABASE_ACCESS_TOKEN GitHub Actions secret" && exit 1)
+
+      - name: Deploy webhook with project configuration
+        run: supabase functions deploy squad-payment-webhook --project-ref "$PROJECT_ID" --yes
