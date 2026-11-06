@@ -8,6 +8,7 @@ type ActivityItem = {
   id: string;
   title: string;
   detail: string;
+  status: string;
   createdAt: string;
 };
 
@@ -18,6 +19,14 @@ const formatMoney = (amountKobo: number, currency: string) =>
     maximumFractionDigits: 2,
   }).format(amountKobo / 100);
 
+const displayStatus = (status: string, verifiedAt?: string | null) => {
+  if (status === 'successful' && verifiedAt) return 'Successful';
+  if (status === 'successful' || status === 'pending') return 'Pending';
+  if (status === 'failed') return 'Failed';
+  if (status === 'reversed') return 'Reversed';
+  return status.replaceAll('_', ' ');
+};
+
 export default function ActivityScreen() {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,33 +35,81 @@ export default function ActivityScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
-
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!user) throw new Error('Your session has expired. Please sign in again.');
+      if (authError || !user) {
+        setError('Your session has expired. Please sign in again.');
+        setItems([]);
+        return;
+      }
 
-      // These columns and relationships are defined by the service-charge migration.
-      // Do not infer activity from unverified maintenance or notification schemas.
-      const { data, error: paymentsError } = await supabase
-        .from('service_charge_payments')
-        .select('id,amount_kobo,currency,verified_at,created_at,charge:estate_service_charges(title)')
-        .eq('resident_user_id', user.id)
-        .eq('status', 'successful')
-        .not('verified_at', 'is', null)
-        .order('verified_at', { ascending: false })
-        .limit(50);
+      const [charges, savings, visitors, maintenance] = await Promise.all([
+        supabase.from('service_charge_payments')
+          .select('id,amount_kobo,currency,status,verified_at,created_at,charge:estate_service_charges(title)')
+          .eq('resident_user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase.from('rent_savings_contributions')
+          .select('id,amount_kobo,currency,status,verified_at,created_at')
+          .eq('resident_user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase.from('visitor_passes')
+          .select('id,visitor_name,status,created_at,valid_until')
+          .eq('host_user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase.from('maintenance_requests')
+          .select('id,title,status,created_at,priority')
+          .eq('created_by', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50),
+      ]);
 
-      if (paymentsError) throw paymentsError;
+      const next: ActivityItem[] = [];
+      for (const row of charges.data || []) {
+        next.push({
+          id: 'charge-' + row.id,
+          title: row.charge?.title || 'Service charge payment',
+          detail: formatMoney(Number(row.amount_kobo), row.currency || 'NGN'),
+          status: displayStatus(row.status, row.verified_at),
+          createdAt: row.verified_at || row.created_at,
+        });
+      }
+      for (const row of savings.data || []) {
+        next.push({
+          id: 'savings-' + row.id,
+          title: 'Rent savings contribution',
+          detail: formatMoney(Number(row.amount_kobo), row.currency || 'NGN'),
+          status: displayStatus(row.status, row.verified_at),
+          createdAt: row.verified_at || row.created_at,
+        });
+      }
+      for (const row of visitors.data || []) {
+        next.push({
+          id: 'visitor-' + row.id,
+          title: 'Visitor pass · ' + (row.visitor_name || 'Visitor'),
+          detail: row.valid_until ? 'Valid until ' + new Date(row.valid_until).toLocaleString('en-NG') : 'Visitor access pass',
+          status: displayStatus(row.status),
+          createdAt: row.created_at,
+        });
+      }
+      for (const row of maintenance.data || []) {
+        next.push({
+          id: 'maintenance-' + row.id,
+          title: row.title || 'Maintenance request',
+          detail: 'Priority: ' + (row.priority || 'Normal'),
+          status: displayStatus(row.status),
+          createdAt: row.created_at,
+        });
+      }
 
-      setItems((data || []).map((item: any) => ({
-        id: item.id,
-        title: item.charge?.title || 'Estate service charge payment',
-        detail: 'Confirmed payment · ' + formatMoney(Number(item.amount_kobo), item.currency || 'NGN'),
-        createdAt: item.verified_at || item.created_at,
-      })));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Your recent activity could not be loaded.');
+      setItems(next.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      if (charges.error || savings.error || visitors.error || maintenance.error) {
+        setError('Some activity could not be loaded. Please refresh to try again.');
+      }
+    } catch {
+      setError('Your recent activity could not be loaded. Please try again.');
       setItems([]);
     } finally {
       setLoading(false);
@@ -81,20 +138,23 @@ export default function ActivityScreen() {
           <Text onPress={() => void load()} style={{ color: theme.goldSoft, fontWeight: '700', marginTop: 12 }}>Try again</Text>
         </Card>
       ) : items.length === 0 ? (
-        <EmptyState icon="history" title="No recent activity" message="Your provider-confirmed service charge payments will appear here." />
+        <EmptyState icon="history" title="No recent activity" message="Your payments, savings contributions, visitor passes and maintenance requests will appear here." />
       ) : (
-        items.map((item) => (
-          <Card key={item.id}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={{ color: theme.text, fontSize: 14, fontWeight: '700' }}>{item.title}</Text>
-                <Text style={{ color: theme.muted, fontSize: 11, marginTop: 5 }}>{item.detail}</Text>
-                <Text style={{ color: theme.muted, fontSize: 10, marginTop: 6 }}>{new Date(item.createdAt).toLocaleString('en-NG')}</Text>
+        items.map((item) => {
+          const successful = item.status.toLowerCase() === 'successful' || item.status.toLowerCase() === 'active' || item.status.toLowerCase() === 'completed';
+          return (
+            <Card key={item.id}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={{ color: theme.text, fontSize: 14, fontWeight: '700' }}>{item.title}</Text>
+                  <Text style={{ color: theme.muted, fontSize: 11, marginTop: 5 }}>{item.detail}</Text>
+                  <Text style={{ color: theme.muted, fontSize: 10, marginTop: 6 }}>{new Date(item.createdAt).toLocaleString('en-NG')}</Text>
+                </View>
+                <Text style={{ color: successful ? '#79D6A1' : theme.goldSoft, fontSize: 10, fontWeight: '800', textTransform: 'uppercase' }}>{item.status}</Text>
               </View>
-              <Text style={{ color: '#79D6A1', fontSize: 10, fontWeight: '800' }}>CONFIRMED</Text>
-            </View>
-          </Card>
-        ))
+            </Card>
+          );
+        })
       )}
     </Screen>
   );
