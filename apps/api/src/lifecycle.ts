@@ -47,7 +47,7 @@ export function startApiServer(app: Express, port: number): Server {
     });
   };
 
-  process.once("SIGTERM", shutdown);
-  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  process.once("SIGINT", () => shutdown("SIGINT"));
   return server;
 }
