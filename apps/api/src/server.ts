@@ -1,3 +1,4 @@
+import "express-async-errors";
 import "dotenv/config";
 import express from "express";
 import { createHash, randomInt, randomUUID } from "node:crypto";
@@ -1614,7 +1615,7 @@ app.use((_req, res) => {
   res.status(404).json({ error: "route_not_found" });
 });
 
-const apiErrorHandler: ErrorRequestHandler = (error, req, res, _next) => {
+const apiErrorHandler: ErrorRequestHandler = (error, req, res, next) => {
   const candidate = error as { status?: unknown; statusCode?: unknown; name?: unknown; code?: unknown };
   const rawStatus = typeof candidate?.statusCode === "number"
     ? candidate.statusCode
@@ -1633,7 +1634,7 @@ const apiErrorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     occurredAt: new Date().toISOString(),
   }));
 
-  if (res.headersSent) return;
+  if (res.headersSent) return next(error);
   res.status(statusCode).json({
     error: statusCode >= 500 ? "internal_server_error" : "request_failed",
     requestId,
