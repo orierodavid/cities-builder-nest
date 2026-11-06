@@ -303,6 +303,83 @@ function PropertiesPage(){
  </PortalFrame>;
 }
 
+type ManagementPayment = {
+ id:string; type:string; resident:string; estate:string; amount:number; currency:string;
+ status:string; reference:string|null; createdAt:string;
+};
+function ManagementPaymentsPage(){
+ const [rows,setRows]=useState<ManagementPayment[]>([]);
+ const [estates,setEstates]=useState<Estate[]>([]);
+ const [selectedEstate,setSelectedEstate]=useState("");
+ const [status,setStatus]=useState("all");
+ const [search,setSearch]=useState("");
+ const [loading,setLoading]=useState(true);
+ const [error,setError]=useState("");
+ const load=useCallback(async()=>{
+  setLoading(true);setError("");
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user){setRows([]);setError("Your session has expired. Please sign in again.");setLoading(false);return;}
+  const [{data:roles,error:roleError},{data:members,error:memberError}]=await Promise.all([
+   supabase.from("user_roles").select("role").eq("user_id",user.id),
+   supabase.from("estate_memberships").select("estate_id,membership_role,status").eq("user_id",user.id).eq("status","active")
+  ]);
+  if(roleError||memberError){setRows([]);setError("Payment records could not be loaded. Please refresh and try again.");setLoading(false);return;}
+  const admin=(roles||[]).some(x=>x.role==="platform_admin");
+  const allowed=admin?[]:(members||[]).filter(x=>["facility_manager","estate_manager","estate_admin"].includes(x.membership_role)).map(x=>x.estate_id);
+  if(!admin&&!allowed.length){setRows([]);setError("You do not have permission to view these payment records.");setLoading(false);return;}
+  const estateQuery=supabase.from("estates").select("id,name").order("name");
+  const {data:estateRows,error:estateError}=admin?await estateQuery:await estateQuery.in("id",allowed);
+  if(estateError){setRows([]);setError("Estate details could not be loaded. Please refresh and try again.");setLoading(false);return;}
+  const estateList=(estateRows||[]) as Estate[];
+  setEstates(estateList);
+  const estateIds=estateList.map(x=>x.id);
+  if(!estateIds.length){setRows([]);setLoading(false);return;}
+  const [charges,savings]=await Promise.all([
+   supabase.from("service_charge_payments").select("id,estate_id,resident_user_id,charge_id,amount_kobo,currency,status,provider_reference,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200),
+   supabase.from("rent_savings_contributions").select("id,estate_id,resident_user_id,amount_kobo,currency,status,provider_reference,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200)
+  ]);
+  if(charges.error||savings.error){setRows([]);setError("Payment records could not be loaded. Please refresh and try again.");setLoading(false);return;}
+  const residentIds=[...new Set([...(charges.data||[]).map(x=>x.resident_user_id),...(savings.data||[]).map(x=>x.resident_user_id)])];
+  const chargeIds=[...new Set((charges.data||[]).map(x=>x.charge_id).filter(Boolean))];
+  const [{data:profiles},{data:chargeNames}]=await Promise.all([
+   residentIds.length?supabase.from("users").select("id,full_name").in("id",residentIds):Promise.resolve({data:[],error:null}),
+   chargeIds.length?supabase.from("estate_service_charges").select("id,title").in("id",chargeIds):Promise.resolve({data:[],error:null})
+  ]);
+  const names=new Map((profiles||[]).map(x=>[x.id,x.full_name||"Resident"]));
+  const estateNames=new Map(estateList.map(x=>[x.id,x.name]));
+  const titles=new Map((chargeNames||[]).map(x=>[x.id,x.title]));
+  const statusName=(value:string,verifiedAt:string|null)=>{
+   if(value==="successful"&&verifiedAt)return "Successful";
+   if(value==="successful"||value==="pending")return "Pending";
+   if(value==="failed")return "Failed";
+   if(value==="reversed")return "Reversed";
+   return "Processing";
+  };
+  const chargeRows=(charges.data||[]).map(x=>({id:"charge-"+x.id,type:"Service charge",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:titles.get(x.charge_id)||"Service charge"}));
+  const savingsRows=(savings.data||[]).map(x=>({id:"savings-"+x.id,type:"Rent savings",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:"Rent savings contribution"}));
+  setRows([...chargeRows,...savingsRows].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
+  setLoading(false);
+ },[]);
+ useEffect(()=>{void load();},[load]);
+ const visible=rows.filter(row=>(!selectedEstate||estates.find(x=>x.id===selectedEstate)?.name===row.estate)&&(status==="all"||row.status.toLowerCase()===status)&&(!search||[row.resident,row.estate,row.type,row.description,row.reference].join(" ").toLowerCase().includes(search.toLowerCase())));
+ const money=(amount:number,currency:string)=>new Intl.NumberFormat("en-NG",{style:"currency",currency:currency||"NGN",maximumFractionDigits:2}).format(amount/100);
+ return <PortalFrame title="Payments" description="Review service charge payments and rent savings contributions across your authorised estates.">
+  <section className="panel module-panel">
+   <div className="module-toolbar"><div><h3>Payment history</h3><p>Recent transactions and their current payment status.</p></div><button className="secondary-action" onClick={()=>void load()} disabled={loading}>{loading?"Refreshing…":"Refresh records"}</button></div>
+   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
+   <div className="user-list-toolbar">
+    <select aria-label="Filter by estate" value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+    <select aria-label="Filter by payment status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="successful">Successful</option><option value="pending">Pending</option><option value="failed">Failed</option><option value="reversed">Reversed</option></select>
+    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search resident, estate or reference…" aria-label="Search payment records"/>
+   </div>
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Transaction</th><th>Resident</th><th>Estate</th><th>Amount</th><th>Date</th><th>Status</th><th>Reference</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={7} className="empty-cell">Loading payment history…</td></tr>:visible.length?visible.map(row=><tr key={row.id}><td><strong>{row.description}</strong><small>{row.type}</small></td><td>{row.resident}</td><td>{row.estate}</td><td>{money(row.amount,row.currency)}</td><td>{new Date(row.createdAt).toLocaleString("en-NG")}</td><td><span className={"status-pill status-"+row.status.toLowerCase()}>{row.status}</span></td><td>{row.reference||"—"}</td></tr>):<tr><td colSpan={7} className="empty-cell"><strong>No payment records found</strong><small>Matching transactions will appear here when available.</small></td></tr>}
+   </tbody></table></div>
+   <p className="notice-line">A transaction is shown as successful only after it has been confirmed.</p>
+  </section>
+ </PortalFrame>;
+}
+
 type ResidentDirectoryRow = { id:string; user_id:string; estate_id:string; status:string; created_at:string; membership_role:string };
 type ResidentActivityRow = { id:string; title:string; status:string; date:string; detail:string };
 type ResidentActivity = {
@@ -424,7 +501,7 @@ function ResidentsPage(){
 
 export default function SectionPage(){
  const params=useParams<{section:string}>();const section=Array.isArray(params.section)?params.section[0]:params.section;
- if(section==="users")return <UsersPage/>;
+ if(section==="users")return <UsersPage/>;\n if(section==="payments")return <ManagementPaymentsPage/>;
  if(section==="residents")return <ResidentsPage/>;
  if(section==="settings")return <SettingsPage/>;
  if(section==="profile")return <ProfilePage/>;
