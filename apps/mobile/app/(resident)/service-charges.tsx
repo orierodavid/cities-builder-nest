@@ -106,12 +106,12 @@ export default function ServiceChargesScreen() {
       });
       if (invokeError) throw invokeError;
       if (!data?.checkoutUrl || typeof data.checkoutUrl !== 'string' || !data.checkoutUrl.startsWith('https://')) {
-        throw new Error(data?.error || 'Squad did not return a valid checkout link.');
+        throw new Error('We could not open the payment page. Please try again.');
       }
       await Linking.openURL(data.checkoutUrl);
-      setPaymentMessage('Squad checkout opened. Your charge will show as paid only after the server verifies the transaction.');
+      setPaymentMessage('Payment page opened. Your charge will be marked paid after the payment is confirmed.');
     } catch (e) {
-      setPaymentMessage(e instanceof Error ? e.message : 'Unable to start the payment. Please try again.');
+      setPaymentMessage('We could not start your payment. Please try again.');
     } finally {
       setPaymentBusyId(null);
     }
@@ -145,12 +145,17 @@ export default function ServiceChargesScreen() {
             <Text style={{ color: theme.muted, fontSize: 12, marginTop: 5 }}>
               {charge.due_date ? `Due ${new Date(charge.due_date + 'T00:00:00').toLocaleDateString()}` : 'Due date not specified'}
             </Text>
+            {paidChargeIds.includes(charge.id) ? (
+              <Text style={{ color: '#79D6A1', fontSize: 12, fontWeight: '800', marginTop: 12 }}>PAID · CONFIRMED</Text>
+            ) : (
+              <TouchableOpacity onPress={() => void payCharge(charge.id)} disabled={paymentBusyId === charge.id} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
+                {paymentBusyId === charge.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>Pay Now</Text>}
+              </TouchableOpacity>
+            )}
           </Card>
         ))
       )}
-      <Text style={{ color: theme.muted, fontSize: 11, lineHeight: 17, marginTop: 8 }}>
-        Payment collection will become available when an approved payment provider is connected. Viewing a charge does not mark it as paid.
-      </Text>
+      {!!paymentMessage && <Card><Text accessibilityRole="alert" style={{ color: theme.muted, fontSize: 12, lineHeight: 18 }}>{paymentMessage}</Text></Card>}
     </Screen>
   );
 }
