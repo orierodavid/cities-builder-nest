@@ -24,7 +24,7 @@ export default function AdminAlertsPage() {
     const { data, error: queryError } = await supabase.from("admin_alerts")
       .select("id,estate_id,actor_user_id,alert_type,severity,title,message,status,created_at,acknowledged_at,actor:users!admin_alerts_actor_user_id_fkey(full_name),estate:estates!admin_alerts_estate_id_fkey(name),audit:audit_logs!admin_alerts_audit_log_id_fkey(actor_role,module,page_path,platform,action,resource_type)")
       .order("created_at", { ascending: false }).limit(100);
-    if (queryError) { setError("Admin alerts could not be loaded. Check the account permissions and database connection."); setRows([]); }
+    if (queryError) { setError("Alerts could not be loaded. Please refresh and try again."); setRows([]); }
     else setRows((data || []) as unknown as AlertRow[]);
     setLoading(false);
   }, []);
@@ -50,7 +50,7 @@ export default function AdminAlertsPage() {
   };
   return <PortalFrame title="Alerts & Notifications" description="Important administrative events requiring review. Alerts are limited to your platform role and estate access.">
     <section className="audit-summary-grid">
-      <article className="panel"><small>Recent alerts</small><strong>{counts.total}</strong><span>Latest 100 visible alerts</span></article>
+      <article className="panel"><small>Recent alerts</small><strong>{counts.total}</strong><span>Available alerts</span></article>
       <article className="panel"><small>Awaiting review</small><strong>{counts.new}</strong><span>New and unacknowledged</span></article>
       <article className="panel"><small>Critical and new</small><strong>{counts.critical}</strong><span>Requires priority attention</span></article>
     </section>
@@ -69,16 +69,16 @@ export default function AdminAlertsPage() {
           <div className="audit-alert-top"><span className={"status-pill audit-severity audit-severity-" + row.severity}>{row.severity}</span><span className={"status-pill " + (row.status === "new" ? "status-invited" : "status-active")}>{row.status}</span></div>
           <h4>{row.title}</h4><p>{row.message}</p>
           <div className="audit-alert-meta">
-            <span><strong>Who:</strong> {row.actor?.full_name || (row.actor_user_id ? row.actor_user_id.slice(0, 8) : "System")} · {row.audit?.actor_role || "system"}</span>
-            <span><strong>Where:</strong> {row.estate?.name || (row.estate_id ? row.estate_id.slice(0, 8) : "Platform-wide")} · {row.audit?.module || row.alert_type}</span>
+            <span><strong>Who:</strong> {row.actor?.full_name || "System"} · {(row.audit?.actor_role || "system").replaceAll("_", " ")}</span>
+            <span><strong>Where:</strong> {row.estate?.name || "Platform-wide"} · {(row.audit?.module || row.alert_type).replaceAll("_", " ")}</span>
             <span><strong>When:</strong> {displayDate(row.created_at)}</span>
-            <span><strong>Source:</strong> {row.audit?.page_path || "Page not supplied"} · {row.audit?.platform || "Unknown"}</span>
+  
           </div>
           {row.status === "new" ? <button className="primary-action" type="button" disabled={acknowledging === row.id} onClick={() => void acknowledge(row.id)}>{acknowledging === row.id ? "Acknowledging…" : "Acknowledge alert"}</button>
             : <small className="audit-acknowledged">Acknowledged {row.acknowledged_at ? displayDate(row.acknowledged_at) : ""}</small>}
         </article>) : <p className="empty-cell">No alerts match this filter.</p>}
       </div>
-      <p className="notice-line">Alerts are generated from important committed database changes. This first release delivers in-app admin alerts; email and mobile push delivery can be added separately.</p>
+      <p className="notice-line">Review important account and estate activity here. Acknowledging an alert records who reviewed it and when.</p>
     </section>
   </PortalFrame>;
 }
