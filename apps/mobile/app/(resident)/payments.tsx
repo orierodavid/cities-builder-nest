@@ -41,7 +41,7 @@ export default function PaymentsScreen() {
       return;
     }
 
-    const [charges, savings] = await Promise.all([
+    const [charges, savings, electricity] = await Promise.all([
       supabase.from('service_charge_payments')
         .select('id,amount_kobo,currency,status,provider_reference,verified_at,created_at,charge:estate_service_charges(title)')
         .eq('resident_user_id', user.id)
@@ -50,9 +50,13 @@ export default function PaymentsScreen() {
         .select('id,amount_kobo,currency,status,provider_reference,verified_at,created_at')
         .eq('resident_user_id', user.id)
         .order('created_at', { ascending: false }),
+      supabase.from('electricity_recharge_orders')
+        .select('id,amount_kobo,status,units_purchased,verified_at,created_at')
+        .eq('resident_user_id', user.id)
+        .order('created_at', { ascending: false }),
     ]);
 
-    if (charges.error || savings.error) {
+    if (charges.error || savings.error || electricity.error) {
       setPayments([]);
       setError('Your payment history is temporarily unavailable. Please try again.');
       setLoading(false);
@@ -79,7 +83,17 @@ export default function PaymentsScreen() {
       created_at: row.created_at,
       description: 'Rent savings contribution',
     }));
-    setPayments([...chargeRows, ...savingsRows].sort((a, b) =>
+    const electricityRows = (electricity.data || []).map((row: any) => ({
+      id: 'electricity-' + row.id,
+      amount_kobo: Number(row.amount_kobo),
+      currency: 'NGN',
+      status: row.status,
+      provider_reference: null,
+      verified_at: row.verified_at,
+      created_at: row.created_at,
+      description: 'Electricity purchase' + (row.units_purchased ? ' · ' + row.units_purchased + ' units' : ''),
+    }));
+    setPayments([...chargeRows, ...savingsRows, ...electricityRows].sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     ));
     setLoading(false);
@@ -88,7 +102,7 @@ export default function PaymentsScreen() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <Screen title="Payment History" subtitle="Your rent savings and service charge transactions">
+    <Screen title="Payment History" subtitle="Your rent savings, service charge and electricity transactions">
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <SectionTitle>All transactions</SectionTitle>
         <Text onPress={() => void load()} style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '700', padding: 8 }}>REFRESH</Text>
@@ -104,7 +118,7 @@ export default function PaymentsScreen() {
           <Text onPress={() => void load()} style={{ color: theme.goldSoft, fontWeight: '700', marginTop: 12 }}>Try again</Text>
         </Card>
       ) : payments.length === 0 ? (
-        <EmptyState icon="cash-multiple" title="No transactions yet" message="Your rent savings contributions and service charge payments will appear here." />
+        <EmptyState icon="cash-multiple" title="No transactions yet" message="Your rent savings contributions, service charge payments and electricity purchases will appear here." />
       ) : (
         payments.map((payment) => {
           const label = statusLabel(payment.status, payment.verified_at);
