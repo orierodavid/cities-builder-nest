@@ -1,4 +1,11 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+
+const REQUEST_TIMEOUT_MS = 10_000;
+const timeoutFetch: typeof fetch = (input, init) => {
+  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
+  return fetch(input, { ...init, signal });
+};
 import type { NextFunction, Request, Response } from "express";
 
 export interface AuthenticatedRequest extends Request {
@@ -35,7 +42,10 @@ export async function requireAuth(
 
   try {
     const userSupabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
+      global: {
+        headers: { Authorization: `Bearer ${token}` },
+        fetch: timeoutFetch,
+      },
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -46,7 +56,16 @@ export async function requireAuth(
     // getUser(token) asks Supabase Auth to validate the access token; decoding a JWT
     // locally without signature validation is deliberately not used here.
     const { data, error } = await userSupabase.auth.getUser(token);
-    if (error || !data.user) {
+    if (error) {
+      if (typeof error.status === "number" && (error.status >= 500 || error.status === 429)) {
+        res.setHeader("Retry-After", "5");
+        res.status(503).json({ error: "authentication_service_unavailable" });
+        return;
+      }
+      res.status(401).json({ error: "invalid_or_expired_token" });
+      return;
+    }
+    if (!data.user) {
       res.status(401).json({ error: "invalid_or_expired_token" });
       return;
     }
