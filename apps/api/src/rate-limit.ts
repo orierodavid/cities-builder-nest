@@ -53,7 +53,7 @@ export const sharedRateLimit: RequestHandler = (req, res, next) => {
   const bucketKey = createRateLimitBucketKey(req.ip || req.socket.remoteAddress || "unknown", tier);
   // Integration/unit tests use mocked Supabase REST endpoints. Keep their rate
   // limiting deterministic and local; production always uses the shared RPC.
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" || process.env.CI === "true") {
     if (!consumeLocalBucket(bucketKey, maxRequests)) {
       res.setHeader("Retry-After", String(WINDOW_SECONDS));
       res.status(429).json({ error: "rate_limit_exceeded", message: "Too many requests. Please retry shortly." });
