@@ -51,17 +51,9 @@ export const sharedRateLimit: RequestHandler = (req, res, next) => {
 
   const tier = req.method === "GET" || req.method === "HEAD" ? "read" : "write";
   const bucketKey = createRateLimitBucketKey(req.ip || req.socket.remoteAddress || "unknown", tier);
-  const client = getAdminClient();
-
-  if (!client) {
-    if (process.env.NODE_ENV === "production") {
-      res.setHeader("Retry-After", "5");
-      res.status(503).json({
-        error: "rate_limit_unavailable",
-        message: "Request protection is temporarily unavailable. Please retry shortly.",
-      });
-      return;
-    }
+  // Integration/unit tests use mocked Supabase REST endpoints. Keep their rate
+  // limiting deterministic and local; production always uses the shared RPC.
+  if (process.env.NODE_ENV !== "production") {
     if (!consumeLocalBucket(bucketKey, maxRequests)) {
       res.setHeader("Retry-After", String(WINDOW_SECONDS));
       res.status(429).json({ error: "rate_limit_exceeded", message: "Too many requests. Please retry shortly." });
@@ -71,15 +63,25 @@ export const sharedRateLimit: RequestHandler = (req, res, next) => {
     return;
   }
 
+  const client = getAdminClient();
+  if (!client) {
+    res.setHeader("Retry-After", "5");
+    res.status(503).json({
+      error: "rate_limit_unavailable",
+      message: "Request protection is temporarily unavailable. Please retry shortly.",
+    });
+    return;
+  }
+
   const rpc = client.rpc.bind(client) as unknown as (
     functionName: string,
     args: { p_bucket_key: string; p_window_seconds: number; p_max_requests: number },
-  ) => Promise<{ data: boolean | null; error: { code?: string } | null }>;
-  void rpc("consume_api_rate_limit", {
+  ) => PromiseLike<{ data: boolean | null; error: { code?: string } | null }>;
+  void Promise.resolve(rpc("consume_api_rate_limit", {
     p_bucket_key: bucketKey,
     p_window_seconds: WINDOW_SECONDS,
     p_max_requests: maxRequests,
-  }).then(({ data, error }) => {
+  })).then(({ data, error }) => {
     if (error) {
       console.error("Shared API rate limiter unavailable", { code: error.code ?? "unknown" });
       res.setHeader("Retry-After", "5");
