@@ -39,7 +39,7 @@ export default function ResidentElectricityRoute() {
         }
         if (active) setEstateId(ids[0]);
       } catch (e) {
-        if (active) setError(e instanceof Error ? e.message : 'Your estate details could not be loaded.');
+        if (active) setError('Your electricity service could not be opened. Please refresh or contact estate management.');
       } finally {
         if (active) setLoading(false);
       }
