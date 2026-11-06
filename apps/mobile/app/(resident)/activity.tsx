@@ -70,7 +70,7 @@ export default function ActivityScreen() {
       for (const row of charges.data || []) {
         next.push({
           id: 'charge-' + row.id,
-          title: row.charge?.title || 'Service charge payment',
+          title: row.charge?.[0]?.title || 'Service charge payment',
           detail: formatMoney(Number(row.amount_kobo), row.currency || 'NGN'),
           status: displayStatus(row.status, row.verified_at),
           createdAt: row.verified_at || row.created_at,
