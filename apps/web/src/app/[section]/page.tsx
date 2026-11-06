@@ -185,9 +185,9 @@ function UsersPage() {
    body:{estateId:membership.estate_id,userId:membership.user_id,password:nextPassword}
   });
   if(invokeError||data?.error){
-   let message=data?.message||data?.error||invokeError?.message||"Password could not be updated.";
+   let message="Password could not be updated. Please try again.";
    const context=(invokeError as typeof invokeError & {context?:Response}|null)?.context;
-   if(context){try{const detail=await context.clone().json() as {message?:string};message=detail.message||message;}catch{/* retain returned error */}}
+   
    setError(message);setSendingPasswordUserId(null);return;
   }
   try{
@@ -204,12 +204,12 @@ function UsersPage() {
   if(role==="resident"){payload.buildingName=buildingName.trim();payload.unitCode=unitCode.trim();if(unitType.trim())payload.unitType=unitType.trim();}
   const {data,error:invokeError}=await supabase.functions.invoke("onboard-account",{body:payload});
   if(invokeError){
-   let message=invokeError.message||"Account could not be created.";
+   let message="The account could not be created. Please check the details and try again.";
    const context=(invokeError as typeof invokeError & {context?:Response}).context;
-   if(context){try{const detail=await context.clone().json() as {message?:string;error?:string};message=detail.message||detail.error||message;}catch{/* retain the SDK error */}}
+   
    setError(message);setSaving(false);return;
   }
-  if(data?.error){setError(data.message||data.error||"Account could not be created.");setSaving(false);return;}
+  if(data?.error){setError("The account could not be created. Please check the details and try again.");setSaving(false);return;}
   setInviteCredentials({email:email.trim().toLowerCase(),password});
   setSuccess("Account created successfully. No email was sent. Copy the initial password below and share it securely with the user.");
   setFullName("");setEmail("");setPassword("");setBuildingName("");setUnitCode("");setUnitType("");setShowForm(false);
@@ -305,7 +305,7 @@ function PropertiesPage(){
 
 type ManagementPayment = {
  id:string; estateId:string; type:string; resident:string; estate:string; amount:number; currency:string;
- status:string; reference:string|null; createdAt:string;
+ status:string; reference:string|null; createdAt:string; description:string;
 };
 function ManagementPaymentsPage(){
  const [rows,setRows]=useState<ManagementPayment[]>([]);
