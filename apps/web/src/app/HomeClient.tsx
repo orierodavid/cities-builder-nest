@@ -20,7 +20,7 @@ const adminMetrics = [
 type MetricValue = { value: string; detail: string; error?: boolean };
 const initialMetricValues: Record<string,MetricValue> = Object.fromEntries(adminMetrics.map(([, ,key])=>[key,{value:"—",detail:"Loading live data…"}]));
 
-export default function Home() {
+export default function HomeClient({ serverAuthorized }: { serverAuthorized: boolean }) {
  const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [busy,setBusy]=useState(false); const [error,setError]=useState(""); const [access,setAccess]=useState<Access|null>(null); const [selectedEstate,setSelectedEstate]=useState(""); const [invitationAccepted,setInvitationAccepted]=useState(false); const [metricValues,setMetricValues]=useState<Record<string,MetricValue>>(initialMetricValues); const [managerMetricValues,setManagerMetricValues]=useState<Record<string,ManagerMetric>>(emptyManagerMetrics); const [managerLoading,setManagerLoading]=useState(false); const [managerError,setManagerError]=useState(""); const [managerMaintenanceRows,setManagerMaintenanceRows]=useState<MaintenancePreview[]>([]);
  async function checkRole(userId:string,userEmail:string) {
   const [globalResult,membershipResult,profileResult]=await Promise.all([
