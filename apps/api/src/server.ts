@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from "express";
-import { createHash, randomInt } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
@@ -36,6 +36,28 @@ app.use(cors({
   },
 }));
 app.use(express.json({ limit: "1mb" }));
+app.use((req, res, next) => {
+  const requestId = randomUUID();
+  const startedAt = process.hrtime.bigint();
+  res.setHeader("x-request-id", requestId);
+  res.on("finish", () => {
+    const authenticated = req as AuthenticatedRequest;
+    const estateId = req.params?.estateId;
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    console.info(JSON.stringify({
+      event: "api_request",
+      requestId,
+      method: req.method,
+      route: req.route?.path ?? req.path,
+      statusCode: res.statusCode,
+      durationMs: Math.round(durationMs * 100) / 100,
+      actorUserId: authenticated.authUser?.id ?? null,
+      estateId: typeof estateId === "string" ? estateId : null,
+      occurredAt: new Date().toISOString(),
+    }));
+  });
+  next();
+});
 app.use("/v1", sharedRateLimit);
 
 app.get("/health", async (_req, res) => {
