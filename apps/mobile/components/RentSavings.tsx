@@ -44,12 +44,12 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
     if (estateId) contributionsQuery = contributionsQuery.eq("estate_id", estateId);
     const [goalsResult, contributionsResult] = await Promise.all([goalsQuery, contributionsQuery]);
     if (goalsResult.error) {
-      setMessage("Your savings goals could not be loaded. " + goalsResult.error.message);
+      setMessage("Your savings goals could not be loaded. Please try again.");
     } else {
       setGoals((goalsResult.data || []) as Goal[]);
       if (contributionsResult.error) {
         setContributions([]);
-        setMessage("Your goals loaded, but contribution history is temporarily unavailable. " + contributionsResult.error.message);
+        setMessage("Your goals are available, but contribution history could not be loaded. Please refresh.");
       } else {
         setContributions((contributionsResult.data || []) as Array<{id:string;goal_id:string;amount_kobo:number;status:string;created_at:string;provider_reference:string|null}>);
         setMessage("");
@@ -86,7 +86,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
       duration_months: durationMonths,
       status: "active",
     });
-    if (error) setMessage("Goal was not saved. " + error.message);
+    if (error) setMessage("Your savings goal could not be saved. Please check the details and try again.");
     else {
       setName("My Rent");
       setAmount("");
@@ -132,7 +132,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
         <View style={styles.noticeIcon}><Ionicons name="shield-checkmark-outline" size={22} color="#D4A84B"/></View>
         <View style={styles.noticeCopy}>
           <Text style={styles.noticeTitle}>A committed savings plan</Text>
-          <Text style={styles.noticeText}>Once started, a goal runs for its full 3- or 6-month term. It cannot be paused or cancelled. You can add money to your goal at any time during its term. Contributions appear in your history after payment is confirmed. This is not a withdrawable wallet balance.</Text>
+          <Text style={styles.noticeText}>Once started, a goal runs for its full 3- or 6-month term and cannot be paused or cancelled. You can add money at any time during the term. Contributions appear in your history after payment is confirmed. Withdrawals are not available through this feature.</Text>
         </View>
       </View>
 
