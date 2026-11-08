@@ -34,6 +34,7 @@ export default function SecurityHomeRoute() {
   return <SafeAreaView edges={["left", "right"]} style={s.root}>
     <SecurityHome officerName={officerName} estateName={estate.name} showBottomNav={false} onNavigate={(route) => {
       if (route === "/scan" || route === "/verify") router.push("/(security)/verify" as never);
+      else if (route === "/events") router.push("/(security)/event-guests" as never);
       else if (route === "/records") router.push("/(security)/records" as never);
       else if (route === "/profile") router.push("/(security)/profile" as never);
       else router.push("/(security)" as never);
