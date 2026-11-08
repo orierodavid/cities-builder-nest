@@ -25,12 +25,12 @@ The webhook function is configured for public delivery because Squad cannot send
 - Estate service charges: amount is always loaded from the active charge in the database; the client cannot choose or override it.
 - Save for Rent contributions: resident supplies a contribution amount (minimum NGN 100), and the goal must belong to that resident, be active, and remain within its commitment term.
 
-The payment gateway settles to the merchant account. It does not by itself create a regulated savings custody arrangement, escrow, or a segregated resident balance. Do not represent gateway payments as custodially held savings or show them as available rent savings until the appropriate custody/settlement arrangement and reconciliation process have been established.
+The authenticated `verify-squad-payment` Edge Function also lets the signed-in resident request a server-to-server status check for only their own pending transaction. It validates the Squad reference, amount, NGN currency, and customer email before updating a pending ledger row. The mobile return screen calls it on return/close, then reads the resident-visible ledger; periodic refreshes read the ledger only. This handles failed or abandoned checkouts even when Squad does not send a webhook for those states. The payment gateway settles to the merchant account. It does not by itself create a regulated savings custody arrangement, escrow, or a segregated resident balance. Do not represent gateway payments as custodially held savings or show them as available rent savings until the appropriate custody/settlement arrangement and reconciliation process have been established.
 
 ## Deployment and verification checklist
 
 1. Apply migration `20261104120000_squad_payment_ledger.sql`.
-2. Deploy `initiate-squad-payment` and `squad-payment-webhook`. The webhook deployment is automated by `.github/workflows/deploy-squad-payment-webhook.yml`; the workflow reads the repository secret `SUPABASE_ACCESS_TOKEN` and uses `supabase/config.toml` to deploy the webhook with platform JWT verification disabled.
+2. Deploy `initiate-squad-payment`, `verify-squad-payment`, and `squad-payment-webhook` (the GitHub Actions payment-functions workflow deploys all three). The webhook deployment is automated by `.github/workflows/deploy-squad-payment-webhook.yml`; the workflow reads the repository secret `SUPABASE_ACCESS_TOKEN` and uses `supabase/config.toml` to deploy the webhook with platform JWT verification disabled.
 3. Set the sandbox secret and `SQUAD_ENVIRONMENT=sandbox`.
 4. Register the webhook URL in Squad's sandbox dashboard.
 5. Run a sandbox service-charge transaction and a sandbox rent-goal contribution.
