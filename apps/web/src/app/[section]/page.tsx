@@ -499,10 +499,80 @@ function ResidentsPage(){
  </PortalFrame>;
 }
 
+
+type MaintenanceRecord = {
+ id:string; estate_id:string; unit_id:string|null; created_by:string;
+ title:string; description:string; status:string; priority:string;
+ created_at:string; updated_at:string;
+};
+function MaintenancePage(){
+ const [rows,setRows]=useState<Array<MaintenanceRecord & {estate:string;unit:string;resident:string}>>([]);
+ const [loading,setLoading]=useState(true);const [error,setError]=useState("");
+ const [estates,setEstates]=useState<Estate[]>([]);const [selectedEstate,setSelectedEstate]=useState("");
+ const [status,setStatus]=useState("all");const [search,setSearch]=useState("");
+ const load=useCallback(async()=>{
+  setLoading(true);setError("");
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user){setError("Your session has expired. Sign in again.");setLoading(false);return;}
+  const [{data:globalRoles,error:roleError},{data:memberships,error:membershipError}]=await Promise.all([
+   supabase.from("user_roles").select("role").eq("user_id",user.id),
+   supabase.from("estate_memberships").select("estate_id,membership_role,status").eq("user_id",user.id).eq("status","active")
+  ]);
+  if(roleError||membershipError){setError("Your management access could not be verified.");setLoading(false);return;}
+  const admin=(globalRoles||[]).some(x=>x.role==="platform_admin");
+  const allowedIds=[...new Set((memberships||[]).filter(x=>["facility_manager","estate_manager","estate_admin"].includes(x.membership_role)).map(x=>x.estate_id))];
+  if(!admin&&!allowedIds.length){setError("You do not have permission to view maintenance requests.");setLoading(false);return;}
+  let estateQuery=supabase.from("estates").select("id,name").order("name");
+  if(!admin)estateQuery=estateQuery.in("id",allowedIds);
+  const {data:estateRows,error:estateError}=await estateQuery;
+  if(estateError){setError("Estate records could not be loaded.");setLoading(false);return;}
+  const estateList=(estateRows||[]) as Estate[];setEstates(estateList);
+  const estateIds=estateList.map(x=>x.id);
+  if(!estateIds.length){setRows([]);setLoading(false);return;}
+  const {data:requests,error:requestError}=await supabase.from("maintenance_requests")
+   .select("id,estate_id,unit_id,created_by,title,description,status,priority,created_at,updated_at")
+   .in("estate_id",estateIds).order("created_at",{ascending:false}).limit(500);
+  if(requestError){setError("Maintenance requests could not be loaded. Check the maintenance read permissions and refresh.");setLoading(false);return;}
+  const requestRows=(requests||[]) as MaintenanceRecord[];
+  const userIds=[...new Set(requestRows.map(x=>x.created_by))];
+  const unitIds=[...new Set(requestRows.map(x=>x.unit_id).filter((x):x is string=>Boolean(x)))];
+  const [{data:profiles,error:profileError},{data:units,error:unitError}]=await Promise.all([
+   userIds.length?supabase.from("users").select("id,full_name").in("id",userIds):Promise.resolve({data:[],error:null}),
+   unitIds.length?supabase.from("units").select("id,unit_code").in("id",unitIds):Promise.resolve({data:[],error:null})
+  ]);
+  if(profileError||unitError){setError("Resident or property details could not be loaded.");setLoading(false);return;}
+  const estateMap=new Map(estateList.map(x=>[x.id,x.name]));
+  const profileMap=new Map((profiles||[]).map(x=>[x.id,x.full_name]));
+  const unitMap=new Map((units||[]).map(x=>[x.id,x.unit_code]));
+  setRows(requestRows.map(x=>({...x,estate:estateMap.get(x.estate_id)||"Estate",unit:x.unit_id?(unitMap.get(x.unit_id)||"Unit details unavailable"):"Not assigned",resident:profileMap.get(x.created_by)||"Resident"})));
+  setLoading(false);
+ },[]);
+ useEffect(()=>{void load();},[load]);
+ const visible=rows.filter(x=>(!selectedEstate||x.estate_id===selectedEstate)&&(status==="all"||x.status===status)&&(!search||[x.title,x.description,x.resident,x.estate,x.unit,x.priority].join(" ").toLowerCase().includes(search.toLowerCase())));
+ const counts=rows.reduce((acc,x)=>{acc[x.status]=(acc[x.status]||0)+1;return acc;},{} as Record<string,number>);
+ const date=(value:string)=>new Date(value).toLocaleString("en-NG");
+ return <PortalFrame title="Maintenance" description="Review resident maintenance requests across your authorised estates.">
+  <section className="panel module-panel">
+   <div className="module-toolbar"><div><h3>Maintenance requests</h3><p>Requests submitted by residents, with estate, property, priority and current status.</p></div><button type="button" className="secondary-action" onClick={()=>void load()} disabled={loading}>{loading?"Refreshing…":"Refresh requests"}</button></div>
+   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
+   <div className="user-list-toolbar">
+    <select aria-label="Filter by estate" value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}><option value="">All authorised estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+    <select aria-label="Filter by maintenance status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses ({rows.length})</option>{["open","assigned","in_progress","resolved","closed"].map(x=><option key={x} value={x}>{x.replace("_"," ") } ({counts[x]||0})</option>)}</select>
+    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search request, resident, property or estate…" aria-label="Search maintenance requests"/>
+   </div>
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Request</th><th>Resident</th><th>Estate</th><th>Property / Unit</th><th>Submitted</th><th>Priority</th><th>Status</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={7} className="empty-cell">Loading maintenance requests…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.title}</strong><small style={{display:"block",maxWidth:340,whiteSpace:"normal"}}>{x.description}</small></td><td>{x.resident}</td><td>{x.estate}</td><td>{x.unit}</td><td>{date(x.created_at)}</td><td><span className={"status-pill status-"+x.priority}>{x.priority}</span></td><td><span className={"status-pill status-"+x.status}>{x.status.replace("_"," ")}</span></td></tr>):<tr><td colSpan={7} className="empty-cell"><strong>No maintenance requests found</strong><small>{rows.length?"No requests match the selected filters.":"Resident-submitted requests will appear here when received."}</small></td></tr>}
+   </tbody></table></div>
+   <p className="notice-line">This view shows live requests and is limited to estates your account is authorised to oversee.</p>
+  </section>
+ </PortalFrame>;
+}
+
 export default function SectionPage(){
  const params=useParams<{section:string}>();const section=Array.isArray(params.section)?params.section[0]:params.section;
  if(section==="users")return <UsersPage/>;
  if(section==="payments")return <ManagementPaymentsPage/>;
+ if(section==="maintenance")return <MaintenancePage/>;
  if(section==="residents")return <ResidentsPage/>;
  if(section==="settings")return <SettingsPage/>;
  if(section==="profile")return <ProfilePage/>;
