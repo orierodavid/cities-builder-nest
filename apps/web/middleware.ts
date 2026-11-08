@@ -66,11 +66,12 @@ export async function middleware(request: NextRequest) {
     "upgrade-insecure-requests",
   ].join("; ");
 
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
-  requestHeaders.set("x-nonce", nonce);
-
   const createResponse = () => {
+    // Rebuild from the current request so Supabase cookie refreshes are forwarded
+    // alongside the nonce and CSP headers.
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
+    requestHeaders.set("x-nonce", nonce);
     const nextResponse = NextResponse.next({ request: { headers: requestHeaders } });
     nextResponse.headers.set("Content-Security-Policy", contentSecurityPolicy);
     return nextResponse;
