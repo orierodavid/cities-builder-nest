@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import VisitorDetails, { type Visitor } from "./VisitorDetails";
 
@@ -33,6 +33,7 @@ type Props = {
 
 export default function SecurityGateScreen(props: Props) {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraOpen, setCameraOpen] = useState(Boolean(props.initialScannerOpen));
   const [scanMessage, setScanMessage] = useState("");
@@ -74,7 +75,7 @@ export default function SecurityGateScreen(props: Props) {
                 <TouchableOpacity onPress={() => void requestPermission()} style={[button, { backgroundColor: "#D4A84B" }]}><Text style={{ color: "#17130B", fontWeight: "900" }}>ALLOW CAMERA</Text></TouchableOpacity>
               </View>
             ) : (
-              <View style={{ height: 340, overflow: "hidden", borderRadius: 12, borderWidth: 1, borderColor: "#D9A93F" }}>
+              <View style={{ width: "100%", maxWidth: 480, alignSelf: "center", aspectRatio: width < 360 || height < 650 ? 1.05 : 1.2, maxHeight: Math.min(420, height * 0.55), overflow: "hidden", borderRadius: 12, borderWidth: 1, borderColor: "#D9A93F" }}>
                 <CameraView style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={({ data }) => handleScan(data)} />
                 <View pointerEvents="none" style={{ position: "absolute", left: "17%", right: "17%", top: "17%", bottom: "17%", borderWidth: 3, borderColor: "#D4A84B", borderRadius: 14 }} />
               </View>
