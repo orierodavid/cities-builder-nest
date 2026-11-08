@@ -91,6 +91,8 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
   const [eventVenuePickerOpen, setEventVenuePickerOpen] = useState(false);
   const [eventStartsAt, setEventStartsAt] = useState("");
   const [eventEndsAt, setEventEndsAt] = useState("");
+  const [eventCalendarTarget, setEventCalendarTarget] = useState<"start" | "end" | null>(null);
+  const [eventCalendarMonth, setEventCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [eventStatus, setEventStatus] = useState<"draft" | "published">("draft");
   const [estateEvents, setEstateEvents] = useState<EstateEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -502,6 +504,16 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
       }
     }
     setEventVenuesLoading(false);
+  }
+
+  function eventDatePart(value: string) { return value ? value.slice(0, 10) : ""; }
+  function eventTimePart(value: string, fallback: string) { return value && value.length >= 16 ? value.slice(11, 16) : fallback; }
+  function setEventDate(target: "start" | "end", date: Date) {
+    const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, "0"); const day = String(date.getDate()).padStart(2, "0");
+    const setter = target === "start" ? setEventStartsAt : setEventEndsAt;
+    const current = target === "start" ? eventStartsAt : eventEndsAt;
+    setter(`${year}-${month}-${day}T${eventTimePart(current, target === "start" ? "10:00" : "14:00")}`);
+    setEventCalendarTarget(null);
   }
 
   async function createEstateEvent() {
@@ -980,11 +992,27 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
                       </View>}
                       {!!eventVenue && <Text style={styles.eventHint}>Selected venue: {eventVenue}</Text>}
                       {!eventVenuesLoading && eventVenues.length===0 && <TouchableOpacity onPress={() => void loadEventVenues()}><Text style={styles.eventRefresh}>REFRESH VENUE LIST</Text></TouchableOpacity>}
-                      <Text style={styles.eventLabel}>Start date and time</Text>
-                      <TextInput style={styles.eventInput} value={eventStartsAt} onChangeText={setEventStartsAt} placeholder="2026-11-15T10:00" placeholderTextColor="#888" autoCapitalize="none"/>
-                      <Text style={styles.eventHint}>Use YYYY-MM-DDTHH:mm (estate local time).</Text>
-                      <Text style={styles.eventLabel}>End date and time</Text>
-                      <TextInput style={styles.eventInput} value={eventEndsAt} onChangeText={setEventEndsAt} placeholder="2026-11-15T14:00" placeholderTextColor="#888" autoCapitalize="none"/>
+                      <Text style={styles.eventLabel}>Start date</Text>
+                      <TouchableOpacity style={[styles.eventInput,{minHeight:49,flexDirection:"row",alignItems:"center",justifyContent:"space-between"}]} onPress={() => {const value=eventDatePart(eventStartsAt);setEventCalendarMonth(value?new Date(value+"T12:00:00"):new Date(new Date().getFullYear(),new Date().getMonth(),1));setEventCalendarTarget(eventCalendarTarget==="start"?null:"start");}}>
+                        <Text style={{color:eventStartsAt?"#FFFFFF":"#888",fontSize:13}}>{eventStartsAt ? new Date(eventDatePart(eventStartsAt)+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",year:"numeric",month:"long",day:"numeric"}) : "Choose start date"}</Text><Ionicons name="calendar-outline" size={19} color="#D4A84B"/>
+                      </TouchableOpacity>
+                      {eventCalendarTarget==="start" && <View style={{backgroundColor:"#101010",borderColor:"#494133",borderWidth:1,borderRadius:12,padding:12,marginTop:8}}>
+                        <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><TouchableOpacity onPress={()=>setEventCalendarMonth(new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth()-1,1))}><Ionicons name="chevron-back" size={22} color="#D4A84B"/></TouchableOpacity><Text style={{color:"#FFFFFF",fontWeight:"800"}}>{eventCalendarMonth.toLocaleDateString(undefined,{month:"long",year:"numeric"})}</Text><TouchableOpacity onPress={()=>setEventCalendarMonth(new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth()+1,1))}><Ionicons name="chevron-forward" size={22} color="#D4A84B"/></TouchableOpacity></View>
+                        <View style={{flexDirection:"row",justifyContent:"space-around",marginBottom:6}}>{["S","M","T","W","T","F","S"].map((day,i)=><Text key={day+i} style={{color:"#A9A9A9",width:"13%",textAlign:"center",fontSize:11,fontWeight:"700"}}>{day}</Text>)}</View>
+                        <View style={{flexDirection:"row",flexWrap:"wrap"}}>{Array.from({length:new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth(),1).getDay()},(_,i)=><View key={"blank"+i} style={{width:"14.285%",height:39}}/>)}{Array.from({length:new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth()+1,0).getDate()},(_,i)=>{const day=i+1;const date=new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth(),day);const selected=eventDatePart(eventStartsAt)===`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;return <TouchableOpacity key={day} onPress={()=>setEventDate("start",date)} style={{width:"14.285%",height:39,alignItems:"center",justifyContent:"center",borderRadius:20,backgroundColor:selected?"#D4A84B":"transparent"}}><Text style={{color:selected?"#17130B":"#FFFFFF",fontWeight:selected?"900":"500"}}>{day}</Text></TouchableOpacity>})}</View>
+                      </View>}
+                      <Text style={styles.eventLabel}>Start time</Text><TextInput style={styles.eventInput} value={eventTimePart(eventStartsAt,"")} onChangeText={(time)=>setEventStartsAt(eventDatePart(eventStartsAt)+"T"+time)} placeholder="10:00 (24-hour time)" placeholderTextColor="#888" keyboardType="numbers-and-punctuation"/>
+                      <Text style={styles.eventLabel}>End date</Text>
+                      <TouchableOpacity style={[styles.eventInput,{minHeight:49,flexDirection:"row",alignItems:"center",justifyContent:"space-between"}]} onPress={() => {const value=eventDatePart(eventEndsAt);setEventCalendarMonth(value?new Date(value+"T12:00:00"):new Date(new Date().getFullYear(),new Date().getMonth(),1));setEventCalendarTarget(eventCalendarTarget==="end"?null:"end");}}>
+                        <Text style={{color:eventEndsAt?"#FFFFFF":"#888",fontSize:13}}>{eventEndsAt ? new Date(eventDatePart(eventEndsAt)+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",year:"numeric",month:"long",day:"numeric"}) : "Choose end date"}</Text><Ionicons name="calendar-outline" size={19} color="#D4A84B"/>
+                      </TouchableOpacity>
+                      {eventCalendarTarget==="end" && <View style={{backgroundColor:"#101010",borderColor:"#494133",borderWidth:1,borderRadius:12,padding:12,marginTop:8}}>
+                        <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><TouchableOpacity onPress={()=>setEventCalendarMonth(new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth()-1,1))}><Ionicons name="chevron-back" size={22} color="#D4A84B"/></TouchableOpacity><Text style={{color:"#FFFFFF",fontWeight:"800"}}>{eventCalendarMonth.toLocaleDateString(undefined,{month:"long",year:"numeric"})}</Text><TouchableOpacity onPress={()=>setEventCalendarMonth(new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth()+1,1))}><Ionicons name="chevron-forward" size={22} color="#D4A84B"/></TouchableOpacity></View>
+                        <View style={{flexDirection:"row",justifyContent:"space-around",marginBottom:6}}>{["S","M","T","W","T","F","S"].map((day,i)=><Text key={day+i} style={{color:"#A9A9A9",width:"13%",textAlign:"center",fontSize:11,fontWeight:"700"}}>{day}</Text>)}</View>
+                        <View style={{flexDirection:"row",flexWrap:"wrap"}}>{Array.from({length:new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth(),1).getDay()},(_,i)=><View key={"blank"+i} style={{width:"14.285%",height:39}}/>)}{Array.from({length:new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth()+1,0).getDate()},(_,i)=>{const day=i+1;const date=new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth(),day);const selected=eventDatePart(eventEndsAt)===`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;return <TouchableOpacity key={day} onPress={()=>setEventDate("end",date)} style={{width:"14.285%",height:39,alignItems:"center",justifyContent:"center",borderRadius:20,backgroundColor:selected?"#D4A84B":"transparent"}}><Text style={{color:selected?"#17130B":"#FFFFFF",fontWeight:selected?"900":"500"}}>{day}</Text></TouchableOpacity>})}</View>
+                      </View>}
+                      <Text style={styles.eventLabel}>End time</Text><TextInput style={styles.eventInput} value={eventTimePart(eventEndsAt,"")} onChangeText={(time)=>setEventEndsAt(eventDatePart(eventEndsAt)+"T"+time)} placeholder="14:00 (24-hour time)" placeholderTextColor="#888" keyboardType="numbers-and-punctuation"/>
+                      <Text style={styles.eventHint}>Choose dates from the calendar and enter times in 24-hour format (estate local time).</Text>
                       <Text style={styles.eventLabel}>Publication</Text>
                       <View style={styles.eventStatusRow}>
                         {(["draft","published"] as const).map((status) => <TouchableOpacity key={status} onPress={() => setEventStatus(status)} style={[styles.eventStatusChip,eventStatus === status && styles.eventStatusChipActive]}><Text style={[styles.eventStatusText,eventStatus === status && styles.eventStatusTextActive]}>{status.toUpperCase()}</Text></TouchableOpacity>)}
