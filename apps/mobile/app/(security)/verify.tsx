@@ -31,7 +31,7 @@ export default function SecurityVerifyRoute() {
       : "Not available",
     accessType: "Visitor pass",
   } : null;
-  if (details) return <SafeAreaView edges={["left", "right"]} style={s.root}>
+  if (details && visitor) return <SafeAreaView edges={["left", "right"]} style={s.root}>
     <VisitorDetails visitor={details} busy={gate.busy} denyDisabled={visitor.pass.status !== "active"} onBack={gate.clearGateVisitor}
       onApprove={() => void gate.approveGateVisitor()} onDeny={() => void gate.denyGateVisitor()} />
     {visitor.availabilityError ? <Text style={s.status}>{visitorApiErrorMessage(visitor.availabilityError)}</Text> : !!gate.message && <Text style={s.status}>{gate.message}</Text>}
