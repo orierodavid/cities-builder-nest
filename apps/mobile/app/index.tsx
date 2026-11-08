@@ -789,7 +789,7 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
         )}
         <View style={[styles.main, isResident && !wide && tab === "home" && styles.residentMain, isEventOrganiser && styles.organiserMain]}>
           {session && isEventOrganiser && <View style={styles.organiserHeader}>
-            <View style={styles.organiserHeaderCopy}><Text style={styles.organiserHeaderTitle}>CB NEST EVENTS</Text><Text style={styles.organiserHeaderSubtitle}>{selectedEstate?.name || "Your assigned estate"}</Text></View>
+            <View style={styles.organiserHeaderCopy}><Text style={styles.organiserHeaderTitle}>Welcome, {profile?.profile?.full_name?.trim() || session.user.email || "Event Coordinator"}</Text><Text style={styles.organiserHeaderSubtitle}>Event Coordinator · {selectedEstate?.name || "Your assigned estate"}</Text></View>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Sign out" onPress={() => void signOut()} style={styles.organiserSignOut}><Ionicons name="log-out-outline" size={20} color="#D9A93F"/></TouchableOpacity>
           </View>}
           {session && !isEventOrganiser && <View style={[styles.topbar, isResident && !wide && tab === "home" && styles.residentTopbar]}>
