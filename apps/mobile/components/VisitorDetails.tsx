@@ -30,6 +30,7 @@ export type Visitor = {
 type Props = {
   visitor: Visitor;
   busy?: boolean;
+  denyDisabled?: boolean;
   onBack: () => void;
   onApprove: () => void;
   onDeny: () => void;
@@ -45,7 +46,7 @@ function DetailRow({ label, value }: { label: string; value?: string }) {
   );
 }
 
-export default function VisitorDetails({ visitor: v, busy = false, onBack, onApprove, onDeny }: Props) {
+export default function VisitorDetails({ visitor: v, busy = false, denyDisabled = false, onBack, onApprove, onDeny }: Props) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -96,7 +97,7 @@ export default function VisitorDetails({ visitor: v, busy = false, onBack, onApp
           {busy ? <ActivityIndicator color="#090909" /> : <Ionicons name="checkmark-circle-outline" size={19} color="#090909" />}
           <Text style={styles.approveText}>{busy ? "PLEASE WAIT…" : "APPROVE ENTRY"}</Text>
         </Pressable>
-        <Pressable disabled={busy} onPress={onDeny} style={({ pressed }) => [styles.denyButton, busy && styles.disabled, pressed && styles.pressed]}>
+        <Pressable disabled={busy || denyDisabled} onPress={onDeny} style={({ pressed }) => [styles.denyButton, (busy || denyDisabled) && styles.disabled, pressed && styles.pressed]}>
           <Ionicons name="close-circle-outline" size={19} color={t.redText} />
           <Text style={styles.denyText}>DENY ENTRY</Text>
         </Pressable>

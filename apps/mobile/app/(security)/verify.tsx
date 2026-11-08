@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import SecurityVerify from "../../components/VerifyVisitor";
 import VisitorDetails, { type Visitor } from "../../components/VisitorDetails";
 import { useGate } from "../../src/features/security/useGate";
+import { visitorApiErrorMessage } from "../../src/features/security/visitor-api";
 import { useSecurityContext } from "../../src/features/security/SecurityContext";
 
 export default function SecurityVerifyRoute() {
@@ -31,9 +32,9 @@ export default function SecurityVerifyRoute() {
     accessType: "Visitor pass",
   } : null;
   if (details) return <SafeAreaView edges={["left", "right"]} style={s.root}>
-    <VisitorDetails visitor={details} busy={gate.busy} onBack={gate.clearGateVisitor}
+    <VisitorDetails visitor={details} busy={gate.busy} denyDisabled={visitor.pass.status !== "active"} onBack={gate.clearGateVisitor}
       onApprove={() => void gate.approveGateVisitor()} onDeny={() => void gate.denyGateVisitor()} />
-    {!!gate.message && <Text style={s.status}>{gate.message}</Text>}
+    {visitor.availabilityError ? <Text style={s.status}>{visitorApiErrorMessage(visitor.availabilityError)}</Text> : !!gate.message && <Text style={s.status}>{gate.message}</Text>}
   </SafeAreaView>;
   const camera = permission?.granted ? <CameraView style={StyleSheet.absoluteFill} facing={facing}
     barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
