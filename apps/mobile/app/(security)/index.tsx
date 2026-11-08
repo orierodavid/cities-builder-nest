@@ -41,5 +41,5 @@ export default function SecurityHomeRoute() {
     return () => { active = false; };
   }, []);
   if (loading) return <View style={{ flex: 1, backgroundColor: "#050505", alignItems: "center", justifyContent: "center" }}><ActivityIndicator color="#D9A93F" size="large" /></View>;
-  return <SecurityHome officerName={officerName} estateName={estateName} statusMessage={statusMessage} onNavigate={(route) => router.push(route as never)} />;
+  return <SecurityHome officerName={officerName} estateName={estateName} statusMessage={statusMessage} onNavigate={(route) => router.push((route === "/scan" ? "/(security)/scan" : route === "/records" ? "/(security)/records" : route === "/profile" ? "/(security)/profile" : "/(security)") as never)} />;
 }
