@@ -16,6 +16,10 @@ const TABS: Record<string, { label: string; icon: IconName; iconActive: IconName
 };
 type ResidentTabState = { routes: Array<{ name: string; key: string; params?: object }>; index: number };
 
+// React may reconnect an effect before Supabase finishes removing its prior channel.
+// A per-effect topic prevents channel() from returning that already-subscribed instance.
+let residentBadgeChannelSequence = 0;
+
 export default function CBTabBar({ state, navigation }: { state: ResidentTabState; navigation: any }) {
   const insets = useSafeAreaInsets();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -48,7 +52,7 @@ export default function CBTabBar({ state, navigation }: { state: ResidentTabStat
 
       // Use a resident-scoped topic so a stale channel from a previous session
       // cannot be reused when the auth state changes or React reconnects effects.
-      const topic = `resident-notification-badge:${user.id}`;
+      const topic = `resident-notification-badge:${user.id}:${++residentBadgeChannelSequence}`;
       channel = supabase.channel(topic)
         .on(
           'postgres_changes',
