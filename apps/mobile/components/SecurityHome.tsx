@@ -125,7 +125,7 @@ export default function SecurityHome({
           icon="keypad-outline"
           title="Enter Access Code"
           description="Look up a visitor using their access code"
-          onPress={() => onNavigate("/(security)/scan")}
+          onPress={() => onNavigate("/scan")}
         />
 
         <View style={styles.sectionHeading}>
@@ -156,13 +156,13 @@ export default function SecurityHome({
           <Ionicons name="home" size={21} color={t.gold} />
           <Text style={[styles.tabLabel, styles.activeTabLabel]}>Home</Text>
         </Pressable>
-        <Pressable style={styles.tab} onPress={() => onNavigate("/(security)/records")}>
+        <Pressable style={styles.tab} onPress={() => onNavigate("/records")}>
           <Ionicons name="receipt-outline" size={21} color={t.muted} />
           <Text style={styles.tabLabel}>Records</Text>
         </Pressable>
         <Pressable
           style={styles.scanTab}
-          onPress={() => onNavigate("/(security)/scan")}
+          onPress={() => onNavigate("/scan")}
           accessibilityRole="button"
           accessibilityLabel="Scan visitor code"
         >
