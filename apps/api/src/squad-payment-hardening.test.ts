@@ -11,10 +11,11 @@ const initiate = read("supabase/functions/initiate-squad-payment/index.ts");
 const webhook = read("supabase/functions/squad-payment-webhook/index.ts");
 const verify = read("supabase/functions/verify-squad-payment/index.ts");
 
-test("service charges cannot have two pending or successful payment attempts", () => {
-  assert.match(dedup, /GROUP BY charge_id, resident_user_id[\s\S]*?HAVING COUNT\(\*\) > 1/);
-  assert.match(dedup, /RAISE EXCEPTION[\s\S]*?duplicate_active_service_charge_payments_require_reconciliation/);
-  assert.match(dedup, /CREATE UNIQUE INDEX IF NOT EXISTS service_charge_payments_one_active_attempt_idx[\s\S]*?WHERE status IN \('pending', 'successful'\)/);
+test("service charges serialize payment attempts and reject a second active record", () => {
+  assert.match(dedup, /pg_advisory_xact_lock/);
+  assert.match(dedup, /existing\.status IN \('pending', 'successful'\)/);
+  assert.match(dedup, /active_service_charge_payment_already_exists/);
+  assert.match(dedup, /CREATE UNIQUE INDEX IF NOT EXISTS service_charge_payments_one_pending_attempt_idx[\s\S]*?WHERE status = 'pending'/);
 });
 
 test("service charge initiation rejects unsafe database amounts", () => {
