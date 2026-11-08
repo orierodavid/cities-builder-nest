@@ -7,7 +7,7 @@ import QRCode from "react-native-qrcode-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View, useWindowDimensions,
+  Share, Text, TextInput, TouchableOpacity, View, useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { Session } from "@supabase/supabase-js";
@@ -625,6 +625,15 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
     finally { setInvitationLoading(false); }
   }
 
+  async function shareInvitationMessage(message: string, title: string) {
+    if (!message.trim()) return;
+    try {
+      await Share.share({ message, title });
+    } catch (e) {
+      setInvitationMessage(e instanceof Error ? e.message : "The phone share menu could not be opened.");
+    }
+  }
+
   async function generateAndCopyInvitation(guest: EventGuest) {
     if (!session?.access_token || !selectedEstateId || !invitationEvent || !apiUrl) return;
     setInvitationBusy(true); setInvitationMessage(""); setGeneratedInvitation(null);
@@ -944,10 +953,10 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
                       </TouchableOpacity>
                       {guestLoading || invitationLoading ? <ActivityIndicator color="#D4A84B"/> : eventGuests.length ? eventGuests.map((guest) => {
                         const active = eventInvitations.find((item) => item.guest_id === guest.id && item.status === "active");
-                        return <View key={guest.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{guest.guest_name}</Text>{!!guest.email && <Text style={styles.eventCardMeta}>{guest.email}</Text>}{!!guest.phone && <Text style={styles.eventCardMeta}>{guest.phone}</Text>}<Text style={styles.eventCardStatus}>{active ? "CODE ACTIVE · NOT SENT" : "NO ACTIVE CODE"}</Text><TouchableOpacity style={styles.guestOpenButton} disabled={invitationBusy} onPress={() => void generateAndCopyInvitation(guest)}><Text style={styles.guestOpenText}>{active ? "REGENERATE & COPY INVITATION" : "GENERATE & COPY INVITATION"}</Text></TouchableOpacity>{active && <TouchableOpacity onPress={() => void revokeEventInvitation(active.id)} disabled={invitationBusy} style={styles.eventBack}><Text style={styles.guestRemove}>REVOKE CODE</Text></TouchableOpacity>}{generatedInvitation?.guestId === guest.id && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Invitation code</Text><Text style={styles.eventHeading}>{generatedInvitation.code}</Text><Text style={styles.bodyText}>{generatedInvitation.message}</Text><TouchableOpacity style={styles.guestOpenButton} onPress={() => void Clipboard.setStringAsync(generatedInvitation.message)}><Text style={styles.guestOpenText}>COPY INVITATION TEXT</Text></TouchableOpacity></View>}</View>;
+                        return <View key={guest.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{guest.guest_name}</Text>{!!guest.email && <Text style={styles.eventCardMeta}>{guest.email}</Text>}{!!guest.phone && <Text style={styles.eventCardMeta}>{guest.phone}</Text>}<Text style={styles.eventCardStatus}>{active ? "CODE ACTIVE · NOT SENT" : "NO ACTIVE CODE"}</Text><TouchableOpacity style={styles.guestOpenButton} disabled={invitationBusy} onPress={() => void generateAndCopyInvitation(guest)}><Text style={styles.guestOpenText}>{active ? "REGENERATE & COPY INVITATION" : "GENERATE & COPY INVITATION"}</Text></TouchableOpacity>{active && <TouchableOpacity onPress={() => void revokeEventInvitation(active.id)} disabled={invitationBusy} style={styles.eventBack}><Text style={styles.guestRemove}>REVOKE CODE</Text></TouchableOpacity>}{generatedInvitation?.guestId === guest.id && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Invitation code</Text><Text style={styles.eventHeading}>{generatedInvitation.code}</Text><Text style={styles.bodyText}>{generatedInvitation.message}</Text><TouchableOpacity style={styles.guestOpenButton} onPress={() => void Clipboard.setStringAsync(generatedInvitation.message)}><Text style={styles.guestOpenText}>COPY INVITATION TEXT</Text></TouchableOpacity><TouchableOpacity style={styles.guestOpenButton} onPress={() => void shareInvitationMessage(generatedInvitation.message, "Event invitation")}><Text style={styles.guestOpenText}>SHARE INVITATION · WHATSAPP / SMS</Text></TouchableOpacity></View>}</View>;
                       }) : <Text style={styles.eventEmpty}>Add guests in Guest List before creating invitations.</Text>}
                       {!!invitationMessage && <Text style={invitationMessage.includes("copied") || invitationMessage.includes("revoked") ? styles.eventSuccess : styles.eventError}>{invitationMessage}</Text>}
-                      {!!bulkInvitationText && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Bulk invitation messages</Text><Text style={styles.bodyText}>{bulkInvitationText}</Text><TouchableOpacity style={styles.guestOpenButton} onPress={() => void Clipboard.setStringAsync(bulkInvitationText)}><Text style={styles.guestOpenText}>COPY ALL AGAIN</Text></TouchableOpacity></View>}
+                      {!!bulkInvitationText && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Bulk invitation messages</Text><Text style={styles.bodyText}>{bulkInvitationText}</Text><TouchableOpacity style={styles.guestOpenButton} onPress={() => void Clipboard.setStringAsync(bulkInvitationText)}><Text style={styles.guestOpenText}>COPY ALL AGAIN</Text></TouchableOpacity><TouchableOpacity style={styles.guestOpenButton} onPress={() => void shareInvitationMessage(bulkInvitationText, "Event invitations")}><Text style={styles.guestOpenText}>SHARE ALL · WHATSAPP / SMS</Text></TouchableOpacity></View>}
                       <TouchableOpacity style={styles.eventBack} onPress={() => void loadEventInvitations(invitationEvent.id)}><Text style={styles.eventRefresh}>REFRESH INVITATIONS</Text></TouchableOpacity>
                       <Text style={styles.eventHint}>Copying does not send the invitation or mark it as sent. You decide where to paste the message.</Text>
                     </>}
