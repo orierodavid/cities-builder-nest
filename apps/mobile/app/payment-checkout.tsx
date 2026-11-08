@@ -20,7 +20,8 @@ export default function PaymentCheckoutScreen() {
   const safeCheckoutUrl = useMemo(() => {
     try {
       const parsed = new URL(checkoutUrl);
-      return parsed.protocol === "https:" && parsed.hostname.toLowerCase().endsWith("squadco.com");
+      const host = parsed.hostname.toLowerCase();
+      return parsed.protocol === "https:" && (host === "squadco.com" || host.endsWith(".squadco.com") || host === "squadco.co" || host.endsWith(".squadco.co"));
     } catch {
       return false;
     }
