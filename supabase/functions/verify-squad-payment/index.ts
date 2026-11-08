@@ -31,6 +31,7 @@ Deno.serve(async (req: Request) => {
     admin.from("rent_savings_contributions").select("id,amount_kobo,currency,status,resident_user_id,verified_at").eq("provider_reference", ref).eq("resident_user_id", auth.user.id).maybeSingle(),
   ]);
   if (serviceError || rentError) return reply(503, { error: "payment_ledger_lookup_failed" });
+  if (serviceRow && rentRow) return reply(409, { error: "ambiguous_payment_reference" });
   const row = serviceRow ?? rentRow;
   const table = serviceRow ? "service_charge_payments" : "rent_savings_contributions";
   if (!row) return reply(404, { error: "payment_not_found" });
@@ -54,7 +55,7 @@ Deno.serve(async (req: Request) => {
   const amount = Number(data.transaction_amount ?? data.amount);
   const currency = String(data.transaction_currency_id ?? data.currency ?? "").toUpperCase();
   const verifiedRef = String(data.transaction_ref ?? "");
-  if (!Number.isSafeInteger(amount) || amount <= 0 || verifiedRef !== ref || amount !== Number(row.amount_kobo) || currency !== "NGN") return reply(409, { error: "verified_transaction_mismatch" });
+  if (!Number.isSafeInteger(amount) || amount <= 0 || !Number.isSafeInteger(Number(row.amount_kobo)) || Number(row.amount_kobo) <= 0 || verifiedRef !== ref || amount !== Number(row.amount_kobo) || currency !== "NGN") return reply(409, { error: "verified_transaction_mismatch" });
   if (!["success", "failed", "abandoned", "pending"].includes(status)) return reply(409, { error: "verified_transaction_status_invalid" });
   const { data: authUser, error: userError } = await admin.auth.admin.getUserById(auth.user.id);
   if (userError || !authUser.user?.email || String(data.email ?? "").toLowerCase() !== authUser.user.email.toLowerCase()) return reply(409, { error: "verified_customer_mismatch" });
@@ -70,7 +71,9 @@ Deno.serve(async (req: Request) => {
   if (["failed", "abandoned"].includes(status)) {
     const { error } = await admin.from(table).update({ status: "failed" }).eq("id", row.id).eq("status", "pending");
     if (error) return reply(500, { error: "payment_ledger_update_failed" });
-    return reply(200, { status: "failed", verified: true });
+    const { data: current, error: currentError } = await admin.from(table).select("status").eq("id", row.id).maybeSingle();
+    if (currentError || !current) return reply(503, { error: "payment_ledger_lookup_failed" });
+    return reply(200, { status: current.status, verified: current.status === "failed" || current.status === "reversed" });
   }
   return reply(200, { status: "pending", verified: true });
 });
