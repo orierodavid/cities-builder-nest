@@ -11,7 +11,7 @@ function reply(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
-function remainingSeconds(until: string) {
+async function loginRateLimitBucket(ip: string): Promise<string> {\n  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`cbnest:login:${ip}`));\n  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");\n}\n\nfunction remainingSeconds(until: string) {
   return Math.max(1, Math.ceil((new Date(until).getTime() - Date.now()) / 1000));
 }
 
@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !anonKey || !serviceKey) return reply(503, { error: "authentication_service_unavailable" });
 
-  let input: Record<string, unknown>;
+  const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });\n  const clientIp = req.headers.get("cf-connecting-ip")?.trim();\n  if (clientIp) {\n    const bucketKey = await loginRateLimitBucket(clientIp);\n    const limit = await admin.rpc("consume_api_rate_limit", {\n      p_bucket_key: bucketKey,\n      p_window_seconds: 60,\n      p_max_requests: 10,\n    });\n    if (limit.error) return reply(503, { error: "login_rate_limit_unavailable" });\n    if (limit.data !== true) {\n      return new Response(JSON.stringify({ error: "rate_limit_exceeded", message: "Too many sign-in attempts. Please retry shortly." }), {\n        status: 429,\n        headers: { ...headers, "Retry-After": "60" },\n      });\n    }\n  }\n\n  let input: Record<string, unknown>;
   try { input = await req.json(); } catch { return reply(400, { error: "invalid_json" }); }
   const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
   const password = typeof input.password === "string" ? input.password : "";
