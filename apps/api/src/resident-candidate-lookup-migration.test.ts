@@ -15,9 +15,9 @@ test("resident candidate RPC retains authenticated-only execution and safe searc
 });
 
 test("resident candidate lookup requires active resident membership in the same estate", () => {
-  assert.match(hardeningMigration, /em\.estate_id=target_estate_id/);
-  assert.match(hardeningMigration, /em\.user_id=target_user_id/);
-  assert.match(hardeningMigration, /em\.membership_role='resident'/);
-  assert.match(hardeningMigration, /em\.status='active'/);
+  assert.match(hardeningMigration, /em\.estate_id\s*=\s*target_estate_id/);
+  assert.match(hardeningMigration, /em\.user_id\s*=\s*target_user_id/);
+  assert.match(hardeningMigration, /em\.membership_role\s*=\s*'resident'/);
+  assert.match(hardeningMigration, /em\.status\s*=\s*'active'/);
   assert.match(hardeningMigration, /private\.is_active_estate_manager\(target_estate_id\)/);
 });
