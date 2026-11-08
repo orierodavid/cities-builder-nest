@@ -1,4 +1,4 @@
-name: Deploy Squad Payment Webhook
+name: Deploy Squad Payment Functions
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "supabase/functions/squad-payment-webhook/**"
+      - "supabase/functions/initiate-squad-payment/**"
       - "supabase/config.toml"
       - ".github/workflows/deploy-squad-payment-webhook.yml"
 
@@ -28,6 +29,9 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Type-check Squad payment initiation
+        run: deno check supabase/functions/initiate-squad-payment/index.ts
+
       - name: Type-check Squad webhook
         run: deno check supabase/functions/squad-payment-webhook/index.ts
 
@@ -40,6 +44,9 @@ jobs:
         shell: bash
         run: |
           test -n "$SUPABASE_ACCESS_TOKEN" || (echo "Missing SUPABASE_ACCESS_TOKEN GitHub Actions secret" && exit 1)
+
+      - name: Deploy payment initiation with project configuration
+        run: supabase functions deploy initiate-squad-payment --project-ref "$PROJECT_ID" --yes
 
       - name: Deploy webhook with project configuration
         run: supabase functions deploy squad-payment-webhook --project-ref "$PROJECT_ID" --yes
