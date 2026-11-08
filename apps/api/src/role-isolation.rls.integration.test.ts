@@ -37,6 +37,7 @@ test("PostgreSQL RLS prevents cross-estate reads and role escalation through dir
       DROP TABLE IF EXISTS public.estates CASCADE;
       DROP TYPE IF EXISTS public.app_role CASCADE;
       CREATE SCHEMA auth;
+      CREATE SCHEMA private;
       CREATE FUNCTION auth.uid() RETURNS uuid
         LANGUAGE sql STABLE
         AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
