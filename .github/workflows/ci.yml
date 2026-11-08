@@ -69,6 +69,8 @@ jobs:
         run: deno check supabase/functions/create-resident-virtual-account/index.ts
       - name: Type-check Squad utilities Edge Function
         run: deno check supabase/functions/squad-utilities/index.ts
+      - name: Type-check Squad payment verification Edge Function
+        run: deno check supabase/functions/verify-squad-payment/index.ts
       - name: Type-check resend invitation Edge Function
         run: deno check supabase/functions/resend-account-invitation/index.ts
 
