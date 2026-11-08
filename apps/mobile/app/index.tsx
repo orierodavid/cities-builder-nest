@@ -807,8 +807,9 @@ export default function HomeScreen() {
     );
   }
 
-  // Residents use only the dedicated Expo Router app group. The legacy root
-  // application remains available to the other supported mobile roles.
+  // Residents and Security use their dedicated Expo Router app groups.
+  // Keep the legacy root experience out of these role-specific mobile flows.
+  if (session && mobileClient && isSecurity) return <Redirect href={"/(security)" as never} />;
   if (session && isResident) return <Redirect href={"/(resident)" as never} />;
 
   if (!restoring && !session) {
