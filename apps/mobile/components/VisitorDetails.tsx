@@ -1,12 +1,13 @@
-import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { theme as t } from "../src/theme/theme";
+import React from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, radius, spacing } from './theme';
+import { Badge, GoldButton, OutlineButton, SecurityScreen } from './ui';
 
-export type Visitor = {
+type Visitor = {
   name: string;
-  category: string;
+  category: string; // "Personal Visitor"
+  photoUrl?: string;
   valid: boolean;
   accessCode: string;
   host: string;
@@ -19,88 +20,72 @@ export type Visitor = {
 
 type Props = {
   visitor: Visitor;
-  busy?: boolean;
-  onBack?: () => void;
-  onApprove?: () => void;
-  onDeny?: () => void;
+  onBack: () => void;
+  onApprove: () => void;
+  onDeny: () => void;
 };
 
-export default function VisitorDetails({ visitor: v, busy = false, onBack, onApprove, onDeny }: Props) {
-  const insets = useSafeAreaInsets();
-  const rows: [string, string][] = [
-    ["Access Code", v.accessCode],
-    ["Host", v.host],
-    ["Property", v.property],
-    ["Date", v.date],
-    ["Time", v.time],
-    ["Access Type", v.accessType],
-    ["Vehicle (Optional)", v.vehicle ?? "-"],
-  ];
-
+function Row({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={t.bg} />
-      <View style={s.header}>
-        <TouchableOpacity onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="chevron-back" size={26} color={t.text} />
-        </TouchableOpacity>
-        <Text style={s.title}>Visitor Details</Text>
-        <View style={{ width: 26 }} />
-      </View>
-      <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
-        <View style={s.card}>
-          <View style={s.topRow}>
-            <View style={s.avatar}><Ionicons name="person" size={30} color="#555" /></View>
-            <View style={{ marginLeft: 12, flex: 1 }}>
-              <Text style={s.name}>{v.name}</Text>
-              <Text style={s.category}>{v.category}</Text>
-            </View>
-          </View>
-          <View style={[s.status, { backgroundColor: v.valid ? "#123522" : "#351614" }]}>
-            <Text style={{ color: v.valid ? "#80D9A5" : "#F2B5B0", fontSize: 12, fontWeight: "600" }}>
-              {v.valid ? "Valid Access Code" : "Invalid / Expired Code"}
-            </Text>
-          </View>
-          {rows.map(([k, val]) => (
-            <View key={k} style={s.row}>
-              <Text style={s.key}>{k}</Text>
-              <Text style={s.val}>{val}</Text>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-      <View style={{ paddingHorizontal: 16, paddingBottom: 16 + insets.bottom }}>
-        <TouchableOpacity
-          style={[s.approve, (!v.valid || busy) && { opacity: 0.5 }]}
-          disabled={!v.valid || busy}
-          onPress={onApprove}
-          accessibilityRole="button"
-        >
-          <Text style={s.approveText}>{busy ? "Please wait..." : "Approve Entry"}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.deny, busy && { opacity: 0.5 }]} disabled={busy} onPress={onDeny} accessibilityRole="button">
-          <Text style={s.denyText}>Deny Entry</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={styles.rowValue}>{value}</Text>
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: t.bg },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  title: { color: t.text, fontSize: 17, fontWeight: "700" },
-  card: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 18, padding: 17 },
-  topRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  avatar: { width: 56, height: 56, borderRadius: 10, backgroundColor: "#211B10", borderWidth: 1, borderColor: t.border, alignItems: "center", justifyContent: "center" },
-  name: { color: t.text, fontSize: 17, fontWeight: "700" },
-  category: { color: t.muted, fontSize: 12, marginTop: 2 },
-  status: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
-  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#292319" },
-  key: { color: t.goldSoft, fontSize: 13, flexShrink: 1, paddingRight: 8 },
-  val: { color: "#111", fontSize: 13, fontWeight: "600", maxWidth: "60%", textAlign: "right" },
-  approve: { backgroundColor: t.gold, borderRadius: 12, paddingVertical: 16, alignItems: "center", marginBottom: 10 },
-  approveText: { color: "#000", fontWeight: "700", fontSize: 15 },
-  deny: { backgroundColor: "#351614", borderWidth: 1, borderColor: "#8E1B14", borderRadius: 12, paddingVertical: 16, alignItems: "center" },
-  denyText: { color: t.redText, fontWeight: "700", fontSize: 15 },
+export default function VisitorDetails({ visitor: v, onBack, onApprove, onDeny }: Props) {
+  return (
+    <SecurityScreen title="Visitor Details" onBack={onBack}>
+      <View style={styles.card}>
+        <View style={styles.top}>
+          {v.photoUrl ? (
+            <Image source={{ uri: v.photoUrl }} style={styles.photo} />
+          ) : (
+            <View style={[styles.photo, styles.photoFallback]}>
+              <Ionicons name="person" size={28} color={colors.textMuted} />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name}>{v.name}</Text>
+            <Text style={styles.category}>{v.category}</Text>
+          </View>
+        </View>
+
+        {v.valid ? <Badge label="Valid Access Code" /> : null}
+
+        <View style={styles.rows}>
+          <Row label="Access Code" value={v.accessCode} />
+          <Row label="Host" value={v.host} />
+          <Row label="Property" value={v.property} />
+          <Row label="Date" value={v.date} />
+          <Row label="Time" value={v.time} />
+          <Row label="Access Type" value={v.accessType} />
+          <Row label="Vehicle (Optional)" value={v.vehicle} />
+        </View>
+      </View>
+
+      <GoldButton label="Approve Entry" onPress={onApprove} />
+      <OutlineButton label="Deny Entry" tone="danger" onPress={onDeny} />
+    </SecurityScreen>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  top: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  photo: { width: 56, height: 56, borderRadius: radius.sm },
+  photoFallback: { backgroundColor: '#E8E8E8', alignItems: 'center', justifyContent: 'center' },
+  name: { color: colors.ink, fontSize: 18, fontWeight: '800' },
+  category: { color: '#666', fontSize: 12, marginTop: 2 },
+  rows: { gap: 14, marginTop: 4 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
+  rowLabel: { color: '#555', fontSize: 13, flexShrink: 0 },
+  rowValue: { color: colors.ink, fontSize: 13, fontWeight: '700', textAlign: 'right', flex: 1 },
 });
