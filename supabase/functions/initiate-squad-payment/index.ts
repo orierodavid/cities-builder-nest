@@ -37,7 +37,7 @@ Deno.serve(async(req:Request)=>{
  }
  const base=mode==="live"?"https://api-d.squadco.com":"https://sandbox-api-d.squadco.com";
  try{
-  const response=await fetch(`${base}/transaction/initiate`,{method:"POST",headers:{Authorization:`Bearer ${secret}`,"Content-Type":"application/json"},body:JSON.stringify({email:auth.user.email,amount:amountKobo,currency:"NGN",customer_name:profile.full_name,initiate_type:"inline",transaction_ref:ref,payment_channels:["card","bank","ussd","transfer"],pass_charge:false,metadata:{app:"cities-builder-nest",payment_type:type,ledger_id:ledgerId,resident_user_id:auth.user.id,estate_id:estateId}})});
+  const response=await fetch(`${base}/transaction/initiate`,{method:"POST",headers:{Authorization:`Bearer ${secret}`,"Content-Type":"application/json"},body:JSON.stringify({email:auth.user.email,amount:amountKobo,currency:"NGN",customer_name:profile.full_name,initiate_type:"inline",transaction_ref:ref,callback_url:"citiesbuildernest://payment-return",payment_channels:["card","bank","ussd","transfer"],pass_charge:false,metadata:{app:"cities-builder-nest",payment_type:type,ledger_id:ledgerId,resident_user_id:auth.user.id,estate_id:estateId}})});
   const result=await response.json(),checkout=result?.data?.checkout_url??result?.checkout_url;
   if(!response.ok||!result?.success||typeof checkout!=="string"||!checkout.startsWith("https://")){await admin.from(table).update({status:"failed"}).eq("id",ledgerId);return reply(502,{error:"squad_checkout_initialization_failed"})}
   return reply(200,{checkoutUrl:checkout,transactionReference:ref,amountKobo,currency:"NGN",environment:mode});
