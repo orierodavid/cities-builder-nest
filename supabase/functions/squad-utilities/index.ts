@@ -27,8 +27,18 @@ Deno.serve(async(req:Request)=>{
  const action=str(input.action),service=str(input.service),provider=str(input.provider).toUpperCase();
  const base=mode==="live"?"https://api-d.squadco.com":"https://sandbox-api-d.squadco.com";
  const squad=async(path:string,method="GET",body?:Record<string,unknown>)=>{
-  const r=await fetch(base+path,{method,headers:{Authorization:`Bearer ${squadKey}`,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
-  const data=await r.json().catch(()=>({})) as Record<string,unknown>;return {r,data};
+  try{
+   const r=await fetch(base+path,{method,headers:{Authorization:`Bearer ${squadKey}`,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
+   const raw=await r.text();
+   let data:Record<string,unknown>={};
+   if(raw){try{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed))data=parsed as Record<string,unknown>;else data={response_type:Array.isArray(parsed)?"array":typeof parsed};}catch{data={message:"Squad returned a non-JSON response."};}}
+   console.info("[squad-utilities] upstream response",JSON.stringify({path,method,status:r.status,ok:r.ok,topLevelKeys:Object.keys(data),dataKeys:data.data&&typeof data.data==="object"&&!Array.isArray(data.data)?Object.keys(data.data as Record<string,unknown>):[]}));
+   return {r,data};
+  }catch(error){
+   const detail=error instanceof Error?{name:error.name,message:error.message.slice(0,240)}:{name:"UnknownError"};
+   console.error("[squad-utilities] upstream request failed",JSON.stringify({path,method,detail}));
+   return {r:new Response(null,{status:502}),data:{message:"Squad utility service is temporarily unreachable."},networkError:true};
+  }
  };
  const nested=(d:Record<string,unknown>)=>d.data&&typeof d.data==="object"&&!Array.isArray(d.data)?d.data as Record<string,unknown>:d;
  const rowsAt=(v:unknown):Record<string,unknown>[]=>Array.isArray(v)?v as Record<string,unknown>[]:[];
@@ -40,8 +50,11 @@ Deno.serve(async(req:Request)=>{
   if(!services.has(service))return reply(400,{error:"unsupported_utility_service"});
   const {r,data}=await squad("/v1/service/billers");
   if(!r.ok)return reply(502,{error:"billers_unavailable",message:message(data,"Utility providers could not be loaded.")});
-  const group=billerRows(data).find(x=>str(x.code).toUpperCase()===serviceCodes[service]);
-  const providers=rowsAt(group?.providers).map(x=>({code:str(x.code),name:str(x.name)||str(x.code),type:x.type??null,total_rate_percent:x.total_rate_percent??null,total_rate_cap:x.total_rate_cap??null}));
+  const groups=billerRows(data);
+  const group=groups.find(x=>str(x.code).toUpperCase()===serviceCodes[service]);
+  const rawProviders=rowsAt(group?.providers);
+  console.info("[squad-utilities] biller catalogue",JSON.stringify({service:serviceCodes[service],groupCodes:groups.map(x=>str(x.code).toUpperCase()).filter(Boolean),matchedGroup:Boolean(group),providerCount:rawProviders.length}));
+  const providers=rawProviders.map(x=>({code:str(x.code),name:str(x.name)||str(x.code),type:x.type??null,total_rate_percent:x.total_rate_percent??null,total_rate_cap:x.total_rate_cap??null})).filter(x=>x.code&&x.name);
   return reply(200,{billers:providers,service:serviceCodes[service]});
  }
  if(action==="products"){
