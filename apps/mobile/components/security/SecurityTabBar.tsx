@@ -15,7 +15,7 @@ export default function SecurityTabBar({ state, descriptors, navigation }: { sta
   const insets = useSafeAreaInsets();
   return <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
     {items.map((item) => {
-      const routeIndex = state.routes.findIndex((route) => route.name === item.name);
+      const routeIndex = state.routes.findIndex((route: { name: string }) => route.name === item.name);
       if (routeIndex < 0) return null;
       const route = state.routes[routeIndex];
       const focused = state.index === routeIndex;
