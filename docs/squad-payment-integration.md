@@ -30,14 +30,15 @@ The authenticated `verify-squad-payment` Edge Function also lets the signed-in r
 ## Deployment and verification checklist
 
 1. Apply migration `20261104120000_squad_payment_ledger.sql`.
-2. Deploy `initiate-squad-payment`, `verify-squad-payment`, and `squad-payment-webhook` (the GitHub Actions payment-functions workflow deploys all three). The webhook deployment is automated by `.github/workflows/deploy-squad-payment-webhook.yml`; the workflow reads the repository secret `SUPABASE_ACCESS_TOKEN` and uses `supabase/config.toml` to deploy the webhook with platform JWT verification disabled.
-3. Set the sandbox secret and `SQUAD_ENVIRONMENT=sandbox`.
-4. Register the webhook URL in Squad's sandbox dashboard.
-5. Run a sandbox service-charge transaction and a sandbox rent-goal contribution.
-6. Confirm the webhook signature is accepted, Squad verification returns the matching transaction, and exactly one pending row changes to successful.
-7. Replay the same webhook and confirm the ledger is unchanged.
-8. Test wrong amount, currency, email, reference, invalid signature, abandoned and failed transactions; none may be marked successful.
-9. Switch to live only after merchant KYC/approval, dashboard configuration, and successful sandbox sign-off.
+2. Apply migration `20261108200000_squad_service_charge_payment_dedup.sql`. It serializes payment attempts for the same resident/service-charge pair and prevents a second pending or successful attempt. It preserves existing records; reconcile any pre-existing pending + successful duplicate against Squad before changing either record.
+3. Deploy `initiate-squad-payment`, `verify-squad-payment`, and `squad-payment-webhook` (the GitHub Actions payment-functions workflow deploys all three). The webhook deployment is automated by `.github/workflows/deploy-squad-payment-webhook.yml`; the workflow reads the repository secret `SUPABASE_ACCESS_TOKEN` and uses `supabase/config.toml` to deploy the webhook with platform JWT verification disabled.
+4. Set the sandbox secret and `SQUAD_ENVIRONMENT=sandbox`.
+5. Register the webhook URL in Squad's sandbox dashboard.
+6. Run a sandbox service-charge transaction and a sandbox rent-goal contribution.
+7. Confirm the webhook signature is accepted, Squad verification returns the matching transaction, and exactly one pending row changes to successful.
+8. Replay the same webhook and confirm the ledger is unchanged.
+9. Test wrong amount, currency, email, reference, invalid signature, abandoned and failed transactions; none may be marked successful.
+10. Switch to live only after merchant KYC/approval, dashboard configuration, and successful sandbox sign-off.
 
 ## Current app integration and remaining validation
 
