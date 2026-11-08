@@ -9,9 +9,10 @@ import { getApiBaseUrl } from "../../src/lib/api-url";
 type Estate = { id: string; name: string; membershipRole?: string | null };
 type EventRecord = { id: string; title: string; venue: string; starts_at: string; ends_at: string; status: string };
 type VerificationResult = {
+  verified: true;
   event: { title: string; venue: string };
   guest: { guest_name: string; email: string | null; phone: string | null };
-  checkIn: { checked_in_at: string };
+  invitation: { id: string; status: "active" };
 };
 
 const GOLD = "#D4A84B";
@@ -86,14 +87,14 @@ export default function SecurityEventGuestsRoute() {
     try {
       const headers = await getHeaders();
       const response = await fetch(
-        base + "/v1/estates/" + encodeURIComponent(estate.id) + "/events/" + encodeURIComponent(selectedEventId) + "/security-check-in",
+        base + "/v1/estates/" + encodeURIComponent(estate.id) + "/events/" + encodeURIComponent(selectedEventId) + "/security-verify",
         { method: "POST", headers, body: JSON.stringify({ code: cleanCode }) },
       );
       const payload = await response.json() as VerificationResult & { error?: string };
       if (!response.ok) {
         const errors: Record<string, string> = {
           event_invitation_not_found_or_inactive: "Invitation not found, expired or revoked. Do not admit this guest.",
-          event_guest_already_checked_in: "This guest has already been checked in.",
+          event_guest_already_checked_in: "This guest has already been checked in by the Event Coordinator.",
           event_not_open_for_guest_checkin: "This event is not published and cannot accept guest check-ins.",
           security_membership_required: "Your account is not assigned as Security to this estate.",
         };
@@ -166,18 +167,18 @@ export default function SecurityEventGuestsRoute() {
           <Text style={{ color: GOLD, fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>OR ENTER INVITATION CODE</Text>
           <TextInput value={code} onChangeText={value => setCode(value.replace(/\D/g, "").slice(0, 6))} placeholder="Six-digit invitation code" placeholderTextColor="#777" keyboardType="number-pad" maxLength={6} style={{ marginTop: 9, minHeight: 49, backgroundColor: "#101010", borderColor: "#494133", borderWidth: 1, borderRadius: 10, color: "#FFFFFF", paddingHorizontal: 13, fontSize: 17, letterSpacing: 4 }} />
           <TouchableOpacity disabled={busy || code.length !== 6 || !selectedEventId} onPress={() => void verify(code)} style={{ marginTop: 10, minHeight: 47, borderRadius: 10, backgroundColor: "#302718", borderWidth: 1, borderColor: "#6A552F", alignItems: "center", justifyContent: "center", opacity: busy || code.length !== 6 || !selectedEventId ? 0.5 : 1 }}>
-            {busy ? <ActivityIndicator color={GOLD} /> : <Text style={{ color: "#F5D58D", fontWeight: "900" }}>VERIFY & CHECK IN GUEST</Text>}
+            {busy ? <ActivityIndicator color={GOLD} /> : <Text style={{ color: "#F5D58D", fontWeight: "900" }}>VERIFY INVITATION & AUTHORISE ENTRY</Text>}
           </TouchableOpacity>
         </View>
         {message ? <Text style={{ color: "#FF9292", fontSize: 12, lineHeight: 18 }}>{message}</Text> : null}
         {result ? (
           <View style={[CARD, { borderColor: "#367A52" }]}>
-            <Text style={{ color: "#80D9A5", fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>GUEST CHECKED IN</Text>
+            <Text style={{ color: "#80D9A5", fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>INVITATION VERIFIED · ENTRY AUTHORISED</Text>
             <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "900", marginTop: 7 }}>{result.guest.guest_name}</Text>
             <Text style={{ color: "#B9B9B9", fontSize: 12, marginTop: 5 }}>{result.event.title} · {result.event.venue}</Text>
             {result.guest.phone ? <Text style={{ color: "#B9B9B9", fontSize: 12, marginTop: 4 }}>{result.guest.phone}</Text> : null}
             {result.guest.email ? <Text style={{ color: "#B9B9B9", fontSize: 12, marginTop: 4 }}>{result.guest.email}</Text> : null}
-            <Text style={{ color: "#80D9A5", fontSize: 11, marginTop: 10 }}>Checked in {new Date(result.checkIn.checked_in_at).toLocaleString()}</Text>
+            <Text style={{ color: "#80D9A5", fontSize: 11, marginTop: 10 }}>Valid active invitation. Attendance has not been recorded; the Event Coordinator will check in the guest.</Text>
           </View>
         ) : null}
       </ScrollView>
