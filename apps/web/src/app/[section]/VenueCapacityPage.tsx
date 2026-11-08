@@ -90,7 +90,7 @@ export default function VenueCapacityPage() {
 
  return <PortalFrame title="Venues & Capacity" description="Create estate venues, set their capacity and control when they can be booked.">
   <section className="panel module-panel">
-   <div className="module-toolbar"><div><h3>Venue directory</h3><p>Event Organisers can select available venues when planning estate events.</p></div><button type="button" className="primary-action" onClick={beginCreate}>＋ Add venue</button></div>
+   <div className="module-toolbar"><div><h3>Venue directory</h3><p>Manage the estate's bookable spaces and the attendance limits used by event planning.</p></div><button type="button" className="primary-action" onClick={beginCreate}>＋ Add venue</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">{success}</div>}
    <div className="user-list-toolbar"><label style={{display:"grid",gap:5}}>Estate<select aria-label="Select estate" value={estateId} onChange={e=>setEstateId(e.target.value)}>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label></div>
