@@ -32,7 +32,7 @@ Deno.serve(async(req:Request)=>{
    const raw=await r.text();
    let data:Record<string,unknown>={};
    if(raw){try{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed))data=parsed as Record<string,unknown>;else data={response_type:Array.isArray(parsed)?"array":typeof parsed};}catch{data={message:"Squad returned a non-JSON response."};}}
-   console.info("[squad-utilities] upstream response",JSON.stringify({path,method,status:r.status,ok:r.ok,topLevelKeys:Object.keys(data),dataKeys:data.data&&typeof data.data==="object"&&!Array.isArray(data.data)?Object.keys(data.data as Record<string,unknown>):[]}));
+   console.info("[squad-utilities] upstream response",JSON.stringify({path,method,status:r.status,ok:r.ok,topLevelKeys:Object.keys(data),dataKeys:data.data&&typeof data.data==="object"&&!Array.isArray(data.data)?Object.keys(data.data as Record<string,unknown>):[],upstreamMessage:str(data.message).slice(0,180)}));
    return {r,data};
   }catch(error){
    const detail=error instanceof Error?{name:error.name,message:error.message.slice(0,240)}:{name:"UnknownError"};
