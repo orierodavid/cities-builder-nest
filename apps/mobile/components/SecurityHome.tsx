@@ -16,6 +16,7 @@ type Props = {
   officerName: string;
   estateName: string;
   statusMessage?: string;
+  showBottomNav?: boolean;
   onNavigate: (route: string) => void;
 };
 
@@ -61,6 +62,7 @@ export default function SecurityHome({
   officerName,
   estateName,
   statusMessage,
+  showBottomNav = true,
   onNavigate,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -72,7 +74,7 @@ export default function SecurityHome({
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: Math.max(insets.bottom, 18) + 104 },
+          { paddingBottom: Math.max(insets.bottom, 18) + (showBottomNav ? 104 : 24) },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -117,7 +119,7 @@ export default function SecurityHome({
           icon="qr-code-outline"
           title="Scan Visitor Code"
           description="Verify a visitor's QR pass at the gate"
-          onPress={() => onNavigate("/(security)/scan")}
+          onPress={() => onNavigate("/scan")}
         />
         <ActionCard
           icon="keypad-outline"
@@ -133,7 +135,7 @@ export default function SecurityHome({
           icon="list-outline"
           title="Visitor Entry Records"
           description="View active visits and check visitors out"
-          onPress={() => onNavigate("/(security)/records")}
+          onPress={() => onNavigate("/records")}
         />
 
         <View style={styles.infoCard}>
@@ -149,8 +151,8 @@ export default function SecurityHome({
         </View>
       </ScrollView>
 
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        <Pressable style={styles.tab} onPress={() => onNavigate("/(security)")}>
+      {showBottomNav ? <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        <Pressable style={styles.tab} onPress={() => onNavigate("/")}>
           <Ionicons name="home" size={21} color={t.gold} />
           <Text style={[styles.tabLabel, styles.activeTabLabel]}>Home</Text>
         </Pressable>
@@ -166,11 +168,11 @@ export default function SecurityHome({
         >
           <Ionicons name="scan" size={25} color="#090909" />
         </Pressable>
-        <Pressable style={styles.tab} onPress={() => onNavigate("/(security)/profile")}>
+        <Pressable style={styles.tab} onPress={() => onNavigate("/profile")}>
           <Ionicons name="person-circle-outline" size={21} color={t.muted} />
           <Text style={styles.tabLabel}>Profile</Text>
         </Pressable>
-      </View>
+      </View> : null}
     </View>
   );
 }
