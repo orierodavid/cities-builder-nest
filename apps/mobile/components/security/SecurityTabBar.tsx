@@ -1,6 +1,5 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,7 +11,7 @@ const items = [
   { name: "profile", label: "Profile", icon: "person-circle-outline" as const },
 ];
 
-export default function SecurityTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export default function SecurityTabBar({ state, descriptors, navigation }: { state: any; descriptors: any; navigation: any }) {
   const insets = useSafeAreaInsets();
   return <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
     {items.map((item) => {
