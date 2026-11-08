@@ -531,7 +531,7 @@ function MaintenancePage(){
   const estateList=(estateRows||[]) as Estate[];setEstates(estateList);const estateIds=estateList.map(x=>x.id);
   if(!estateIds.length){setRows([]);setLoading(false);return;}
   const {data:requests,error:requestError}=await supabase.from("maintenance_requests")
-   .select("id,estate_id,unit_id,created_by,title,description,status,priority,management_response,responded_by,responded_at,created_at,updated_at")
+   .select("id,estate_id,unit_id,created_by,title,description,status,priority,management_response,responded_by,responded_at,resident_reopen_note,reopened_at,reopen_count,created_at,updated_at")
    .in("estate_id",estateIds).order("created_at",{ascending:false}).limit(500);
   if(requestError){setError("Maintenance requests could not be loaded. Check permissions and refresh.");setLoading(false);return;}
   const requestRows=(requests||[]) as MaintenanceRecord[];
