@@ -8,6 +8,7 @@ on:
     paths:
       - "supabase/functions/squad-payment-webhook/**"
       - "supabase/functions/initiate-squad-payment/**"
+      - "supabase/functions/verify-squad-payment/**"
       - "supabase/config.toml"
       - ".github/workflows/deploy-squad-payment-webhook.yml"
 
@@ -32,6 +33,9 @@ jobs:
       - name: Type-check Squad payment initiation
         run: deno check supabase/functions/initiate-squad-payment/index.ts
 
+      - name: Type-check Squad payment verification
+        run: deno check supabase/functions/verify-squad-payment/index.ts
+
       - name: Type-check Squad webhook
         run: deno check supabase/functions/squad-payment-webhook/index.ts
 
@@ -47,6 +51,9 @@ jobs:
 
       - name: Deploy payment initiation with project configuration
         run: supabase functions deploy initiate-squad-payment --project-ref "$PROJECT_ID" --yes
+
+      - name: Deploy payment verification with project configuration
+        run: supabase functions deploy verify-squad-payment --project-ref "$PROJECT_ID" --yes
 
       - name: Deploy webhook with project configuration
         run: supabase functions deploy squad-payment-webhook --project-ref "$PROJECT_ID" --yes
