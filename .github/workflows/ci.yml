@@ -59,6 +59,10 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Type-check account login Edge Function
+        run: deno check supabase/functions/account-login/index.ts
+      - name: Type-check Squad payment webhook Edge Function
+        run: deno check supabase/functions/squad-payment-webhook/index.ts
       - name: Type-check onboarding Edge Function
         run: deno check supabase/functions/onboard-account/index.ts
       - name: Type-check password update Edge Function
