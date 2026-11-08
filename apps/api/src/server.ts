@@ -1570,14 +1570,14 @@ app.post("/v1/estates/:estateId/events/:eventId/check-in", requireAuth, async (r
   res.status(201).json({ checkIn, guest });
 });
 
-app.post("/v1/estates/:estateId/events/:eventId/security-check-in", requireAuth, async (req, res) => {
+app.post("/v1/estates/:estateId/events/:eventId/security-verify", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
   const authenticated = await requireSecurityEventAccess(req, res, estateId);
   if (!authenticated) return;
 
   const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
-  if (/^\d{6}$/.test(code) === false) {
+  if (!/^\\d{6}$/.test(code)) {
     res.status(400).json({ error: "invalid_event_invitation_code" }); return;
   }
 
@@ -1616,14 +1616,8 @@ app.post("/v1/estates/:estateId/events/:eventId/security-check-in", requireAuth,
   if (existingError) { res.status(503).json({ error: "event_guest_checkin_lookup_failed" }); return; }
   if (existing) { res.status(409).json({ error: "event_guest_already_checked_in", checkIn: existing, guest }); return; }
 
-  const { data: checkIn, error: checkInError } = await adminSupabase.from("estate_event_checkins")
-    .insert({ estate_id: estateId, event_id: eventId, guest_id: guest.id, invitation_id: invitation.id, checked_in_by: authenticated.authUser.id })
-    .select("id, guest_id, invitation_id, checked_in_at").single();
-  if (checkInError || !checkIn) {
-    if (checkInError?.code === "23505") { res.status(409).json({ error: "event_guest_already_checked_in", guest }); return; }
-    res.status(400).json({ error: "event_guest_checkin_failed" }); return;
-  }
-  res.status(201).json({ event, guest, checkIn });
+  // Security authorises entry only. Attendance is recorded later by the Event Coordinator.
+  res.status(200).json({ verified: true, event, guest, invitation: { id: invitation.id, status: invitation.status } });
 });
 
 app.get("/v1/me", requireAuth, async (req, res) => {
