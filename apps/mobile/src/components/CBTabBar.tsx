@@ -22,25 +22,54 @@ export default function CBTabBar({ state, navigation }: { state: ResidentTabStat
 
   useEffect(() => {
     let active = true;
-    const loadUnread = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !active) {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const loadUnread = async (userId?: string) => {
+      const resolvedUserId = userId ?? (await supabase.auth.getUser()).data.user?.id;
+      if (!resolvedUserId || !active) {
         if (active) setUnreadCount(0);
         return;
       }
       const { count, error } = await supabase.from('resident_notification_recipients')
         .select('id', { count: 'exact', head: true })
-        .eq('recipient_user_id', user.id).is('read_at', null);
+        .eq('recipient_user_id', resolvedUserId).is('read_at', null);
       if (!error && active) setUnreadCount(count ?? 0);
     };
-    void loadUnread();
-    const channel = supabase.channel('resident-notification-badge')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'resident_notification_recipients' }, () => { void loadUnread(); })
-      .subscribe();
+
+    const start = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active || !user) {
+        if (active) setUnreadCount(0);
+        return;
+      }
+
+      await loadUnread(user.id);
+      if (!active) return;
+
+      // Use a resident-scoped topic so a stale channel from a previous session
+      // cannot be reused when the auth state changes or React reconnects effects.
+      const topic = `resident-notification-badge:${user.id}`;
+      channel = supabase.channel(topic)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'resident_notification_recipients',
+            filter: `recipient_user_id=eq.${user.id}`,
+          },
+          () => { void loadUnread(user.id); },
+        );
+      // All postgres_changes callbacks are attached before subscribe().
+      channel.subscribe();
+    };
+
+    void start();
     const authSubscription = supabase.auth.onAuthStateChange(() => { void loadUnread(); });
+
     return () => {
       active = false;
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
       authSubscription.data.subscription.unsubscribe();
     };
   }, []);
