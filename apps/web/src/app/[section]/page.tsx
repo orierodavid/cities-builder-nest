@@ -503,13 +503,16 @@ function ResidentsPage(){
 type MaintenanceRecord = {
  id:string; estate_id:string; unit_id:string|null; created_by:string;
  title:string; description:string; status:string; priority:string;
+ management_response:string|null; responded_by:string|null; responded_at:string|null;
  created_at:string; updated_at:string;
 };
 function MaintenancePage(){
  const [rows,setRows]=useState<Array<MaintenanceRecord & {estate:string;unit:string;resident:string}>>([]);
- const [loading,setLoading]=useState(true);const [error,setError]=useState("");
+ const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [success,setSuccess]=useState("");
  const [estates,setEstates]=useState<Estate[]>([]);const [selectedEstate,setSelectedEstate]=useState("");
  const [status,setStatus]=useState("all");const [search,setSearch]=useState("");
+ const [active,setActive]=useState<MaintenanceRecord & {estate:string;unit:string;resident:string}|null>(null);
+ const [response,setResponse]=useState("");const [markFixed,setMarkFixed]=useState(false);const [saving,setSaving]=useState(false);
  const load=useCallback(async()=>{
   setLoading(true);setError("");
   const {data:{user}}=await supabase.auth.getUser();
@@ -522,48 +525,65 @@ function MaintenancePage(){
   const admin=(globalRoles||[]).some(x=>x.role==="platform_admin");
   const allowedIds=[...new Set((memberships||[]).filter(x=>["facility_manager","estate_manager","estate_admin"].includes(x.membership_role)).map(x=>x.estate_id))];
   if(!admin&&!allowedIds.length){setError("You do not have permission to view maintenance requests.");setLoading(false);return;}
-  let estateQuery=supabase.from("estates").select("id,name").order("name");
-  if(!admin)estateQuery=estateQuery.in("id",allowedIds);
+  let estateQuery=supabase.from("estates").select("id,name").order("name");if(!admin)estateQuery=estateQuery.in("id",allowedIds);
   const {data:estateRows,error:estateError}=await estateQuery;
   if(estateError){setError("Estate records could not be loaded.");setLoading(false);return;}
-  const estateList=(estateRows||[]) as Estate[];setEstates(estateList);
-  const estateIds=estateList.map(x=>x.id);
+  const estateList=(estateRows||[]) as Estate[];setEstates(estateList);const estateIds=estateList.map(x=>x.id);
   if(!estateIds.length){setRows([]);setLoading(false);return;}
   const {data:requests,error:requestError}=await supabase.from("maintenance_requests")
-   .select("id,estate_id,unit_id,created_by,title,description,status,priority,created_at,updated_at")
+   .select("id,estate_id,unit_id,created_by,title,description,status,priority,management_response,responded_by,responded_at,created_at,updated_at")
    .in("estate_id",estateIds).order("created_at",{ascending:false}).limit(500);
-  if(requestError){setError("Maintenance requests could not be loaded. Check the maintenance read permissions and refresh.");setLoading(false);return;}
+  if(requestError){setError("Maintenance requests could not be loaded. Check permissions and refresh.");setLoading(false);return;}
   const requestRows=(requests||[]) as MaintenanceRecord[];
-  const userIds=[...new Set(requestRows.map(x=>x.created_by))];
-  const unitIds=[...new Set(requestRows.map(x=>x.unit_id).filter((x):x is string=>Boolean(x)))];
+  const userIds=[...new Set(requestRows.map(x=>x.created_by))];const unitIds=[...new Set(requestRows.map(x=>x.unit_id).filter((x):x is string=>Boolean(x)))];
   const [{data:profiles,error:profileError},{data:units,error:unitError}]=await Promise.all([
    userIds.length?supabase.from("users").select("id,full_name").in("id",userIds):Promise.resolve({data:[],error:null}),
    unitIds.length?supabase.from("units").select("id,unit_code").in("id",unitIds):Promise.resolve({data:[],error:null})
   ]);
   if(profileError||unitError){setError("Resident or property details could not be loaded.");setLoading(false);return;}
-  const estateMap=new Map(estateList.map(x=>[x.id,x.name]));
-  const profileMap=new Map((profiles||[]).map(x=>[x.id,x.full_name]));
-  const unitMap=new Map((units||[]).map(x=>[x.id,x.unit_code]));
-  setRows(requestRows.map(x=>({...x,estate:estateMap.get(x.estate_id)||"Estate",unit:x.unit_id?(unitMap.get(x.unit_id)||"Unit details unavailable"):"Not assigned",resident:profileMap.get(x.created_by)||"Resident"})));
-  setLoading(false);
+  const estateMap=new Map(estateList.map(x=>[x.id,x.name]));const profileMap=new Map((profiles||[]).map(x=>[x.id,x.full_name]));const unitMap=new Map((units||[]).map(x=>[x.id,x.unit_code]));
+  const mapped=requestRows.map(x=>({...x,estate:estateMap.get(x.estate_id)||"Estate",unit:x.unit_id?(unitMap.get(x.unit_id)||"Unit details unavailable"):"Not assigned",resident:profileMap.get(x.created_by)||"Resident"}));
+  setRows(mapped);setActive(current=>current?mapped.find(x=>x.id===current.id)||null:null);setLoading(false);
  },[]);
  useEffect(()=>{void load();},[load]);
  const visible=rows.filter(x=>(!selectedEstate||x.estate_id===selectedEstate)&&(status==="all"||x.status===status)&&(!search||[x.title,x.description,x.resident,x.estate,x.unit,x.priority].join(" ").toLowerCase().includes(search.toLowerCase())));
  const counts=rows.reduce((acc,x)=>{acc[x.status]=(acc[x.status]||0)+1;return acc;},{} as Record<string,number>);
  const date=(value:string)=>new Date(value).toLocaleString("en-NG");
- return <PortalFrame title="Maintenance" description="Review resident maintenance requests across your authorised estates.">
+ async function openRequest(item:typeof rows[number]){
+  setActive(item);setResponse(item.management_response||"");setMarkFixed(item.status==="resolved"||item.status==="closed");setError("");setSuccess("");
+  const {data:{user}}=await supabase.auth.getUser();
+  if(user) await supabase.from("maintenance_management_notifications").update({read_at:new Date().toISOString()}).eq("request_id",item.id).eq("recipient_user_id",user.id).is("read_at",null);
+ }
+ async function sendResponse(){
+  if(!active||response.trim().length<2){setError("Enter a response to the resident before saving.");return;}
+  setSaving(true);setError("");setSuccess("");
+  const {error:rpcError}=await supabase.rpc("respond_to_maintenance_request",{p_request_id:active.id,p_response:response.trim(),p_mark_fixed:markFixed});
+  if(rpcError){setError(rpcError.message||"Your response could not be sent. Please try again.");setSaving(false);return;}
+  setSuccess(markFixed?"The resident has been notified that the maintenance request is fixed.":"Your update has been sent to the resident.");
+  await load();setSaving(false);
+ }
+ return <PortalFrame title="Maintenance" description="Review resident requests, reply to residents and confirm when work is fixed.">
   <section className="panel module-panel">
-   <div className="module-toolbar"><div><h3>Maintenance requests</h3><p>Requests submitted by residents, with estate, property, priority and current status.</p></div><button type="button" className="secondary-action" onClick={()=>void load()} disabled={loading}>{loading?"Refreshing…":"Refresh requests"}</button></div>
-   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
+   <div className="module-toolbar"><div><h3>Maintenance requests</h3><p>Open a request to send an update or confirm that the issue has been fixed.</p></div><button type="button" className="secondary-action" onClick={()=>void load()} disabled={loading}>{loading?"Refreshing…":"Refresh requests"}</button></div>
+   {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}{success&&<div className="user-alert user-alert-success" role="status">{success}</div>}
    <div className="user-list-toolbar">
     <select aria-label="Filter by estate" value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}><option value="">All authorised estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
-    <select aria-label="Filter by maintenance status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses ({rows.length})</option>{["open","assigned","in_progress","resolved","closed"].map(x=><option key={x} value={x}>{x.replace("_"," ") } ({counts[x]||0})</option>)}</select>
+    <select aria-label="Filter by maintenance status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses ({rows.length})</option>{["open","assigned","in_progress","resolved","closed"].map(x=><option key={x} value={x}>{x.replace("_"," ")} ({counts[x]||0})</option>)}</select>
     <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search request, resident, property or estate…" aria-label="Search maintenance requests"/>
    </div>
-   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Request</th><th>Resident</th><th>Estate</th><th>Property / Unit</th><th>Submitted</th><th>Priority</th><th>Status</th></tr></thead><tbody>
-    {loading?<tr><td colSpan={7} className="empty-cell">Loading maintenance requests…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.title}</strong><small style={{display:"block",maxWidth:340,whiteSpace:"normal"}}>{x.description}</small></td><td>{x.resident}</td><td>{x.estate}</td><td>{x.unit}</td><td>{date(x.created_at)}</td><td><span className={"status-pill status-"+x.priority}>{x.priority}</span></td><td><span className={"status-pill status-"+x.status}>{x.status.replace("_"," ")}</span></td></tr>):<tr><td colSpan={7} className="empty-cell"><strong>No maintenance requests found</strong><small>{rows.length?"No requests match the selected filters.":"Resident-submitted requests will appear here when received."}</small></td></tr>}
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Request</th><th>Resident</th><th>Estate</th><th>Property / Unit</th><th>Submitted</th><th>Priority</th><th>Status</th><th>Action</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={8} className="empty-cell">Loading maintenance requests…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.title}</strong><small style={{display:"block",maxWidth:340,whiteSpace:"normal"}}>{x.description}</small></td><td>{x.resident}</td><td>{x.estate}</td><td>{x.unit}</td><td>{date(x.created_at)}</td><td><span className={"status-pill status-"+x.priority}>{x.priority}</span></td><td><span className={"status-pill status-"+x.status}>{x.status.replace("_"," ")}</span></td><td><button type="button" className="secondary-action" onClick={()=>void openRequest(x)}>Open / reply</button></td></tr>):<tr><td colSpan={8} className="empty-cell"><strong>No maintenance requests found</strong><small>{rows.length?"No requests match the selected filters.":"Resident-submitted requests will appear here when received."}</small></td></tr>}
    </tbody></table></div>
-   <p className="notice-line">This view shows live requests and is limited to estates your account is authorised to oversee.</p>
+   {active&&<section className="panel" style={{marginTop:20,padding:20,border:"1px solid var(--border,#3A2E12)"}}>
+    <div className="module-toolbar"><div><h3>{active.title}</h3><p>{active.resident} · {active.estate} · {active.unit}</p></div><button type="button" className="secondary-action" onClick={()=>setActive(null)}>Close</button></div>
+    <p style={{whiteSpace:"pre-wrap",lineHeight:1.6}}>{active.description}</p>
+    <p><strong>Priority:</strong> {active.priority} · <strong>Status:</strong> {active.status.replace("_"," ")}</p>
+    {active.management_response&&<div className="user-alert user-alert-success"><strong>Previous management response</strong><p>{active.management_response}</p>{active.responded_at&&<small>{date(active.responded_at)}</small>}</div>}
+    <label style={{display:"grid",gap:8,fontWeight:700,marginTop:16}}>Reply to resident<textarea rows={4} maxLength={4000} value={response} onChange={e=>setResponse(e.target.value)} placeholder="Type an update or explain the work completed…" style={{width:"100%",padding:12,borderRadius:8,border:"1px solid var(--border,#3A2E12)",background:"var(--card,#121212)",color:"inherit"}}/></label>
+    <label style={{display:"flex",alignItems:"center",gap:8,marginTop:12}}><input type="checkbox" checked={markFixed} onChange={e=>setMarkFixed(e.target.checked)}/> Mark this request as fixed and notify the resident</label>
+    <button type="button" className="primary-action" disabled={saving||response.trim().length<2} onClick={()=>void sendResponse()} style={{marginTop:14}}>{saving?"Sending…":markFixed?"Send reply & mark fixed":"Send update to resident"}</button>
+   </section>}
+   <p className="notice-line">Only authorised management accounts can respond. Residents receive replies in their notification inbox and on their maintenance request.</p>
   </section>
  </PortalFrame>;
 }
