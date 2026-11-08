@@ -27,9 +27,12 @@ export default function PaymentCheckoutScreen() {
     }
   }, [checkoutUrl]);
 
-  const checkPayment = useCallback(async () => {
+  const checkPayment = useCallback(async (verifyWithSquad = false) => {
     if (!reference) return;
     setChecking(true);
+    if (verifyWithSquad) {
+      await supabase.functions.invoke("verify-squad-payment", { body: { transactionReference: reference } });
+    }
     const table = paymentType === "rent_savings" ? "rent_savings_contributions" : "service_charge_payments";
     const { data, error } = await supabase.from(table).select("status").eq("provider_reference", reference).maybeSingle();
     if (!error && data?.status) {
@@ -39,7 +42,7 @@ export default function PaymentCheckoutScreen() {
     setChecking(false);
   }, [paymentType, reference]);
 
-  useEffect(() => { void checkPayment(); }, [checkPayment]);
+  useEffect(() => { void checkPayment(true); }, [checkPayment]);
 
   useEffect(() => {
     if (status !== "pending") return;
@@ -49,7 +52,7 @@ export default function PaymentCheckoutScreen() {
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
-      if (next === "active") void checkPayment();
+      if (next === "active") void checkPayment(true);
     });
     return () => sub.remove();
   }, [checkPayment]);
@@ -57,7 +60,7 @@ export default function PaymentCheckoutScreen() {
   const handleNavigation = (request: { url: string }) => {
     if (request.url.startsWith("citiesbuildernest://payment-return")) {
       setCheckoutVisible(false);
-      void checkPayment();
+      void checkPayment(true);
       return false;
     }
     if (!request.url.startsWith("https://")) return false;
@@ -67,13 +70,13 @@ export default function PaymentCheckoutScreen() {
   const onNavigationStateChange = (navigation: WebViewNavigation) => {
     if (navigation.url.startsWith("citiesbuildernest://payment-return")) {
       setCheckoutVisible(false);
-      void checkPayment();
+      void checkPayment(true);
     }
   };
 
   const closeCheckout = () => {
     setCheckoutVisible(false);
-    void checkPayment();
+    void checkPayment(true);
   };
 
   if (!reference || !safeCheckoutUrl) {
