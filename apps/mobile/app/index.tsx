@@ -62,7 +62,7 @@ const apiUrl = (() => {
 const green = "#071A3A"; // Official deep navy
 const gold = "#FFC400"; // Official bright yellow
 
-export default function HomeScreen() {
+export default function HomeScreen({ standaloneEventOrganiser = false }: { standaloneEventOrganiser?: boolean }) {
   const { width } = useWindowDimensions();
   const wide = Platform.OS === "web" && width >= 900;
   const [session, setSession] = useState<Session | null>(null);
@@ -720,8 +720,10 @@ export default function HomeScreen() {
     );
   }
 
-  // Residents and Security use their dedicated Expo Router app groups.
-  // Keep the legacy root experience out of these role-specific mobile flows.
+  // Each mobile role gets its own Expo Router entry point. Event organisers
+  // must never render through the legacy root route or its shared shell.
+  if (session && isEventOrganiser && !standaloneEventOrganiser) return <Redirect href={"/(event-organiser)" as never} />;
+  if (standaloneEventOrganiser && session && !isEventOrganiser) return <Redirect href={"/" as never} />;
   if (session && isSecurity) return <Redirect href={"/(security)" as never} />;
   if (session && isResident) return <Redirect href={"/(resident)" as never} />;
 
