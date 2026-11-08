@@ -56,8 +56,8 @@ export default function VisitorDetails({ visitor: v, busy = false, onBack, onApp
               <Text style={s.category}>{v.category}</Text>
             </View>
           </View>
-          <View style={[s.status, { backgroundColor: v.valid ? "#D5F2E1" : "#F6D3D0" }]}>
-            <Text style={{ color: v.valid ? "#177A45" : "#9B1C13", fontSize: 12, fontWeight: "600" }}>
+          <View style={[s.status, { backgroundColor: v.valid ? "#123522" : "#351614" }]}>
+            <Text style={{ color: v.valid ? "#80D9A5" : "#F2B5B0", fontSize: 12, fontWeight: "600" }}>
               {v.valid ? "Valid Access Code" : "Invalid / Expired Code"}
             </Text>
           </View>
@@ -90,17 +90,17 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
   title: { color: t.text, fontSize: 17, fontWeight: "700" },
-  card: { backgroundColor: "#F7F7F7", borderRadius: 16, padding: 16 },
+  card: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 18, padding: 17 },
   topRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  avatar: { width: 56, height: 56, borderRadius: 10, backgroundColor: "#DDD", alignItems: "center", justifyContent: "center" },
-  name: { color: "#111", fontSize: 17, fontWeight: "700" },
-  category: { color: "#666", fontSize: 12, marginTop: 2 },
+  avatar: { width: 56, height: 56, borderRadius: 10, backgroundColor: "#211B10", borderWidth: 1, borderColor: t.border, alignItems: "center", justifyContent: "center" },
+  name: { color: t.text, fontSize: 17, fontWeight: "700" },
+  category: { color: t.muted, fontSize: 12, marginTop: 2 },
   status: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
-  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 9 },
-  key: { color: "#555", fontSize: 13, flexShrink: 1, paddingRight: 8 },
+  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#292319" },
+  key: { color: t.goldSoft, fontSize: 13, flexShrink: 1, paddingRight: 8 },
   val: { color: "#111", fontSize: 13, fontWeight: "600", maxWidth: "60%", textAlign: "right" },
   approve: { backgroundColor: t.gold, borderRadius: 12, paddingVertical: 16, alignItems: "center", marginBottom: 10 },
   approveText: { color: "#000", fontWeight: "700", fontSize: 15 },
-  deny: { backgroundColor: t.red, borderWidth: 1, borderColor: "#B0261C", borderRadius: 12, paddingVertical: 16, alignItems: "center" },
+  deny: { backgroundColor: "#351614", borderWidth: 1, borderColor: "#8E1B14", borderRadius: 12, paddingVertical: 16, alignItems: "center" },
   denyText: { color: t.redText, fontWeight: "700", fontSize: 15 },
 });
