@@ -127,6 +127,12 @@ export default function SecurityHome({
           description="Look up a visitor using their access code"
           onPress={() => onNavigate("/scan")}
         />
+        <ActionCard
+          icon="ticket-outline"
+          title="Verify Event Invitation"
+          description="Check a guest's event invitation before allowing entry"
+          onPress={() => onNavigate("/events")}
+        />
 
         <View style={styles.sectionHeading}>
           <Text style={styles.sectionTitle}>VISITOR MANAGEMENT</Text>
