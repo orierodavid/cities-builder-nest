@@ -5,6 +5,7 @@ const reply=(status:number,body:Record<string,unknown>)=>new Response(JSON.strin
 const str=(v:unknown)=>typeof v==="string"?v.trim():"";
 const services=new Set(["electricity","cable_tv","education","internet","betting"]);
 const productServices=new Set(["cable_tv","education","internet"]);
+const serviceCodes:Record<string,string>={electricity:"ELECTRICITY",cable_tv:"CABLE",education:"EDUCATION",internet:"INTERNET",betting:"BETTING"};
 const toKobo=(n:number)=>Math.round(n*100);
 
 Deno.serve(async(req:Request)=>{
@@ -29,28 +30,35 @@ Deno.serve(async(req:Request)=>{
   const r=await fetch(base+path,{method,headers:{Authorization:`Bearer ${squadKey}`,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
   const data=await r.json().catch(()=>({})) as Record<string,unknown>;return {r,data};
  };
- const dataRows=(d:Record<string,unknown>)=>Array.isArray(d.data)?d.data as Record<string,unknown>[]:Array.isArray(d.billers)?d.billers as Record<string,unknown>[]:[];
+ const nested=(d:Record<string,unknown>)=>d.data&&typeof d.data==="object"&&!Array.isArray(d.data)?d.data as Record<string,unknown>:d;
+ const rowsAt=(v:unknown):Record<string,unknown>[]=>Array.isArray(v)?v as Record<string,unknown>[]:[];
+ const billerRows=(d:Record<string,unknown>)=>rowsAt(d.billers).length?rowsAt(d.billers):rowsAt(nested(d).billers);
+ const productRows=(d:Record<string,unknown>)=>rowsAt(nested(d).products).length?rowsAt(nested(d).products):rowsAt(d.products);
  const message=(d:Record<string,unknown>,fallback:string)=>str(d.message)||fallback;
 
  if(action==="billers"){
   if(!services.has(service))return reply(400,{error:"unsupported_utility_service"});
   const {r,data}=await squad("/v1/service/billers");
   if(!r.ok)return reply(502,{error:"billers_unavailable",message:message(data,"Utility providers could not be loaded.")});
-  const rows=dataRows(data).filter(x=>!str(x.service)||str(x.service).toLowerCase()===service);
-  return reply(200,{billers:rows});
+  const group=billerRows(data).find(x=>str(x.code).toUpperCase()===serviceCodes[service]);
+  const providers=rowsAt(group?.providers).map(x=>({code:str(x.code),name:str(x.name)||str(x.code),type:x.type??null,total_rate_percent:x.total_rate_percent??null,total_rate_cap:x.total_rate_cap??null}));
+  return reply(200,{billers:providers,service:serviceCodes[service]});
  }
  if(action==="products"){
   if(!productServices.has(service)||!provider)return reply(400,{error:"invalid_product_request"});
-  const {r,data}=await squad("/v1/service/products","POST",{service,provider});
+  const {r,data}=await squad("/v1/service/products","POST",{service:serviceCodes[service],provider});
   if(!r.ok)return reply(502,{error:"products_unavailable",message:message(data,"Products could not be loaded.")});
-  return reply(200,{products:dataRows(data)});
+  return reply(200,{products:productRows(data)});
  }
  if(action==="lookup"){
   if(!services.has(service)||!provider)return reply(400,{error:"invalid_lookup_request"});
   const estateId=str(input.estateId),identifier=str(input.customerIdentifier),meterType=str(input.meterType).toLowerCase();
   if(!estates.includes(estateId)||!/^[A-Za-z0-9@._+-]{5,40}$/.test(identifier)||(service==="electricity"&&!["prepaid","postpaid"].includes(meterType)))return reply(400,{error:"invalid_customer_details"});
-  const body:Record<string,unknown>={service,provider,customer_identifier:identifier};
+  const productCode=str(input.productCode);
+  const body:Record<string,unknown>={service:serviceCodes[service],provider,customer_identifier:identifier};
   if(service==="electricity")body.context={meter_type:meterType};
+  if((service==="education"||service==="internet")&&productCode)body.product_code=productCode;
+  if(service==="education"&&!productCode)return reply(400,{error:"product_required_for_lookup",message:"Select an examination product before verifying the account."});
   const {r,data}=await squad("/v1/service/lookup","POST",body);
   const details=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
   const token=str(details.validation_token);
@@ -72,9 +80,9 @@ Deno.serve(async(req:Request)=>{
   let selectedProduct:Record<string,unknown>|null=null;
   if(productServices.has(v.service)){
    if(!productCode)return reply(400,{error:"select_product"});
-   const {r:pr,data:pd}=await squad("/v1/service/products","POST",{service:v.service,provider:v.provider});
+   const {r:pr,data:pd}=await squad("/v1/service/products","POST",{service:serviceCodes[v.service],provider:v.provider});
    if(!pr.ok)return reply(502,{error:"products_unavailable",message:message(pd,"Could not verify selected product.")});
-   selectedProduct=dataRows(pd).find(p=>str(p.code)===productCode)??null;
+   selectedProduct=productRows(pd).find(p=>str(p.code)===productCode)??null;
    if(!selectedProduct)return reply(400,{error:"invalid_product_code"});
   }
   if(v.service==="betting"&&(!Number.isFinite(amount)||amount<100))return reply(400,{error:"invalid_betting_amount"});
