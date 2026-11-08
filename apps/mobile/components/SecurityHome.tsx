@@ -9,6 +9,7 @@ type Props = {
   estateName?: string;
   statusMessage?: string;
   onNavigate?: (route: string) => void;
+  showBottomNav?: boolean;
 };
 
 export default function SecurityHome({
@@ -16,6 +17,7 @@ export default function SecurityHome({
   estateName = "Assigned estate",
   statusMessage,
   onNavigate = () => {},
+  showBottomNav = true,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -110,7 +112,7 @@ export default function SecurityHome({
         </View>
       </ScrollView>
 
-      <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 9) }]}>
+      {showBottomNav && <View style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 9) }]}>
         <NavItem icon="home" label="Home" active onPress={() => onNavigate("/")} />
         <NavItem icon="document-text-outline" label="Records" onPress={() => onNavigate("/records")} />
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Scan visitor code" activeOpacity={0.88} onPress={() => onNavigate("/scan")} style={s.scanTab}>
@@ -118,7 +120,7 @@ export default function SecurityHome({
           <Text style={s.scanTabLabel}>SCAN</Text>
         </TouchableOpacity>
         <NavItem icon="person-outline" label="Profile" onPress={() => onNavigate("/profile")} />
-      </View>
+      </View>}
     </View>
   );
 }
