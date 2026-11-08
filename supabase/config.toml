@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.squad-electricity]
 verify_jwt = true
+
+[functions.squad-utilities]
+verify_jwt = true
