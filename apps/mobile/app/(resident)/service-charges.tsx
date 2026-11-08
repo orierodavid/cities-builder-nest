@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, Text, TouchableOpacity, View } from 'react-native';
 import { Screen, SectionTitle, EmptyState, Card, ListRow } from '../../src/components/ui';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
@@ -108,8 +108,8 @@ export default function ServiceChargesScreen() {
       if (!data?.checkoutUrl || typeof data.checkoutUrl !== 'string' || !data.checkoutUrl.startsWith('https://')) {
         throw new Error('We could not open the payment page. Please try again.');
       }
-      await Linking.openURL(data.checkoutUrl);
-      setPaymentMessage('Payment page opened. Your charge will be marked paid after the payment is confirmed.');
+      if (typeof data.transactionReference !== "string" || !data.transactionReference) throw new Error("Missing payment reference.");
+      router.push({ pathname: "/payment-checkout", params: { checkoutUrl: data.checkoutUrl, reference: data.transactionReference, paymentType: "service_charge" } });
     } catch (e) {
       setPaymentMessage('We could not start your payment. Please try again.');
     } finally {
