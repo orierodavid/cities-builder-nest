@@ -17,6 +17,7 @@ import ResidentElectricity from "../components/ResidentElectricity";
 import ResidentVirtualAccount from "../components/ResidentVirtualAccount";
 import ResidentLegalDocuments from "../components/ResidentLegalDocuments";
 import SecurityGateScreen from "../components/SecurityGateScreen";
+import SecurityHome from "../components/SecurityHome";
 import LoginScreen from "../src/features/auth/LoginScreen";
 import SplashScreen from "../components/SplashScreen";
 
@@ -1057,33 +1058,17 @@ export default function HomeScreen() {
                     {eventsLoading ? <ActivityIndicator color="#D4A84B"/> : estateEvents.length ? estateEvents.map((event) => <View key={event.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{event.title}</Text><Text style={styles.eventCardMeta}>{event.venue}</Text><Text style={styles.eventCardMeta}>{new Date(event.starts_at).toLocaleString()} – {new Date(event.ends_at).toLocaleString()}</Text><Text style={styles.eventCardStatus}>{event.status.toUpperCase()}</Text>{!!event.description && <Text style={styles.eventCardDescription}>{event.description}</Text>}<TouchableOpacity style={styles.guestOpenButton} onPress={() => { setGuestEvent(event); setTab("guests"); void loadEventGuests(event.id); }}><Text style={styles.guestOpenText}>MANAGE GUEST LIST →</Text></TouchableOpacity><TouchableOpacity style={styles.guestOpenButton} onPress={() => { setInvitationEvent(event); setTab("invitations"); setGeneratedInvitation(null); void loadEventGuests(event.id); void loadEventInvitations(event.id); }}><Text style={styles.guestOpenText}>MANAGE INVITATIONS →</Text></TouchableOpacity></View>) : <Text style={styles.eventEmpty}>No events have been created for this estate yet.</Text>}
                   </View>
                  ) : isSecurity && !wide && tab === "home" ? (
-                  <View style={styles.securityHome}>
-                    <View style={styles.securityGreeting}>
-                      <Text style={styles.residentEyebrow}>CB NEST SECURITY</Text>
-                      <Text style={styles.residentFeatureTitle}>Good morning, {profile?.profile?.full_name || firstName}</Text>
-                      <Text style={styles.residentMuted}>Your gate operations dashboard</Text>
-                    </View>
-                    <View style={styles.securityEstateCard}>
-                      <Ionicons name="business-outline" size={24} color="#D4A84B"/>
-                      <View style={{flex:1,gap:3}}><Text style={styles.securityEstateLabel}>ASSIGNED ESTATE</Text><Text style={styles.securityEstateName}>{selectedEstate?.name || "No estate selected"}</Text></View>
-                      <Ionicons name="chevron-down" size={18} color="#D4A84B"/>
-                    </View>
-                    <TouchableOpacity accessibilityRole="button" onPress={() => {setTab("verify");void loadGateVisits();}} style={styles.securityScanCard}>
-                      <View style={styles.securityScanIcon}><Ionicons name="qr-code-outline" size={30} color="#17130B"/></View>
-                      <View style={{flex:1,gap:4}}><Text style={styles.securityScanTitle}>Scan Visitor Code</Text><Text style={styles.securityScanSubtitle}>Verify a QR code or enter an access code</Text></View>
-                      <Ionicons name="chevron-forward" size={20} color="#17130B"/>
-                    </TouchableOpacity>
-                    <TouchableOpacity accessibilityRole="button" onPress={() => {setTab("management");void loadGateVisits();}} style={styles.securityActionCard}>
-                      <Ionicons name="list-outline" size={22} color="#D4A84B"/>
-                      <View style={{flex:1,gap:3}}><Text style={styles.securityActionTitle}>Visitor Entry Records</Text><Text style={styles.residentMuted}>Review and check out active visits</Text></View>
-                      <Ionicons name="chevron-forward" size={18} color="#D4A84B"/>
-                    </TouchableOpacity>
-                    <TouchableOpacity accessibilityRole="button" onPress={() => setTab("profile")} style={styles.securityActionCard}>
-                      <Ionicons name="person-circle-outline" size={22} color="#D4A84B"/>
-                      <View style={{flex:1,gap:3}}><Text style={styles.securityActionTitle}>My Profile</Text><Text style={styles.residentMuted}>Account and assigned estate details</Text></View>
-                      <Ionicons name="chevron-forward" size={18} color="#D4A84B"/>
-                    </TouchableOpacity>
-                  </View>
+                  <SecurityHome
+                    officerName={profile?.profile?.full_name || firstName}
+                    estateName={selectedEstate?.name || "Assigned estate"}
+                    showBottomNav={false}
+                    onNavigate={(route) => {
+                      if (route === "/scan") { setTab("verify"); void loadGateVisits(); return; }
+                      if (route === "/records") { setTab("management"); void loadGateVisits(); return; }
+                      if (route === "/profile") { setTab("profile"); return; }
+                      setTab("home");
+                    }}
+                  />
                 ) : isResident && !wide && tab === "home" ? (
                   <View style={styles.residentHome}>
                     <View style={styles.residentGreetingRow}>
