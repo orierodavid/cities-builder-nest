@@ -6,10 +6,12 @@ import { useRouter } from "expo-router";
 import SecurityVerify from "../../components/VerifyVisitor";
 import VisitorDetails, { type Visitor } from "../../components/VisitorDetails";
 import { useGate } from "../../src/features/security/useGate";
+import { useSecurityContext } from "../../src/features/security/SecurityContext";
 
 export default function SecurityVerifyRoute() {
   const router = useRouter();
   const gate = useGate();
+  const { estate } = useSecurityContext();
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<"back" | "front">("back");
   const [scanned, setScanned] = useState(false);
@@ -21,7 +23,7 @@ export default function SecurityVerifyRoute() {
     && from.getTime() <= Date.now() && Date.now() <= until.getTime();
   const details: Visitor | null = visitor && from && until ? {
     name: visitor.visitor.name, category: "Personal Visitor", valid, accessCode: gate.visitorCode,
-    host: visitor.host.name || "Not available", property: "Assigned estate",
+    host: visitor.host.name || "Not available", property: estate?.name || "Assigned estate",
     date: Number.isFinite(from.getTime()) ? from.toLocaleDateString() : "Not available",
     time: Number.isFinite(from.getTime()) && Number.isFinite(until.getTime())
       ? from.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + " – " + until.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })

@@ -46,38 +46,41 @@ test("checkout stays estate-scoped and can only close an open visit once", async
 
 test("mobile visitor workflows expose permission-denied and lifecycle-safe messages", async () => {
   const mobilePath = resolve(here, "../../mobile/app/index.tsx");
-  const mobile = await readFile(mobilePath, "utf8");
+  const visitorApiPath = resolve(here, "../../mobile/src/features/security/visitor-api.ts");
+  const gateHookPath = resolve(here, "../../mobile/src/features/security/useGate.ts");
+  const [mobile, visitorApi, gateHook] = await Promise.all([
+    readFile(mobilePath, "utf8"), readFile(visitorApiPath, "utf8"), readFile(gateHookPath, "utf8"),
+  ]);
 
   for (const code of [
-    "security_membership_required",
-    "estate_membership_required",
-    "estate_subscription_inactive",
-    "invalid_access_code",
-    "visitor_pass_expired_or_inactive",
-    "visitor_pass_already_used",
+    "security_membership_required", "estate_membership_required", "estate_subscription_inactive",
+    "invalid_access_code", "visitor_pass_expired_or_inactive", "visitor_pass_already_used",
     "open_visit_not_found_or_checkout_failed",
   ]) {
-    assert.ok(mobile.includes('case "' + code + '"'), "missing mobile message mapping for " + code);
+    assert.ok(visitorApi.includes('case "' + code + '"'), "missing mobile message mapping for " + code);
   }
 
   assert.match(mobile, /visitorPassesLoading/);
   assert.match(mobile, /visitorPassesError/);
-  assert.match(mobile, /gateVisitsLoading/);
-  assert.match(mobile, /gateVisitsError/);
-  assert.match(mobile, /setGateVisitsError\(["']["']\)/);
+  assert.match(gateHook, /gateVisitsLoading/);
+  assert.match(gateHook, /gateVisitsError/);
+  assert.match(gateHook, /setGateVisitsError\(["']["']\)/);
   assert.match(mobile, /setVisitorPassesError\(["']["']\)/);
 });
 
 test("mobile visitor screens provide loading, empty, and error states", async () => {
   const mobilePath = resolve(here, "../../mobile/app/index.tsx");
-  const mobile = await readFile(mobilePath, "utf8");
+  const gateHookPath = resolve(here, "../../mobile/src/features/security/useGate.ts");
+  const recordsPath = resolve(here, "../../mobile/app/(security)/records.tsx");
+  const [mobile, gateHook, records] = await Promise.all([
+    readFile(mobilePath, "utf8"), readFile(gateHookPath, "utf8"), readFile(recordsPath, "utf8"),
+  ]);
 
   assert.match(mobile, /Loading visitor passes|Loading passes|visitorPassesLoading/);
-  assert.match(mobile, /gateVisitsLoading/);
-  assert.match(mobile, /visitorPassesError/);
-  assert.match(mobile, /gateVisitsError/);
-  assert.match(mobile, /visitorPasses\.length === 0|visitorPasses\.length > 0/);
-  assert.match(mobile, /gateVisits\.length === 0|gateVisits\.length > 0/);
+  assert.match(gateHook, /gateVisitsLoading/);
+  assert.match(records, /gate\.gateVisitsError/);
+  assert.match(records, /gate\.gateVisits\.length/);
+  assert.match(records, /No active visitors/);
 });
 
 
