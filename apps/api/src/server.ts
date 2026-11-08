@@ -17,6 +17,7 @@ import { canUseGateWorkflow } from "./gate-workflow-policy.js";
 import { isValidVisitorAccessCode, visitorCheckInFailure, visitorPassAvailabilityError } from "./visitor-pass-lifecycle-policy.js";
 import { isAllowedCorsOrigin } from "./cors-policy.js";
 import { trustedProxyHops } from "./proxy-config.js";
+import { apiSecurityHeaders } from "./security-headers.js";
 import type { ErrorRequestHandler } from "express";
 
 export const app = express();
@@ -24,6 +25,8 @@ export const app = express();
 // configurable so direct/local deployments do not trust arbitrary forwarded IPs.
 app.set("trust proxy", trustedProxyHops(process.env.TRUST_PROXY_HOPS, process.env.NODE_ENV));
 const port = Number(process.env.PORT ?? 4000);
+
+app.use(apiSecurityHeaders);
 
 const allowedOrigins = new Set(
   (process.env.CORS_ORIGINS ?? "")
