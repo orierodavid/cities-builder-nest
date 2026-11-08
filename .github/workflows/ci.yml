@@ -67,6 +67,8 @@ jobs:
         run: deno check supabase/functions/send-welcome-email/index.ts
       - name: Type-check resident virtual account Edge Function
         run: deno check supabase/functions/create-resident-virtual-account/index.ts
+      - name: Type-check Squad utilities Edge Function
+        run: deno check supabase/functions/squad-utilities/index.ts
       - name: Type-check resend invitation Edge Function
         run: deno check supabase/functions/resend-account-invitation/index.ts
 
