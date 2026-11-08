@@ -1303,18 +1303,25 @@ app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
   const venue = typeof req.body?.venue === "string" ? req.body.venue.trim() : "";
+  const venueId = typeof req.body?.venueId === "string" ? req.body.venueId : "";
   const startsAt = typeof req.body?.startsAt === "string" ? req.body.startsAt : "";
   const endsAt = typeof req.body?.endsAt === "string" ? req.body.endsAt : "";
   const startDate = new Date(startsAt), endDate = new Date(endsAt);
   const status = req.body?.status === "published" ? "published" : "draft";
   if (title.length < 3 || title.length > 160 || description.length > 5000 ||
-      venue.length < 2 || venue.length > 240 ||
+      !venueId || venue.length < 2 || venue.length > 240 ||
       !startsAt || !endsAt || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) ||
       endDate.getTime() <= startDate.getTime()) {
-    res.status(400).json({ error: "invalid_event_details", message: "Enter an event title, venue, valid start and end date/time, and ensure the end is after the start." }); return;
+    res.status(400).json({ error: "invalid_event_details", message: "Enter an event title, select an available venue, provide valid start and end date/time, and ensure the end is after the start." }); return;
   }
+  const { data: selectedVenue, error: venueError } = await authenticated.userSupabase
+    .from("estate_venues").select("id,name,location,status").eq("id", venueId).eq("estate_id", estateId).maybeSingle();
+  if (venueError || !selectedVenue || selectedVenue.status !== "available") {
+    res.status(400).json({ error: "event_venue_unavailable", message: "That venue is no longer available. Refresh the venue list and choose another." }); return;
+  }
+  const venueLabel = selectedVenue.location ? selectedVenue.name + " · " + selectedVenue.location : selectedVenue.name;
   const { data, error } = await authenticated.userSupabase.from("estate_events")
-    .insert({ estate_id: estateId, title, description, venue, starts_at: startDate.toISOString(), ends_at: endDate.toISOString(), status, created_by: authenticated.authUser.id })
+    .insert({ estate_id: estateId, title, description, venue: venueLabel, venue_id: selectedVenue.id, starts_at: startDate.toISOString(), ends_at: endDate.toISOString(), status, created_by: authenticated.authUser.id })
     .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at").single();
   if (error || !data) { res.status(400).json({ error: "estate_event_create_failed" }); return; }
   res.status(201).json({ event: data });
