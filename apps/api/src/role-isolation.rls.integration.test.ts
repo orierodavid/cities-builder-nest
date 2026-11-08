@@ -79,6 +79,18 @@ test("PostgreSQL RLS prevents cross-estate reads and role escalation through dir
       ALTER TABLE public.units ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.resident_units ENABLE ROW LEVEL SECURITY;
       ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+      -- Model the baseline self-membership and assigned-resident read policies
+      -- that exist before the role-isolation hardening migrations are applied.
+      CREATE POLICY estates_select_active_member ON public.estates
+        FOR SELECT TO authenticated
+        USING (EXISTS (
+          SELECT 1 FROM public.estate_memberships m
+          WHERE m.estate_id = estates.id AND m.user_id = auth.uid() AND m.status = 'active'
+        ));
+      CREATE POLICY memberships_select_own ON public.estate_memberships
+        FOR SELECT TO authenticated USING (user_id = auth.uid());
+      CREATE POLICY resident_units_select_own ON public.resident_units
+        FOR SELECT TO authenticated USING (resident_user_id = auth.uid());
       GRANT USAGE ON SCHEMA public, auth TO authenticated;
       GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
       GRANT SELECT ON public.estates, public.estate_memberships, public.user_roles,
