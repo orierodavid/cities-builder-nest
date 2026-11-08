@@ -29,6 +29,7 @@ type Unit = { id: string; unit_code: string; unit_type: string | null; status: s
 type Resident = { id: string; full_name: string | null; phone_e164?: string | null };
 type VisitorPass = { id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string; created_at: string };
 type EstateEvent = { id: string; title: string; description: string; venue: string; starts_at: string; ends_at: string; status: "draft" | "published" | "cancelled" };
+type EventVenue = { id: string; name: string; location: string; capacity: number; status: "available" | "unavailable" | "maintenance" };
 type EventGuest = { id: string; guest_name: string; email: string | null; phone: string | null; notes: string; created_at: string };
 type EventInvitation = { id: string; guest_id: string; status: "active" | "revoked"; created_at: string; estate_event_guests: { guest_name: string; email: string | null; phone: string | null } };
 type EventCheckIn = { id: string; guest_id: string; invitation_id: string; checked_in_at: string; estate_event_guests: { guest_name: string; email: string | null; phone: string | null } };
@@ -84,6 +85,10 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
   const [eventTitle, setEventTitle] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [eventVenue, setEventVenue] = useState("");
+  const [eventVenueId, setEventVenueId] = useState("");
+  const [eventVenues, setEventVenues] = useState<EventVenue[]>([]);
+  const [eventVenuesLoading, setEventVenuesLoading] = useState(false);
+  const [eventVenuePickerOpen, setEventVenuePickerOpen] = useState(false);
   const [eventStartsAt, setEventStartsAt] = useState("");
   const [eventEndsAt, setEventEndsAt] = useState("");
   const [eventStatus, setEventStatus] = useState<"draft" | "published">("draft");
@@ -480,10 +485,29 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
     finally { setEventsLoading(false); }
   }
 
+  async function loadEventVenues() {
+    if (!selectedEstateId) { setEventVenues([]); setEventVenueId(""); setEventVenue(""); return; }
+    setEventVenuesLoading(true);
+    const { data, error } = await supabase.from("estate_venues")
+      .select("id,name,location,capacity,status")
+      .eq("estate_id", selectedEstateId).eq("status", "available").order("name");
+    if (error) {
+      setEventVenues([]);
+      setEventMessage("The estate venue list could not be loaded. Please refresh or contact the Facility Manager.");
+    } else {
+      const list = (data || []) as EventVenue[];
+      setEventVenues(list);
+      if (!list.some((venue) => venue.id === eventVenueId)) {
+        setEventVenueId(""); setEventVenue("");
+      }
+    }
+    setEventVenuesLoading(false);
+  }
+
   async function createEstateEvent() {
     if (!session?.access_token || !selectedEstateId || !apiUrl) { setEventMessage("Select your estate and confirm the API is configured."); return; }
-    if (eventTitle.trim().length < 3 || eventVenue.trim().length < 2 || !eventStartsAt.trim() || !eventEndsAt.trim()) {
-      setEventMessage("Complete the event title, venue, start and end date/time."); return;
+    if (eventTitle.trim().length < 3 || !eventVenueId || !eventVenue.trim() || !eventStartsAt.trim() || !eventEndsAt.trim()) {
+      setEventMessage("Complete the event title, select a venue, and enter the start and end date/time."); return;
     }
     const start = new Date(eventStartsAt), end = new Date(eventEndsAt);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
@@ -494,11 +518,11 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
       const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events", {
         method: "POST",
         headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ title: eventTitle.trim(), description: eventDescription.trim(), venue: eventVenue.trim(), startsAt: start.toISOString(), endsAt: end.toISOString(), status: eventStatus }),
+        body: JSON.stringify({ title: eventTitle.trim(), description: eventDescription.trim(), venue: eventVenue.trim(), venueId: eventVenueId, startsAt: start.toISOString(), endsAt: end.toISOString(), status: eventStatus }),
       });
       const result = await response.json() as { event?: EstateEvent; error?: string; message?: string };
       if (!response.ok) throw new Error(result.message || result.error || "Event could not be saved.");
-      setEventTitle(""); setEventDescription(""); setEventVenue(""); setEventStartsAt(""); setEventEndsAt(""); setEventStatus("draft");
+      setEventTitle(""); setEventDescription(""); setEventVenue(""); setEventVenueId(""); setEventVenuePickerOpen(false); setEventStartsAt(""); setEventEndsAt(""); setEventStatus("draft");
       setEventMessage("Event details saved successfully.");
       await loadEstateEvents();
     } catch (e) { setEventMessage(e instanceof Error ? e.message : "Event could not be saved."); }
@@ -691,7 +715,7 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
   // back into the legacy root dashboard.
   const isResident = mobileClient && (activeResidentMemberships.length > 0 || hasResidentUnit);
 
-  useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) void loadEstateEvents(); }, [isEventOrganiser, selectedEstateId, session?.access_token]);
+  useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) { void loadEstateEvents(); void loadEventVenues(); } }, [isEventOrganiser, selectedEstateId, session?.access_token]);
 
   useEffect(() => { if (isEventOrganiser && tab === "home" && estateEvents[0] && reportEvent?.id !== estateEvents[0].id) void loadAttendanceReport(estateEvents[0]); }, [isEventOrganiser, tab, estateEvents, reportEvent?.id, selectedEstateId, session?.access_token]);
 
@@ -943,8 +967,19 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
                       <TextInput style={styles.eventInput} value={eventTitle} onChangeText={setEventTitle} placeholder="e.g. Annual Residents’ Meeting" placeholderTextColor="#888" maxLength={160}/>
                       <Text style={styles.eventLabel}>Description</Text>
                       <TextInput style={[styles.eventInput,styles.eventDescription]} value={eventDescription} onChangeText={setEventDescription} placeholder="What is the event about?" placeholderTextColor="#888" multiline textAlignVertical="top" maxLength={5000}/>
-                      <Text style={styles.eventLabel}>Venue</Text>
-                      <TextInput style={styles.eventInput} value={eventVenue} onChangeText={setEventVenue} placeholder="Event location" placeholderTextColor="#888" maxLength={240}/>
+                      <Text style={styles.eventLabel}>Venue *</Text>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choose event venue" style={[styles.eventInput,{minHeight:49,justifyContent:"center",flexDirection:"row",alignItems:"center"}]} onPress={() => setEventVenuePickerOpen((open) => !open)} disabled={eventVenuesLoading || eventBusy}>
+                        <Text style={{flex:1,color:eventVenue ? "#FFFFFF" : "#888",fontSize:13}}>{eventVenuesLoading ? "Loading available venues…" : eventVenue || "Select a venue"}</Text>
+                        <Ionicons name={eventVenuePickerOpen ? "chevron-up" : "chevron-down"} size={18} color="#D4A84B"/>
+                      </TouchableOpacity>
+                      {eventVenuePickerOpen && <View style={{borderWidth:1,borderColor:"#494133",borderRadius:10,overflow:"hidden",backgroundColor:"#101010"}}>
+                        {eventVenues.length ? eventVenues.map((venue) => <TouchableOpacity key={venue.id} onPress={() => {setEventVenueId(venue.id);setEventVenue(venue.name);setEventVenuePickerOpen(false);setEventMessage("");}} style={{padding:13,borderBottomWidth:1,borderBottomColor:"#30291D",backgroundColor:eventVenueId===venue.id?"#282116":"#101010"}}>
+                          <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:10}}><Text style={{color:"#FFFFFF",fontSize:13,fontWeight:"800",flex:1}}>{venue.name}</Text>{eventVenueId===venue.id&&<Ionicons name="checkmark-circle" size={18} color="#D4A84B"/>}</View>
+                          <Text style={{color:"#B9B9B9",fontSize:10,marginTop:4}}>{venue.location ? venue.location+" · " : ""}Capacity: {venue.capacity.toLocaleString()}</Text>
+                        </TouchableOpacity>) : <Text style={{color:"#B9B9B9",fontSize:11,padding:13}}>No available venues have been added for this estate. Ask the Facility Manager to add a venue under Venues & Capacity.</Text>}
+                      </View>}
+                      {!!eventVenue && <Text style={styles.eventHint}>Selected venue: {eventVenue}</Text>}
+                      {!eventVenuesLoading && eventVenues.length===0 && <TouchableOpacity onPress={() => void loadEventVenues()}><Text style={styles.eventRefresh}>REFRESH VENUE LIST</Text></TouchableOpacity>}
                       <Text style={styles.eventLabel}>Start date and time</Text>
                       <TextInput style={styles.eventInput} value={eventStartsAt} onChangeText={setEventStartsAt} placeholder="2026-11-15T10:00" placeholderTextColor="#888" autoCapitalize="none"/>
                       <Text style={styles.eventHint}>Use YYYY-MM-DDTHH:mm (estate local time).</Text>
