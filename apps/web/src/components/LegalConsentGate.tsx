@@ -107,7 +107,7 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
     setBusy(false);
   }
 
-  if (!sessionReady || checking) return <main className="legal-gate"><section className="legal-gate-card"><p>Verifying your account and current legal documents…</p></section></main>;
+  if (!sessionReady || checking) return <main className="legal-gate legal-gate-loading" role="status" aria-label="Loading"><span className="loading-spinner"/></main>;
   if (!status && error) return <main className="legal-gate"><section className="legal-gate-card"><h1>Verification required</h1><p>{error}</p><div className="legal-gate-actions"><button onClick={() => void refresh()}>Retry</button><button className="legal-secondary" onClick={() => void supabase.auth.signOut()}>Sign out</button></div></section></main>;
   if (status?.requiresAcceptance) {
     return <main className="legal-gate"><section className="legal-gate-card">
