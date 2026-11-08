@@ -37,6 +37,15 @@ export default function LandingPage() {
           <a href="#who-its-for">Who it’s for</a>
           <a href="#features">Features</a>
         </nav>
+        <details className="cb-mobile-menu">
+          <summary aria-label="Open navigation menu">Menu</summary>
+          <nav aria-label="Mobile navigation">
+            <a href="#platform">Platform</a>
+            <a href="#how-it-works">How it works</a>
+            <a href="#who-its-for">Who it’s for</a>
+            <a href="#features">Features</a>
+          </nav>
+        </details>
         <a className="cb-login-link" href="/login">Management login <span>↗</span></a>
       </header>
 
