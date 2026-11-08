@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme as t } from "../src/theme/theme";
@@ -11,11 +11,13 @@ type Props = {
   camera?: React.ReactNode;
 };
 
-const FRAME = 240;
 const CORNER = 36;
 
 export default function SecurityVerify({ onBack, onCodeSubmit, onSwitchCamera, camera }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const frameSize = Math.max(160, Math.min(240, screenWidth - 80));
+  const viewfinderHeight = Math.min(340, Math.max(210, screenHeight * 0.38));
   const [manual, setManual] = useState(false);
   const [code, setCode] = useState("");
 
@@ -33,9 +35,9 @@ export default function SecurityVerify({ onBack, onCodeSubmit, onSwitchCamera, c
         <Ionicons name="shield-checkmark" size={23} color={t.gold} />
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 18) + 20 }]} keyboardShouldPersistTaps="handled">
-        <View style={styles.viewfinder}>
+        <View style={[styles.viewfinder, { height: viewfinderHeight }]}>
           {camera}
-          <View style={styles.frame} pointerEvents="none">
+          <View style={[styles.frame, { width: frameSize, height: frameSize }]} pointerEvents="none">
             <View style={[styles.corner, styles.tl]} />
             <View style={[styles.corner, styles.tr]} />
             <View style={[styles.corner, styles.bl]} />
@@ -85,10 +87,10 @@ const styles = StyleSheet.create({
   eyebrow: { color: t.gold, fontSize: 8, fontWeight: "900", letterSpacing: 1.5 },
   title: { color: t.text, fontSize: 19, fontWeight: "900", marginTop: 3 },
   content: { padding: 20, gap: 14 },
-  viewfinder: { height: 340, borderRadius: 19, backgroundColor: "#080808", borderWidth: 1, borderColor: t.border, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  viewfinder: { width: "100%", maxWidth: 520, alignSelf: "center", borderRadius: 19, backgroundColor: "#080808", borderWidth: 1, borderColor: t.border, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   cameraPlaceholder: { position: "absolute", alignItems: "center", gap: 9 },
   cameraPlaceholderText: { color: t.muted, fontSize: 11 },
-  frame: { width: FRAME, height: FRAME },
+  frame: {},
   corner: { position: "absolute", width: CORNER, height: CORNER, borderColor: t.gold },
   tl: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 },
   tr: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 14 },
