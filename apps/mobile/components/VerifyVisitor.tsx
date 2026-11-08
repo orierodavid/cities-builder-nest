@@ -79,12 +79,12 @@ export default function SecurityVerify({ onBack, onCodeSubmit, onSwitchCamera, c
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: t.bg },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 19, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border, gap: 13 },
+  screen: { flex: 1, backgroundColor: "#0A0A0A" },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border, gap: 13 },
   backButton: { width: 40, height: 40, borderRadius: 13, backgroundColor: "#211B10", borderWidth: 1, borderColor: t.border, alignItems: "center", justifyContent: "center" },
   eyebrow: { color: t.gold, fontSize: 8, fontWeight: "900", letterSpacing: 1.5 },
   title: { color: t.text, fontSize: 19, fontWeight: "900", marginTop: 3 },
-  content: { padding: 18, gap: 14 },
+  content: { padding: 20, gap: 14 },
   viewfinder: { height: 340, borderRadius: 19, backgroundColor: "#080808", borderWidth: 1, borderColor: t.border, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   cameraPlaceholder: { position: "absolute", alignItems: "center", gap: 9 },
   cameraPlaceholderText: { color: t.muted, fontSize: 11 },

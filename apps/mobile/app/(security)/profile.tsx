@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 import { theme as t } from "../../src/theme/theme";
@@ -47,7 +47,7 @@ export default function SecurityProfileRoute() {
   };
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
+    <SafeAreaView edges={["left", "right"]} style={[s.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor={t.bg} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={s.back}>
@@ -85,16 +85,16 @@ export default function SecurityProfileRoute() {
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: t.bg },
-  header: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18 },
+  root: { flex: 1, backgroundColor: "#0A0A0A" },
+  header: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20 },
   back: { width: 34, height: 34, alignItems: "center", justifyContent: "center" },
   headerTitle: { color: t.text, fontSize: 12, fontWeight: "900", letterSpacing: 1.4 },
-  content: { padding: 18 },
+  content: { padding: 20 },
   profileCard: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 20, padding: 22, alignItems: "center" },
   avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: "#211B10", borderWidth: 1, borderColor: t.gold, alignItems: "center", justifyContent: "center", marginBottom: 15 },
   name: { color: t.text, fontSize: 21, fontWeight: "900", textAlign: "center" },

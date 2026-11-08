@@ -178,7 +178,7 @@ export default function SecurityHome({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: t.bg },
+  root: { flex: 1, backgroundColor: "#0A0A0A" },
   content: { paddingHorizontal: 20, paddingTop: 12 },
   topLine: { flexDirection: "row", alignItems: "center", marginBottom: 30 },
   brandMark: {

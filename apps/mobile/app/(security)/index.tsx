@@ -1,19 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import SecurityHome from "../../components/SecurityHome";
 import { supabase } from "../../lib/supabase";
-import { getApiBaseUrl } from "../../src/lib/api-url";
-import { Screen, Card } from "../../src/components/ui";
-import { Text } from "react-native";
+import { useSecurityContext } from "../../src/features/security/SecurityContext";
 
-type Estate = { id: string; name: string; membershipRole?: string | null };
 export default function SecurityHomeRoute() {
   const router = useRouter();
+  const { estate, loading, error, refresh } = useSecurityContext();
   const [officerName, setOfficerName] = useState("Security Officer");
-  const [estateName, setEstateName] = useState("Assigned estate");
-  const [statusMessage, setStatusMessage] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
   useEffect(() => {
     let active = true;
     (async () => {
@@ -23,23 +20,30 @@ export default function SecurityHomeRoute() {
         if (!user) throw new Error("Your session has expired. Sign in again.");
         const { data: profile, error: profileError } = await supabase.from("users").select("full_name").eq("id", user.id).maybeSingle();
         if (profileError) throw profileError;
-        if (active && profile?.full_name) setOfficerName(profile.full_name);
-        const base = getApiBaseUrl();
-        if (!base) throw new Error("Security services are not configured.");
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) throw new Error("Your session has expired. Sign in again.");
-        const response = await fetch(base + "/v1/estates", { headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" } });
-        const result = await response.json() as { estates?: Estate[]; error?: string };
-        if (!response.ok) throw new Error(result.error || "Estate access could not be loaded.");
-        const estate = (result.estates || []).find(item => (item.membershipRole || "").toLowerCase().replace(/[- ]/g, "_") === "security");
-        if (!estate) throw new Error("No active Security membership was found for this account.");
-        if (active) { setEstateName(estate.name); setStatusMessage(""); }
-      } catch (error) {
-        if (active) setStatusMessage(error instanceof Error ? error.message : "Security dashboard details could not be loaded.");
-      } finally { if (active) setLoading(false); }
+        if (active) setOfficerName(profile?.full_name || user.user_metadata?.full_name || "Security Officer");
+      } catch { if (active) setOfficerName("Security Officer"); }
+      finally { if (active) setProfileLoading(false); }
     })();
     return () => { active = false; };
   }, []);
-  if (loading) return <View style={{ flex: 1, backgroundColor: "#050505", alignItems: "center", justifyContent: "center" }}><ActivityIndicator color="#D9A93F" size="large" /></View>;
-  return <SecurityHome officerName={officerName} estateName={estateName} statusMessage={statusMessage} onNavigate={(route) => router.push((route === "/scan" ? "/(security)/scan" : route === "/records" ? "/(security)/records" : route === "/profile" ? "/(security)/profile" : "/(security)") as never)} />;
+  if (loading || profileLoading) return <SafeAreaView edges={["left", "right"]} style={s.root}><ActivityIndicator color="#D9A93F" size="large" /></SafeAreaView>;
+  if (!estate) return <SafeAreaView edges={["left", "right"]} style={s.root}><View style={s.messageWrap}>
+    <Text style={s.title}>Security access unavailable</Text><Text style={s.message}>{error || "An active Security estate membership is required."}</Text>
+    <Text onPress={() => void refresh()} style={s.action}>TRY AGAIN</Text>
+  </View></SafeAreaView>;
+  return <SafeAreaView edges={["left", "right"]} style={s.root}>
+    <SecurityHome officerName={officerName} estateName={estate.name} onNavigate={(route) => {
+      if (route === "/scan" || route === "/verify") router.push("/(security)/verify" as never);
+      else if (route === "/records") router.push("/(security)/records" as never);
+      else if (route === "/profile") router.push("/(security)/profile" as never);
+      else router.push("/(security)" as never);
+    }} />
+  </SafeAreaView>;
 }
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#0A0A0A", justifyContent: "center" },
+  messageWrap: { flex: 1, justifyContent: "center", paddingHorizontal: 20, gap: 12 },
+  title: { color: "#FFFFFF", fontSize: 20, fontWeight: "900" },
+  message: { color: "#A7A095", fontSize: 13, lineHeight: 20 },
+  action: { color: "#D9A93F", fontSize: 11, fontWeight: "900", marginTop: 8 },
+});

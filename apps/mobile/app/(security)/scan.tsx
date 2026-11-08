@@ -1,2 +1,2 @@
-import GateOperations from "../../src/features/security/GateOperations";
-export default function SecurityScanRoute() { return <GateOperations initialScannerOpen />; }
+import { Redirect } from "expo-router";
+export default function SecurityScanRedirect() { return <Redirect href={"/(security)/verify" as never} />; }

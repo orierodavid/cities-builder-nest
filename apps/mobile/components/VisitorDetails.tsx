@@ -106,14 +106,14 @@ export default function VisitorDetails({ visitor: v, busy = false, onBack, onApp
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: t.bg },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 19, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border, gap: 12 },
+  screen: { flex: 1, backgroundColor: "#0A0A0A" },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border, gap: 12 },
   backButton: { width: 40, height: 40, borderRadius: 13, backgroundColor: "#211B10", borderWidth: 1, borderColor: t.border, alignItems: "center", justifyContent: "center" },
   headerCopy: { flex: 1 },
   eyebrow: { color: t.gold, fontSize: 8, fontWeight: "900", letterSpacing: 1.5 },
   headerTitle: { color: t.text, fontSize: 19, fontWeight: "900", marginTop: 3 },
   headerShield: { width: 40, height: 40, borderRadius: 13, backgroundColor: "#211B10", alignItems: "center", justifyContent: "center" },
-  content: { padding: 18, gap: 14 },
+  content: { padding: 20, gap: 14 },
   identityCard: { backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 18, padding: 17, gap: 16 },
   identity: { flexDirection: "row", alignItems: "center", gap: 13 },
   photo: { width: 62, height: 62, borderRadius: 17 },
