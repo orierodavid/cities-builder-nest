@@ -667,8 +667,9 @@ export default function HomeScreen() {
   const activeSelectedMemberships = selectedEstateMemberships.filter((membership) =>
     membership.status?.trim().toLowerCase() === "active",
   );
-  const isSecurity = activeSelectedMemberships.some((membership) => normalizeRole(membership.membership_role) === "security") ||
-    (activeSelectedMemberships.length === 0 && selectedEstateRole === "security");
+  const isSecurity = (profile?.estateMemberships || []).some((membership) =>
+    membership.status?.trim().toLowerCase() === "active" && normalizeRole(membership.membership_role) === "security",
+  ) || (activeSelectedMemberships.length === 0 && selectedEstateRole === "security");
   const isEventOrganiser = activeSelectedMemberships.some((membership) => normalizeRole(membership.membership_role) === "event_organiser") ||
     (activeSelectedMemberships.length === 0 && selectedEstateRole === "event_organiser");
   const activeResidentMemberships = (profile?.estateMemberships || []).filter((membership) =>
