@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -66,6 +67,7 @@ export default function SecurityHome({
   onNavigate,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const firstName = officerName.trim().split(/\\s+/)[0] || "Officer";
 
   return (
@@ -74,7 +76,7 @@ export default function SecurityHome({
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: Math.max(insets.bottom, 18) + (showBottomNav ? 104 : 24) },
+          { paddingBottom: Math.max(insets.bottom, 18) + 24, width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: width < 360 ? 14 : 20 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -245,7 +247,7 @@ const styles = StyleSheet.create({
   infoTitle: { color: t.text, fontSize: 12, fontWeight: "800", marginBottom: 5 },
   infoText: { color: t.muted, fontSize: 11, lineHeight: 17 },
   bottomBar: {
-    position: "absolute", left: 0, right: 0, bottom: 0, minHeight: 75,
+    minHeight: 75, flexShrink: 0,
     flexDirection: "row", alignItems: "center", justifyContent: "space-around",
     paddingTop: 10, paddingHorizontal: 14, backgroundColor: "#0D0D0D",
     borderTopWidth: 1, borderTopColor: t.border,
