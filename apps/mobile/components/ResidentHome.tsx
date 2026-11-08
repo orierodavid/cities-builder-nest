@@ -12,6 +12,7 @@ import {
   ImageBackground,
   StyleSheet,
   StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -59,6 +60,9 @@ export default function ResidentHome({
 }: Props) {
   // HEADROOM FIX: pad by the real top inset (status bar / notch / Dynamic Island)
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const columns = width < 360 ? 2 : width >= 700 ? 4 : 3;
+  const tileWidth = `${100 / columns - 2}%` as `${number}%`;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -69,6 +73,9 @@ export default function ResidentHome({
           paddingHorizontal: 16,
           paddingTop: 8,
           paddingBottom: 24,
+          width: '100%',
+          maxWidth: 900,
+          alignSelf: 'center',
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -102,7 +109,7 @@ export default function ResidentHome({
         {/* Welcome card */}
         <ImageBackground
           source={typeof welcomeImage === 'string' ? { uri: welcomeImage } : (welcomeImage as any)}
-          style={styles.welcome}
+          style={[styles.welcome, { aspectRatio: width < 360 ? 2.35 : 2.8, minHeight: 126, maxHeight: 190 }]}
           imageStyle={{ borderRadius: 16 }}
         >
           <View style={styles.welcomeOverlay}>
@@ -118,7 +125,7 @@ export default function ResidentHome({
           {TILES.map((t) => (
             <TouchableOpacity
               key={t.key}
-              style={styles.tile}
+              style={[styles.tile, { width: tileWidth }]}
               activeOpacity={0.8}
               onPress={() => onNavigate(t.route)}
             >
@@ -176,8 +183,9 @@ const styles = StyleSheet.create({
   },
 
   welcome: {
-    height: 150,
+    minHeight: 126,
     borderRadius: 16,
+    aspectRatio: 2.8,
     backgroundColor: '#1B1B1B',
     borderWidth: 1,
     borderColor: BORDER,
@@ -195,7 +203,6 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   tile: {
-    width: '31.5%',
     aspectRatio: 1,
     backgroundColor: CARD,
     borderRadius: 14,
