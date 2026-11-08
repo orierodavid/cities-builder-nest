@@ -1577,7 +1577,7 @@ app.post("/v1/estates/:estateId/events/:eventId/security-verify", requireAuth, a
   if (!authenticated) return;
 
   const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
-  if (!/^\\d{6}$/.test(code)) {
+  if (!/^\d{6}$/.test(code)) {
     res.status(400).json({ error: "invalid_event_invitation_code" }); return;
   }
 
