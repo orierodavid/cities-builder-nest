@@ -9,6 +9,7 @@ import ServiceChargesPage from "./ServiceChargesPage";
 import LegalDocumentsPage from "./LegalDocumentsPage";
 import AuditLogsPage from "../AuditLogsPage";
 import AdminAlertsPage from "../AdminAlertsPage";
+import VenueCapacityPage from "./VenueCapacityPage";
 
 type Estate = { id: string; name: string };
 type Membership = {
@@ -593,6 +594,7 @@ export default function SectionPage(){
  if(section==="users")return <UsersPage/>;
  if(section==="payments")return <ManagementPaymentsPage/>;
  if(section==="maintenance")return <MaintenancePage/>;
+ if(section==="venues")return <VenueCapacityPage/>;
  if(section==="residents")return <ResidentsPage/>;
  if(section==="settings")return <SettingsPage/>;
  if(section==="profile")return <ProfilePage/>;
