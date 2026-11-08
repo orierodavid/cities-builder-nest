@@ -503,7 +503,7 @@ function ResidentsPage(){
 type MaintenanceRecord = {
  id:string; estate_id:string; unit_id:string|null; created_by:string;
  title:string; description:string; status:string; priority:string;
- management_response:string|null; responded_by:string|null; responded_at:string|null;
+ management_response:string|null; responded_by:string|null; responded_at:string|null; resident_reopen_note:string|null; reopened_at:string|null; reopen_count:number;
  created_at:string; updated_at:string;
 };
 function MaintenancePage(){
@@ -577,7 +577,7 @@ function MaintenancePage(){
    {active&&<section className="maintenance-reply" aria-label="Reply to maintenance request">
     <div className="module-toolbar"><div><h3>{active.title}</h3><p>{active.resident} · {active.estate} · {active.unit}</p></div><button type="button" className="secondary-action" onClick={()=>setActive(null)}>Close</button></div>
     <div className="maintenance-request-description"><strong>Resident's message</strong><p>{active.description}</p></div>
-    <p className="maintenance-meta"><strong>Priority:</strong> {active.priority} <span>·</span> <strong>Status:</strong> {active.status.replace("_"," ")}</p>
+    {active.resident_reopen_note&&<div className="maintenance-previous-reply"><strong>Resident reopened this request</strong><p>{active.resident_reopen_note}</p>{active.reopened_at&&<small>{date(active.reopened_at)}</small>}</div>}<p className="maintenance-meta"><strong>Priority:</strong> {active.priority} <span>·</span> <strong>Status:</strong> {active.status.replace("_"," ")}</p>
     {active.management_response&&<div className="maintenance-previous-reply"><strong>Previous response</strong><p>{active.management_response}</p>{active.responded_at&&<small>{date(active.responded_at)}</small>}</div>}
     <label className="maintenance-reply-label">Reply to resident<textarea rows={4} maxLength={4000} value={response} onChange={e=>setResponse(e.target.value)} placeholder="Type your update to the resident here…"/></label>
     <label className="maintenance-fixed-option"><input type="checkbox" checked={markFixed} onChange={e=>setMarkFixed(e.target.checked)}/> Mark this request as fixed and notify the resident</label>
