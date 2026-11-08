@@ -32,6 +32,7 @@ type Props = {
 };
 
 export default function SecurityGateScreen(props: Props) {
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraOpen, setCameraOpen] = useState(Boolean(props.initialScannerOpen));
   const [scanMessage, setScanMessage] = useState("");
