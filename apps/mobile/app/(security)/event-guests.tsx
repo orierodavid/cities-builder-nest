@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -20,6 +20,7 @@ const CARD = { backgroundColor: "#171717", borderColor: "#3A3020", borderWidth: 
 
 export default function SecurityEventGuestsRoute() {
   const router = useRouter();
+  const { height: screenHeight } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const [estate, setEstate] = useState<Estate | null>(null);
   const [events, setEvents] = useState<EventRecord[]>([]);
@@ -157,7 +158,7 @@ export default function SecurityEventGuestsRoute() {
                   <Text style={{ color: "#F5D58D", fontWeight: "800", textAlign: "center" }}>ALLOW CAMERA ACCESS</Text>
                 </TouchableOpacity>
               ) : (
-                <View style={{ height: 270, overflow: "hidden", borderRadius: 12, borderWidth: 1, borderColor: GOLD }}>
+                <View style={{ width: "100%", maxWidth: 520, alignSelf: "center", aspectRatio: 4 / 3, maxHeight: Math.min(300, Math.max(190, screenHeight * 0.38)), overflow: "hidden", borderRadius: 12, borderWidth: 1, borderColor: GOLD }}>
                   <CameraView style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={({ data }) => handleScan(data)} />
                 </View>
               )}
