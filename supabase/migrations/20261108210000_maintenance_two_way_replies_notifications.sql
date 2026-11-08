@@ -31,6 +31,14 @@ using (recipient_user_id = (select auth.uid()))
 with check (recipient_user_id = (select auth.uid()) and read_at is not null);
 grant select, update on public.maintenance_management_notifications to authenticated;
 
+do $
+begin
+  if exists(select 1 from pg_publication where pubname='supabase_realtime')
+     and not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='maintenance_management_notifications') then
+    alter publication supabase_realtime add table public.maintenance_management_notifications;
+  end if;
+end $;
+
 create or replace function public.notify_maintenance_request_created()
 returns trigger language plpgsql security definer set search_path = public, private, auth
 as $$
