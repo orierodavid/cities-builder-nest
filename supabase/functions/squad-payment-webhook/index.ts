@@ -29,11 +29,15 @@ Deno.serve(async(req:Request)=>{
  const verified=await check.json(),data=verified?.data;
  if(!verified?.success||!data)return reply(502,{error:"squad_verification_invalid_response"});
  const status=String(data.transaction_status??"").toLowerCase(),amount=Number(data.transaction_amount??data.amount),currency=String(data.transaction_currency_id??data.currency??"").toUpperCase(),verifiedRef=String(data.transaction_ref??"");
- if(verifiedRef!==ref||amount!==Number(row.amount_kobo)||currency!=="NGN")return reply(409,{error:"verified_transaction_mismatch"});
+ if(!Number.isSafeInteger(amount)||amount<=0||verifiedRef!==ref||amount!==Number(row.amount_kobo)||currency!=="NGN")return reply(409,{error:"verified_transaction_mismatch"});
+ if(!["success","failed","abandoned","pending"].includes(status))return reply(409,{error:"verified_transaction_status_invalid"});
  const {data:authUser,error:userError}=await admin.auth.admin.getUserById(row.resident_user_id);
  if(userError||!authUser.user?.email||String(data.email??"").toLowerCase()!==authUser.user.email.toLowerCase())return reply(409,{error:"verified_customer_mismatch"});
  if(status!=="success"){
-  if(["failed","abandoned"].includes(status))await admin.from(table).update({status:"failed"}).eq("id",row.id).neq("status","successful");
+  if(["failed","abandoned"].includes(status)){
+   const {error:failureUpdateError}=await admin.from(table).update({status:"failed"}).eq("id",row.id).eq("status","pending");
+   if(failureUpdateError)return reply(500,{error:"payment_ledger_update_failed"});
+  }
   return reply(200,{received:true,transactionStatus:status});
  }
  const {data:updated,error:updateError}=await admin.from(table).update({status:"successful",provider:"squad",verified_at:new Date().toISOString()}).eq("id",row.id).eq("status","pending").select("id").maybeSingle();
