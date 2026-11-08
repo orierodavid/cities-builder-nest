@@ -590,35 +590,36 @@ test("security can create and list incident reports only in the assigned estate"
   assert.equal(resident.body.error, "security_membership_required");
 });
 
-test("security can verify and check in event guests only in the assigned estate", async () => {
-  const checkedIn = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "security-token", "POST", {
+test("security can verify event invitations without recording attendance and only in the assigned estate", async () => {
+  const verified = await request(`/v1/estates/${estateA}/events/event-a/security-verify`, "security-token", "POST", {
     code: "987654",
   });
-  assert.equal(checkedIn.status, 201, JSON.stringify(checkedIn.body));
-  assert.equal(checkedIn.body.event.id, "event-a");
-  assert.equal(checkedIn.body.guest.guest_name, "Event Test Guest");
-  assert.equal(checkedIn.body.checkIn.checked_in_by, securityId);
-  assert.equal(eventCheckinRecords.length, 1);
+  assert.equal(verified.status, 200, JSON.stringify(verified.body));
+  assert.equal(verified.body.verified, true);
+  assert.equal(verified.body.event.id, "event-a");
+  assert.equal(verified.body.guest.guest_name, "Event Test Guest");
+  assert.equal(verified.body.invitation.status, "active");
+  assert.equal(eventCheckinRecords.length, 0);
 
-  const duplicate = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "security-token", "POST", {
+  const repeatedVerification = await request(`/v1/estates/${estateA}/events/event-a/security-verify`, "security-token", "POST", {
     code: "987654",
   });
-  assert.equal(duplicate.status, 409);
-  assert.equal(duplicate.body.error, "event_guest_already_checked_in");
+  assert.equal(repeatedVerification.status, 200);
+  assert.equal(eventCheckinRecords.length, 0);
 
-  const invalidCode = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "security-token", "POST", {
+  const invalidCode = await request(`/v1/estates/${estateA}/events/event-a/security-verify`, "security-token", "POST", {
     code: "98765",
   });
   assert.equal(invalidCode.status, 400);
   assert.equal(invalidCode.body.error, "invalid_event_invitation_code");
 
-  const crossEstate = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "security-b-token", "POST", {
+  const crossEstate = await request(`/v1/estates/${estateA}/events/event-a/security-verify`, "security-b-token", "POST", {
     code: "987654",
   });
   assert.equal(crossEstate.status, 403);
   assert.equal(crossEstate.body.error, "security_membership_required");
 
-  const resident = await request(`/v1/estates/${estateA}/events/event-a/security-check-in`, "resident-token", "POST", {
+  const resident = await request(`/v1/estates/${estateA}/events/event-a/security-verify`, "resident-token", "POST", {
     code: "987654",
   });
   assert.equal(resident.status, 403);
