@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, AppState, Text, TextInput, TouchableOpacity, View, StyleSheet, Linking } from "react-native";
+import { ActivityIndicator, AppState, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { supabase } from "../lib/supabase";
 
 type Goal = {
@@ -20,6 +21,7 @@ const money = (kobo: number) => new Intl.NumberFormat("en-NG", {
 }).format(kobo / 100);
 
 export default function RentSavings({ residentUserId, estateId, onBack }: Props) {
+  const router = useRouter();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [name, setName] = useState("My Rent");
   const [amount, setAmount] = useState("");
@@ -112,9 +114,9 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
       if (!data?.checkoutUrl || typeof data.checkoutUrl !== "string" || !data.checkoutUrl.startsWith("https://")) {
         throw new Error("We could not open the payment page. Please try again.");
       }
-      await Linking.openURL(data.checkoutUrl);
+      if (typeof data.transactionReference !== "string" || !data.transactionReference) throw new Error("Missing payment reference.");
       setContributionAmount("");
-      setMessage("Payment page opened. Return here after payment; your contribution will appear once the payment is confirmed.");
+      router.push({ pathname: "/payment-checkout", params: { checkoutUrl: data.checkoutUrl, reference: data.transactionReference, paymentType: "rent_savings" } });
     } catch (error) {
       setMessage("Unable to start your payment. Please try again.");
     } finally { setFundingGoalId(null); }
