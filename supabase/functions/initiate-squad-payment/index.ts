@@ -25,6 +25,7 @@ Deno.serve(async(req:Request)=>{
   if(error)return reply(503,{error:"charge_lookup_failed"});if(!charge||!charge.is_active||!members.some((m)=>m.estate_id===charge.estate_id))return reply(404,{error:"active_estate_charge_not_found"});
   const {data:paid}=await admin.from("service_charge_payments").select("id").eq("charge_id",charge.id).eq("resident_user_id",auth.user.id).eq("status","successful").maybeSingle();if(paid)return reply(409,{error:"service_charge_already_paid"});
   estateId=charge.estate_id;amountKobo=Number(charge.amount_kobo);table="service_charge_payments";
+  if(!Number.isSafeInteger(amountKobo)||amountKobo<=0)return reply(409,{error:"invalid_service_charge_amount"});
   const {data:row,error:ie}=await admin.from(table).insert({charge_id:charge.id,estate_id:estateId,resident_user_id:auth.user.id,amount_kobo:amountKobo,currency:"NGN",status:"pending",provider:"squad",provider_reference:ref}).select("id").single();
   if(ie||!row)return reply(409,{error:"payment_record_create_failed"});ledgerId=row.id;
  }else{
