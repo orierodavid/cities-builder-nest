@@ -14,7 +14,7 @@ Deno.serve(async (req: Request) => {
   const mode = Deno.env.get("SQUAD_ENVIRONMENT") ?? "sandbox";
   if (!url || !anon || !service || !secret || !["sandbox", "live"].includes(mode)) return reply(503, { error: "payment_verification_not_configured" });
 
-  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\\s+/i, "");
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!token) return reply(401, { error: "authentication_required" });
   const user = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
   const { data: auth, error: authError } = await user.auth.getUser(token);
@@ -54,14 +54,18 @@ Deno.serve(async (req: Request) => {
   const amount = Number(data.transaction_amount ?? data.amount);
   const currency = String(data.transaction_currency_id ?? data.currency ?? "").toUpperCase();
   const verifiedRef = String(data.transaction_ref ?? "");
-  if (verifiedRef !== ref || amount !== Number(row.amount_kobo) || currency !== "NGN") return reply(409, { error: "verified_transaction_mismatch" });
+  if (!Number.isSafeInteger(amount) || amount <= 0 || verifiedRef !== ref || amount !== Number(row.amount_kobo) || currency !== "NGN") return reply(409, { error: "verified_transaction_mismatch" });
+  if (!["success", "failed", "abandoned", "pending"].includes(status)) return reply(409, { error: "verified_transaction_status_invalid" });
   const { data: authUser, error: userError } = await admin.auth.admin.getUserById(auth.user.id);
   if (userError || !authUser.user?.email || String(data.email ?? "").toLowerCase() !== authUser.user.email.toLowerCase()) return reply(409, { error: "verified_customer_mismatch" });
 
   if (status === "success") {
-    const { error } = await admin.from(table).update({ status: "successful", provider: "squad", verified_at: new Date().toISOString() }).eq("id", row.id).eq("status", "pending");
+    const { data: updated, error } = await admin.from(table).update({ status: "successful", provider: "squad", verified_at: new Date().toISOString() }).eq("id", row.id).eq("status", "pending").select("id").maybeSingle();
     if (error) return reply(500, { error: "payment_ledger_update_failed" });
-    return reply(200, { status: "successful", verified: true });
+    if (updated) return reply(200, { status: "successful", verified: true });
+    const { data: current, error: currentError } = await admin.from(table).select("status").eq("id", row.id).maybeSingle();
+    if (currentError || !current) return reply(503, { error: "payment_ledger_lookup_failed" });
+    return reply(200, { status: current.status, verified: current.status === "successful" });
   }
   if (["failed", "abandoned"].includes(status)) {
     const { error } = await admin.from(table).update({ status: "failed" }).eq("id", row.id).eq("status", "pending");
