@@ -17,6 +17,8 @@ const memberships = [
   { estate_id: estateA, user_id: "inactive-resident", membership_role: "resident", status: "inactive" },
   { estate_id: estateA, user_id: securityId, membership_role: "security", status: "active" },
   { estate_id: estateA, user_id: "security-incoming", membership_role: "security", status: "active" },
+  { estate_id: estateA, user_id: "event-organiser-a", membership_role: "event_organiser", status: "active" },
+  { estate_id: estateB, user_id: "event-organiser-b", membership_role: "event_organiser", status: "active" },
   { estate_id: "disabled-estate", user_id: residentId, membership_role: "resident", status: "active" },
   { estate_id: estateB, user_id: "security-b", membership_role: "security", status: "active" },
   { estate_id: "disabled-estate", user_id: securityId, membership_role: "security", status: "active" },
@@ -100,6 +102,8 @@ const mockSupabase = createServer(async (req, res) => {
       "inactive-token": "inactive-resident",
       "other-token": "someone-else",
       "security-b-token": "security-b",
+      "event-organiser-token": "event-organiser-a",
+      "event-organiser-b-token": "event-organiser-b",
     };
     const id = token ? ids[token] : undefined;
     if (!id) return sendJson(res, 401, { message: "Invalid token" });
@@ -352,6 +356,37 @@ async function request(path: string, token: string, method = "GET", body?: unkno
   });
   return { status: response.status, body: await response.json() as Record<string, any> };
 }
+
+test("event guest lists are restricted to event organisers in the same estate", async () => {
+  const organiser = await request(
+    `/v1/estates/${estateA}/events/event-a/guests`,
+    "event-organiser-token",
+  );
+  assert.equal(organiser.status, 200);
+  assert.equal(organiser.body.guests.length, 1);
+  assert.equal(organiser.body.guests[0].id, "event-guest-a");
+
+  const otherEstateOrganiser = await request(
+    `/v1/estates/${estateA}/events/event-a/guests`,
+    "event-organiser-b-token",
+  );
+  assert.equal(otherEstateOrganiser.status, 403);
+  assert.equal(otherEstateOrganiser.body.error, "event_organiser_membership_required");
+
+  const resident = await request(
+    `/v1/estates/${estateA}/events/event-a/guests`,
+    "resident-token",
+  );
+  assert.equal(resident.status, 403);
+  assert.equal(resident.body.error, "event_organiser_membership_required");
+
+  const security = await request(
+    `/v1/estates/${estateA}/events/event-a/guests`,
+    "security-token",
+  );
+  assert.equal(security.status, 403);
+  assert.equal(security.body.error, "event_organiser_membership_required");
+});
 
 test("authenticated resident can create a pass and list only passes hosted by that resident", async () => {
   const created = await request(`/v1/estates/${estateA}/visitor-passes`, "resident-token", "POST", {
