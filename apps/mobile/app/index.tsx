@@ -113,6 +113,7 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
   const [invitationBusy, setInvitationBusy] = useState(false);
   const [invitationMessage, setInvitationMessage] = useState("");
   const [generatedInvitation, setGeneratedInvitation] = useState<{ guestId: string; code: string; message: string } | null>(null);
+  const [bulkInvitationText, setBulkInvitationText] = useState("");
   const [checkInEvent, setCheckInEvent] = useState<EstateEvent | null>(null);
   const [checkInCode, setCheckInCode] = useState("");
   const [eventCheckIns, setEventCheckIns] = useState<EventCheckIn[]>([]);
@@ -508,12 +509,42 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
 
   function eventDatePart(value: string) { return value ? value.slice(0, 10) : ""; }
   function eventTimePart(value: string, fallback: string) { return value && value.length >= 16 ? value.slice(11, 16) : fallback; }
+  function eventTimeDisplay(value: string, fallback: string) {
+    const [rawHour, rawMinute] = eventTimePart(value, fallback).split(":");
+    const hour = Number(rawHour) || 0;
+    return { hour: String(hour % 12 || 12), minute: rawMinute || "00", period: hour >= 12 ? "PM" : "AM" as "AM" | "PM" };
+  }
+  function updateEventTime(target: "start" | "end", part: "hour" | "minute" | "period", value: string) {
+    const current = target === "start" ? eventStartsAt : eventEndsAt;
+    const fallback = target === "start" ? "10:00" : "14:00";
+    const parts = eventTimeDisplay(current, fallback);
+    const next = { ...parts, [part]: value } as { hour: string; minute: string; period: "AM" | "PM" };
+    const hour12 = Math.min(12, Math.max(1, Number(next.hour) || 12));
+    const minute = Math.min(59, Math.max(0, Number(next.minute) || 0));
+    const hour24 = (hour12 % 12) + (next.period === "PM" ? 12 : 0);
+    const time = `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    const date = eventDatePart(current);
+    const setter = target === "start" ? setEventStartsAt : setEventEndsAt;
+    setter(date ? `${date}T${time}` : `T${time}`);
+  }
   function setEventDate(target: "start" | "end", date: Date) {
     const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, "0"); const day = String(date.getDate()).padStart(2, "0");
     const setter = target === "start" ? setEventStartsAt : setEventEndsAt;
     const current = target === "start" ? eventStartsAt : eventEndsAt;
     setter(`${year}-${month}-${day}T${eventTimePart(current, target === "start" ? "10:00" : "14:00")}`);
     setEventCalendarTarget(null);
+  }
+  function EventTimePicker({ target, value, fallback }: { target: "start" | "end"; value: string; fallback: string }) {
+    const parts = eventTimeDisplay(value, fallback);
+    const field = { width: 64, textAlign: "center" as const, color: "#FFFFFF", backgroundColor: "#171717", borderColor: "#494133", borderWidth: 1, borderRadius: 9, paddingVertical: 11, fontSize: 15, fontWeight: "700" as const };
+    return <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <TextInput accessibilityLabel={target + " time hour"} style={field} value={parts.hour} onChangeText={(v) => updateEventTime(target, "hour", v.replace(/\\D/g, "").slice(0, 2))} keyboardType="number-pad" maxLength={2} />
+      <Text style={{ color: "#FFFFFF", fontWeight: "800" }}>:</Text>
+      <TextInput accessibilityLabel={target + " time minute"} style={field} value={parts.minute} onChangeText={(v) => updateEventTime(target, "minute", v.replace(/\\D/g, "").slice(0, 2))} keyboardType="number-pad" maxLength={2} />
+      <View style={{ flexDirection: "row", borderWidth: 1, borderColor: "#494133", borderRadius: 9, overflow: "hidden" }}>
+        {(["AM", "PM"] as const).map((period) => <TouchableOpacity key={period} accessibilityRole="button" accessibilityState={{ selected: parts.period === period }} onPress={() => updateEventTime(target, "period", period)} style={{ paddingVertical: 12, paddingHorizontal: 13, backgroundColor: parts.period === period ? "#D4A84B" : "#171717" }}><Text style={{ color: parts.period === period ? "#17130B" : "#FFFFFF", fontWeight: "900" }}>{period}</Text></TouchableOpacity>)}
+      </View>
+    </View>;
   }
 
   async function createEstateEvent() {
@@ -613,6 +644,47 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
       }
       await loadEventInvitations(invitationEvent.id);
     } catch (e) { setInvitationMessage(e instanceof Error ? e.message : "Could not generate this invitation."); }
+    finally { setInvitationBusy(false); }
+  }
+
+  async function generateBulkInvitations() {
+    if (!session?.access_token || !selectedEstateId || !invitationEvent || !apiUrl) return;
+    setInvitationBusy(true); setInvitationMessage(""); setBulkInvitationText(""); setGeneratedInvitation(null);
+    try {
+      const allGuests: EventGuest[] = [];
+      let page = 1;
+      while (true) {
+        const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(invitationEvent.id) + "/guests?page=" + page + "&pageSize=100", { headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json" } });
+        const result = await response.json() as { guests?: EventGuest[]; pagination?: { hasMore?: boolean; nextPage?: number | null }; error?: string };
+        if (!response.ok) throw new Error(result.error || "Could not load the complete guest list.");
+        allGuests.push(...(result.guests || []));
+        if (!result.pagination?.hasMore || !result.pagination.nextPage) break;
+        page = result.pagination.nextPage;
+      }
+      if (!allGuests.length) throw new Error("Add guests before generating bulk invitations.");
+      const messages: string[] = [];
+      let failed = 0;
+      for (const guest of allGuests) {
+        try {
+          const response = await fetch(apiUrl + "/v1/estates/" + encodeURIComponent(selectedEstateId) + "/events/" + encodeURIComponent(invitationEvent.id) + "/guests/" + encodeURIComponent(guest.id) + "/invitations", {
+            method: "POST", headers: { Authorization: "Bearer " + session.access_token, Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({}),
+          });
+          const result = await response.json() as { code?: string; error?: string; event?: { title: string; venue: string; starts_at: string }; guest?: { guest_name: string } };
+          if (!response.ok || !result.code || !result.event || !result.guest) throw new Error(result.error || "Invitation generation failed.");
+          messages.push("You're invited to " + result.event.title + "\nGuest: " + result.guest.guest_name + "\nVenue: " + result.event.venue + "\nDate: " + new Date(result.event.starts_at).toLocaleString() + "\nInvitation code: " + result.code + "\nPlease present this code at the gate.");
+        } catch { failed += 1; }
+      }
+      const combined = messages.join("\n\n------------------------------\n\n");
+      setBulkInvitationText(combined);
+      if (combined) {
+        await Clipboard.setStringAsync(combined);
+        setInvitationMessage("Generated and copied " + messages.length + " invitation(s)." + (failed ? " " + failed + " guest(s) could not be processed." : "") + " Invitations have not been sent.");
+      } else {
+        setInvitationMessage("No invitations could be generated. Please try again.");
+      }
+      await loadEventInvitations(invitationEvent.id);
+      await loadEventGuests(invitationEvent.id);
+    } catch (e) { setInvitationMessage(e instanceof Error ? e.message : "Bulk invitations could not be generated."); }
     finally { setInvitationBusy(false); }
   }
 
@@ -867,11 +939,15 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
                     ) : <>
                       <TouchableOpacity onPress={() => { setInvitationEvent(null); setGeneratedInvitation(null); }} style={styles.eventBack}><Text style={styles.eventRefresh}>← CHOOSE ANOTHER EVENT</Text></TouchableOpacity>
                       <Text style={styles.eventSectionTitle}>GUESTS · {eventGuests.length}</Text>
+                      <TouchableOpacity style={[styles.eventSaveButton, invitationBusy && styles.disabled]} onPress={() => void generateBulkInvitations()} disabled={invitationBusy || guestLoading || eventGuests.length === 0}>
+                        {invitationBusy ? <ActivityIndicator color="#17130B"/> : <Text style={styles.eventSaveText}>GENERATE & COPY ALL INVITATIONS</Text>}
+                      </TouchableOpacity>
                       {guestLoading || invitationLoading ? <ActivityIndicator color="#D4A84B"/> : eventGuests.length ? eventGuests.map((guest) => {
                         const active = eventInvitations.find((item) => item.guest_id === guest.id && item.status === "active");
                         return <View key={guest.id} style={styles.eventCard}><Text style={styles.eventCardTitle}>{guest.guest_name}</Text>{!!guest.email && <Text style={styles.eventCardMeta}>{guest.email}</Text>}{!!guest.phone && <Text style={styles.eventCardMeta}>{guest.phone}</Text>}<Text style={styles.eventCardStatus}>{active ? "CODE ACTIVE · NOT SENT" : "NO ACTIVE CODE"}</Text><TouchableOpacity style={styles.guestOpenButton} disabled={invitationBusy} onPress={() => void generateAndCopyInvitation(guest)}><Text style={styles.guestOpenText}>{active ? "REGENERATE & COPY INVITATION" : "GENERATE & COPY INVITATION"}</Text></TouchableOpacity>{active && <TouchableOpacity onPress={() => void revokeEventInvitation(active.id)} disabled={invitationBusy} style={styles.eventBack}><Text style={styles.guestRemove}>REVOKE CODE</Text></TouchableOpacity>}{generatedInvitation?.guestId === guest.id && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Invitation code</Text><Text style={styles.eventHeading}>{generatedInvitation.code}</Text><Text style={styles.bodyText}>{generatedInvitation.message}</Text><TouchableOpacity style={styles.guestOpenButton} onPress={() => void Clipboard.setStringAsync(generatedInvitation.message)}><Text style={styles.guestOpenText}>COPY INVITATION TEXT</Text></TouchableOpacity></View>}</View>;
                       }) : <Text style={styles.eventEmpty}>Add guests in Guest List before creating invitations.</Text>}
                       {!!invitationMessage && <Text style={invitationMessage.includes("copied") || invitationMessage.includes("revoked") ? styles.eventSuccess : styles.eventError}>{invitationMessage}</Text>}
+                      {!!bulkInvitationText && <View style={styles.noticeCard}><Text style={styles.noticeTitle}>Bulk invitation messages</Text><Text style={styles.bodyText}>{bulkInvitationText}</Text><TouchableOpacity style={styles.guestOpenButton} onPress={() => void Clipboard.setStringAsync(bulkInvitationText)}><Text style={styles.guestOpenText}>COPY ALL AGAIN</Text></TouchableOpacity></View>}
                       <TouchableOpacity style={styles.eventBack} onPress={() => void loadEventInvitations(invitationEvent.id)}><Text style={styles.eventRefresh}>REFRESH INVITATIONS</Text></TouchableOpacity>
                       <Text style={styles.eventHint}>Copying does not send the invitation or mark it as sent. You decide where to paste the message.</Text>
                     </>}
@@ -1001,7 +1077,7 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
                         <View style={{flexDirection:"row",justifyContent:"space-around",marginBottom:6}}>{["S","M","T","W","T","F","S"].map((day,i)=><Text key={day+i} style={{color:"#A9A9A9",width:"13%",textAlign:"center",fontSize:11,fontWeight:"700"}}>{day}</Text>)}</View>
                         <View style={{flexDirection:"row",flexWrap:"wrap"}}>{Array.from({length:new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth(),1).getDay()},(_,i)=><View key={"blank"+i} style={{width:"14.285%",height:39}}/>)}{Array.from({length:new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth()+1,0).getDate()},(_,i)=>{const day=i+1;const date=new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth(),day);const selected=eventDatePart(eventStartsAt)===`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;return <TouchableOpacity key={day} onPress={()=>setEventDate("start",date)} style={{width:"14.285%",height:39,alignItems:"center",justifyContent:"center",borderRadius:20,backgroundColor:selected?"#D4A84B":"transparent"}}><Text style={{color:selected?"#17130B":"#FFFFFF",fontWeight:selected?"900":"500"}}>{day}</Text></TouchableOpacity>})}</View>
                       </View>}
-                      <Text style={styles.eventLabel}>Start time</Text><TextInput style={styles.eventInput} value={eventTimePart(eventStartsAt,"")} onChangeText={(time)=>setEventStartsAt(eventDatePart(eventStartsAt)+"T"+time)} placeholder="10:00 (24-hour time)" placeholderTextColor="#888" keyboardType="numbers-and-punctuation"/>
+                      <Text style={styles.eventLabel}>Start time (AM / PM)</Text><EventTimePicker target="start" value={eventStartsAt} fallback="10:00"/>
                       <Text style={styles.eventLabel}>End date</Text>
                       <TouchableOpacity style={[styles.eventInput,{minHeight:49,flexDirection:"row",alignItems:"center",justifyContent:"space-between"}]} onPress={() => {const value=eventDatePart(eventEndsAt);setEventCalendarMonth(value?new Date(value+"T12:00:00"):new Date(new Date().getFullYear(),new Date().getMonth(),1));setEventCalendarTarget(eventCalendarTarget==="end"?null:"end");}}>
                         <Text style={{color:eventEndsAt?"#FFFFFF":"#888",fontSize:13}}>{eventEndsAt ? new Date(eventDatePart(eventEndsAt)+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",year:"numeric",month:"long",day:"numeric"}) : "Choose end date"}</Text><Ionicons name="calendar-outline" size={19} color="#D4A84B"/>
@@ -1011,7 +1087,7 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
                         <View style={{flexDirection:"row",justifyContent:"space-around",marginBottom:6}}>{["S","M","T","W","T","F","S"].map((day,i)=><Text key={day+i} style={{color:"#A9A9A9",width:"13%",textAlign:"center",fontSize:11,fontWeight:"700"}}>{day}</Text>)}</View>
                         <View style={{flexDirection:"row",flexWrap:"wrap"}}>{Array.from({length:new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth(),1).getDay()},(_,i)=><View key={"blank"+i} style={{width:"14.285%",height:39}}/>)}{Array.from({length:new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth()+1,0).getDate()},(_,i)=>{const day=i+1;const date=new Date(eventCalendarMonth.getFullYear(),eventCalendarMonth.getMonth(),day);const selected=eventDatePart(eventEndsAt)===`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;return <TouchableOpacity key={day} onPress={()=>setEventDate("end",date)} style={{width:"14.285%",height:39,alignItems:"center",justifyContent:"center",borderRadius:20,backgroundColor:selected?"#D4A84B":"transparent"}}><Text style={{color:selected?"#17130B":"#FFFFFF",fontWeight:selected?"900":"500"}}>{day}</Text></TouchableOpacity>})}</View>
                       </View>}
-                      <Text style={styles.eventLabel}>End time</Text><TextInput style={styles.eventInput} value={eventTimePart(eventEndsAt,"")} onChangeText={(time)=>setEventEndsAt(eventDatePart(eventEndsAt)+"T"+time)} placeholder="14:00 (24-hour time)" placeholderTextColor="#888" keyboardType="numbers-and-punctuation"/>
+                      <Text style={styles.eventLabel}>End time (AM / PM)</Text><EventTimePicker target="end" value={eventEndsAt} fallback="14:00"/>
                       <Text style={styles.eventHint}>Choose dates from the calendar and enter times in 24-hour format (estate local time).</Text>
                       <Text style={styles.eventLabel}>Publication</Text>
                       <View style={styles.eventStatusRow}>
