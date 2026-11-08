@@ -324,6 +324,7 @@ process.env.TRUST_PROXY_HOPS = "1";
 process.env.SUPABASE_URL = `http://127.0.0.1:${mockPort}`;
 process.env.SUPABASE_ANON_KEY = "isolated-test-anon-key";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "isolated-test-service-role-key";
+process.env.VISITOR_PASS_ENCRYPTION_KEY = "integration-test-visitor-pass-encryption-key";
 const { app } = await import("./server.js");
 const api = createServer(app);
 const apiPort = await listen(api);
@@ -363,9 +364,18 @@ test("authenticated resident can create a pass and list only passes hosted by th
   assert.equal(listed.status, 200);
   assert.ok(Array.isArray(listed.body.visitorPasses));
   assert.equal(listed.body.visitorPasses.length, 2);
-  assert.ok(listed.body.visitorPasses.some((pass: Record<string, unknown>) => pass.visitor_name === "Test Visitor"));
+  const createdPass = listed.body.visitorPasses.find((pass: Record<string, unknown>) => pass.visitor_name === "Test Visitor");
+  assert.ok(createdPass);
+  assert.equal(createdPass.accessCode, created.body.accessCode);
   assert.ok(listed.body.visitorPasses.some((pass: Record<string, unknown>) => pass.id === "denial-test-pass"));
   assert.ok(!listed.body.visitorPasses.some((pass: Record<string, unknown>) => pass.id === "other-host-pass"));
+
+  const deactivated = await request(`/v1/estates/${estateA}/visitor-passes/${createdPass.id}/status`, "resident-token", "PATCH", { status: "revoked" });
+  assert.equal(deactivated.status, 200);
+  assert.equal(deactivated.body.pass.status, "revoked");
+  const reactivated = await request(`/v1/estates/${estateA}/visitor-passes/${createdPass.id}/status`, "resident-token", "PATCH", { status: "active" });
+  assert.equal(reactivated.status, 200);
+  assert.equal(reactivated.body.pass.status, "active");
 });
 
 test("authenticated security and inactive resident accounts cannot create resident visitor passes", async () => {

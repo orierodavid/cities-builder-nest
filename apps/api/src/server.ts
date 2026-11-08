@@ -2,6 +2,7 @@ import "express-async-errors";
 import "dotenv/config";
 import express from "express";
 import { createHash, randomInt, randomUUID } from "node:crypto";
+import { decryptVisitorAccessCode, encryptVisitorAccessCode } from "./visitor-pass-code.js";
 import { createClient } from "@supabase/supabase-js";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
@@ -844,15 +845,19 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
     res.status(400).json({ error: "invalid_visitor_pass", message: "Provide a visitor name and a valid time window of up to 7 days." }); return;
   }
   const { visitorName, visitorPhone, validFrom, validUntil } = visitorInput;
+  const encryptionSecret = process.env.VISITOR_PASS_ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!encryptionSecret) { res.status(503).json({ error: "visitor_code_storage_not_configured" }); return; }
   const accessCode = String(randomInt(100000, 1000000));
   const accessCodeHash = createHash("sha256").update(accessCode).digest("hex");
+  const accessCodeCiphertext = encryptVisitorAccessCode(accessCode, encryptionSecret);
   const { data, error } = await authenticated.userSupabase.from("visitor_passes").insert({
     estate_id: estateId, host_user_id: authenticated.authUser.id, visitor_name: visitorName,
-    visitor_phone: visitorPhone, access_code_hash: accessCodeHash, valid_from: validFrom.toISOString(),
-    valid_until: validUntil.toISOString(), status: "active",
+    visitor_phone: visitorPhone, access_code_hash: accessCodeHash, access_code_ciphertext: accessCodeCiphertext,
+    valid_from: validFrom.toISOString(), valid_until: validUntil.toISOString(), status: "active",
   }).select("id, estate_id, visitor_name, valid_from, valid_until, status, created_at").single();
   if (error || !data) { res.status(400).json({ error: "visitor_pass_create_failed" }); return; }
-  res.status(201).json({ visitorPass: data, accessCode });
+  const { access_code_ciphertext: _ciphertext, ...safeVisitorPass } = data as typeof data & { access_code_ciphertext?: string };
+  res.status(201).json({ visitorPass: safeVisitorPass, accessCode });
 });
 
 app.get("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) => {
@@ -877,7 +882,7 @@ app.get("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =>
   const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase
     .from("visitor_passes")
-    .select("id, estate_id, visitor_name, visitor_phone, valid_from, valid_until, status, created_at")
+    .select("id, estate_id, visitor_name, visitor_phone, valid_from, valid_until, status, created_at, access_code_ciphertext")
     .eq("estate_id", estateId)
     .eq("host_user_id", authenticated.authUser.id)
     .order("created_at", { ascending: false })
@@ -888,7 +893,55 @@ app.get("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =>
     return;
   }
   const result = pageResult(data, page);
-  res.status(200).json({ visitorPasses: result.items, pagination: result.pagination });
+  const encryptionSecret = process.env.VISITOR_PASS_ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  const visitorPasses = result.items.map((pass: Record<string, unknown>) => {
+    const { access_code_ciphertext: ciphertext, ...safePass } = pass;
+    return {
+      ...safePass,
+      accessCode: decryptVisitorAccessCode(typeof ciphertext === "string" ? ciphertext : null, encryptionSecret),
+    };
+  });
+  res.status(200).json({ visitorPasses, pagination: result.pagination });
+});
+
+app.patch("/v1/estates/:estateId/visitor-passes/:passId/status", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const passId = Array.isArray(req.params.passId) ? req.params.passId[0] : req.params.passId;
+  const targetStatus = req.body?.status;
+  if (targetStatus !== "active" && targetStatus !== "revoked") {
+    res.status(400).json({ error: "invalid_visitor_pass_status" }); return;
+  }
+  const { data: membership, error: membershipError } = await authenticated.userSupabase.from("estate_memberships")
+    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id).maybeSingle();
+  if (membershipError || !canCreateVisitorPass(membership, estateId)) {
+    res.status(403).json({ error: "estate_membership_required" }); return;
+  }
+  const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId);
+  if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
+  if (!estateEnabled) { rejectInactiveEstate(res); return; }
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey || !process.env.SUPABASE_URL) {
+    res.status(503).json({ error: "visitor_pass_update_not_configured" }); return;
+  }
+  const admin = createClient(process.env.SUPABASE_URL, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: existing, error: lookupError } = await admin.from("visitor_passes")
+    .select("id, status, valid_until").eq("id", passId).eq("estate_id", estateId)
+    .eq("host_user_id", authenticated.authUser.id).maybeSingle();
+  if (lookupError || !existing) { res.status(404).json({ error: "visitor_pass_not_found" }); return; }
+  if (existing.status !== "active" && existing.status !== "revoked") {
+    res.status(409).json({ error: "visitor_pass_not_reactivatable" }); return;
+  }
+  if (new Date(existing.valid_until).getTime() <= Date.now()) {
+    res.status(409).json({ error: "visitor_pass_expired" }); return;
+  }
+  if (existing.status === targetStatus) { res.status(200).json({ pass: existing }); return; }
+  const { data: updated, error: updateError } = await admin.from("visitor_passes").update({ status: targetStatus })
+    .eq("id", passId).eq("estate_id", estateId).eq("host_user_id", authenticated.authUser.id)
+    .eq("status", existing.status).gt("valid_until", new Date().toISOString())
+    .select("id, status, valid_until").maybeSingle();
+  if (updateError || !updated) { res.status(409).json({ error: "visitor_pass_status_update_failed" }); return; }
+  res.status(200).json({ pass: updated });
 });
 
 app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, res) => {

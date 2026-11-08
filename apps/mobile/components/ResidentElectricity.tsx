@@ -33,9 +33,17 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
 
   const invoke = useCallback(async (body: Record<string, unknown>) => {
     const { data, error: requestError } = await supabase.functions.invoke("squad-electricity", { body });
-    if (requestError || !data || data.error) {
-      throw new Error("Electricity meter services are temporarily unavailable. Please try again.");
+    if (requestError) {
+      const context = (requestError as typeof requestError & { context?: Response }).context;
+      if (context && typeof context.clone === 'function') {
+        const payload = await context.clone().json().catch(() => null) as { message?: string; error?: string } | null;
+        if (payload?.message) throw new Error(payload.message);
+        if (payload?.error) throw new Error(payload.error.replace(/_/g, ' '));
+      }
+      throw new Error(requestError.message || 'Electricity meter services are temporarily unavailable.');
     }
+    if (!data) throw new Error('The electricity service returned an empty response. Please try again.');
+    if (data.error) throw new Error(typeof data.message === 'string' ? data.message : String(data.error).replace(/_/g, ' '));
     return data;
   }, []);
 
@@ -48,9 +56,9 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
       setCompanies(rows);
       if (rows.length) setCompanyCode((current) => current || rows[0].code);
       if (!rows.length) setMessage("No electricity companies are currently available.");
-    } catch {
+    } catch (cause) {
       setCompanies([]);
-      setMessage("Electricity companies could not be loaded. Please try again.");
+      setMessage(cause instanceof Error ? cause.message : "Electricity companies could not be loaded. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -79,9 +87,9 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
       setValidation(data as MeterValidation);
       setError(false);
       setMessage("Meter validated. Review the customer details below.");
-    } catch {
+    } catch (cause) {
       setError(true);
-      setMessage("We could not validate this meter. Check the details and try again.");
+      setMessage(cause instanceof Error ? cause.message : "We could not validate this meter. Check the details and try again.");
     } finally {
       setBusy(false);
     }
