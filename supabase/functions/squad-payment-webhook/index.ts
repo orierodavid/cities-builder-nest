@@ -20,6 +20,7 @@ Deno.serve(async(req:Request)=>{
   admin.from("rent_savings_contributions").select("id,amount_kobo,currency,status,resident_user_id,verified_at").eq("provider_reference",ref).maybeSingle()
  ]);
  if(se||re)return reply(503,{error:"payment_ledger_lookup_failed"});
+ if(serviceRow&&rentRow)return reply(409,{error:"ambiguous_payment_reference"});
  const row=serviceRow??rentRow,table=serviceRow?"service_charge_payments":"rent_savings_contributions";
  if(!row)return reply(200,{received:true,ignored:true});
  if(row.status==="successful"&&row.verified_at)return reply(200,{received:true,duplicate:true});
@@ -29,7 +30,7 @@ Deno.serve(async(req:Request)=>{
  const verified=await check.json(),data=verified?.data;
  if(!verified?.success||!data)return reply(502,{error:"squad_verification_invalid_response"});
  const status=String(data.transaction_status??"").toLowerCase(),amount=Number(data.transaction_amount??data.amount),currency=String(data.transaction_currency_id??data.currency??"").toUpperCase(),verifiedRef=String(data.transaction_ref??"");
- if(!Number.isSafeInteger(amount)||amount<=0||verifiedRef!==ref||amount!==Number(row.amount_kobo)||currency!=="NGN")return reply(409,{error:"verified_transaction_mismatch"});
+ if(!Number.isSafeInteger(amount)||amount<=0||!Number.isSafeInteger(Number(row.amount_kobo))||Number(row.amount_kobo)<=0||verifiedRef!==ref||amount!==Number(row.amount_kobo)||currency!=="NGN")return reply(409,{error:"verified_transaction_mismatch"});
  if(!["success","failed","abandoned","pending"].includes(status))return reply(409,{error:"verified_transaction_status_invalid"});
  const {data:authUser,error:userError}=await admin.auth.admin.getUserById(row.resident_user_id);
  if(userError||!authUser.user?.email||String(data.email??"").toLowerCase()!==authUser.user.email.toLowerCase())return reply(409,{error:"verified_customer_mismatch"});
