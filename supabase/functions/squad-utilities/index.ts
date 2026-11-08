@@ -26,7 +26,7 @@ Deno.serve(async(req:Request)=>{
  let input:Record<string,unknown>;try{input=await req.json()}catch{return reply(400,{error:"invalid_json"})}
  const action=str(input.action),service=str(input.service),provider=str(input.provider).toUpperCase();
  const base=mode==="live"?"https://api-d.squadco.com":"https://sandbox-api-d.squadco.com";
- const squad=async(path:string,method="GET",body?:Record<string,unknown>)=>{
+ const squad=async(path:string,method="GET",body?:Record<string,unknown>):Promise<{r:Response;data:Record<string,unknown>;networkError?:boolean}>=>{
   try{
    const r=await fetch(base+path,{method,headers:{Authorization:`Bearer ${squadKey}`,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
    const raw=await r.text();
