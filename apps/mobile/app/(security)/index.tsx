@@ -32,7 +32,7 @@ export default function SecurityHomeRoute() {
     <Text onPress={() => void refresh()} style={s.action}>TRY AGAIN</Text>
   </View></SafeAreaView>;
   return <SafeAreaView edges={["left", "right"]} style={s.root}>
-    <SecurityHome officerName={officerName} estateName={estate.name} onNavigate={(route) => {
+    <SecurityHome officerName={officerName} estateName={estate.name} showBottomNav={false} onNavigate={(route) => {
       if (route === "/scan" || route === "/verify") router.push("/(security)/verify" as never);
       else if (route === "/records") router.push("/(security)/records" as never);
       else if (route === "/profile") router.push("/(security)/profile" as never);
