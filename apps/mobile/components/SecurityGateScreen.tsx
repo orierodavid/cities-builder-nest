@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import VisitorDetails, { type Visitor } from "./VisitorDetails";
@@ -49,32 +50,32 @@ export default function SecurityGateScreen(props: Props) {
     props.onLookup(code);
   }
 
-  const card = { backgroundColor: "#171717", borderColor: "#3A3020", borderWidth: 1, borderRadius: 15, padding: 15, gap: 10 } as const;
+  const card = { backgroundColor: "#121212", borderColor: "#3A2E12", borderWidth: 1, borderRadius: 15, padding: 15, gap: 10 } as const;
   const muted = { color: "#B9B9B9", fontSize: 12, lineHeight: 18 } as const;
   const button = { minHeight: 47, borderRadius: 10, alignItems: "center" as const, justifyContent: "center" as const, paddingHorizontal: 14 };
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ backgroundColor: "#080808", gap: 15, paddingBottom: 24 }}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ backgroundColor: "#050505", gap: 15, paddingHorizontal: 18, paddingTop: 14, paddingBottom: Math.max(insets.bottom, 20) + 12 }}>
       <View style={{ gap: 5 }}>
-        <Text style={{ color: "#D4A84B", fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }}>GATE OPERATIONS</Text>
-        <Text style={{ color: "#FFFFFF", fontSize: 26, fontWeight: "900" }}>Verify Visitor</Text>
+        <Text style={{ color: "#D9A93F", fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }}>GATE OPERATIONS</Text>
+        <Text style={{ color: "#FFFFFF", fontSize: 27, fontWeight: "900", letterSpacing: -0.5 }}>Verify Visitor</Text>
         <Text style={muted}>{props.estateName || "Assigned estate"} · Verify access before admitting visitors.</Text>
       </View>
       <View style={card}>
-        <TouchableOpacity onPress={() => { setScanMessage(""); setCameraOpen((open) => { if (!open) scanHandled.current = false; return !open; }); }} style={[button, { backgroundColor: "#D4A84B", flexDirection: "row", gap: 9 }]}>
+        <TouchableOpacity onPress={() => { setScanMessage(""); setCameraOpen((open) => { if (!open) scanHandled.current = false; return !open; }); }} style={[button, { backgroundColor: "#D9A93F", flexDirection: "row", gap: 9 }]}>
           <Text style={{ color: "#17130B", fontSize: 13, fontWeight: "900" }}>{cameraOpen ? "CLOSE SCANNER" : "SCAN VISITOR QR CODE"}</Text>
         </TouchableOpacity>
         {cameraOpen && (
           <View style={{ gap: 9 }}>
             {!permission?.granted ? (
               <View style={{ padding: 14, borderRadius: 10, backgroundColor: "#211D15", gap: 10 }}>
-                <Text style={{ color: "#F5D58D", fontWeight: "800" }}>Camera permission required</Text>
+                <Text style={{ color: "#F0C766", fontWeight: "800" }}>Camera permission required</Text>
                 <Text style={muted}>Allow camera access to scan visitor QR codes at the gate.</Text>
                 <TouchableOpacity onPress={() => void requestPermission()} style={[button, { backgroundColor: "#D4A84B" }]}><Text style={{ color: "#17130B", fontWeight: "900" }}>ALLOW CAMERA</Text></TouchableOpacity>
               </View>
             ) : (
-              <View style={{ height: 290, overflow: "hidden", borderRadius: 12, borderWidth: 1, borderColor: "#D4A84B" }}>
+              <View style={{ height: 340, overflow: "hidden", borderRadius: 12, borderWidth: 1, borderColor: "#D9A93F" }}>
                 <CameraView style={{ flex: 1 }} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={({ data }) => handleScan(data)} />
-                <View pointerEvents="none" style={{ position: "absolute", left: "18%", right: "18%", top: "18%", bottom: "18%", borderWidth: 3, borderColor: "#D4A84B", borderRadius: 14 }} />
+                <View pointerEvents="none" style={{ position: "absolute", left: "17%", right: "17%", top: "17%", bottom: "17%", borderWidth: 3, borderColor: "#D4A84B", borderRadius: 14 }} />
               </View>
             )}
           </View>
