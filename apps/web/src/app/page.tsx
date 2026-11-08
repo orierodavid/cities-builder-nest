@@ -1,9 +1,11 @@
 import HomeClient from "./HomeClient";
+import LandingPage from "@/components/LandingPage";
 import { getManagementAccess } from "@/lib/supabase/management";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const access = await getManagementAccess();
-  return <HomeClient serverAuthorized={Boolean(access)} />;
+  if (access) return <HomeClient serverAuthorized />;
+  return <LandingPage />;
 }
