@@ -1343,9 +1343,10 @@ app.get("/v1/estates/:estateId/events/attendance-summaries", requireAuth, async 
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return;
+  const page = getPageWindow(req);
   const { data: events, error: eventsError } = await authenticated.userSupabase
     .from("estate_events").select("id").eq("estate_id", estateId)
-    .eq("created_by", authenticated.authUser.id).limit(100);
+    .eq("created_by", authenticated.authUser.id).order("starts_at", { ascending: true }).range(page.from, page.to);
   if (eventsError) { res.status(503).json({ error: "event_summaries_load_failed" }); return; }
   const eventIds = (events ?? []).map((event) => event.id);
   if (!eventIds.length) { res.status(200).json({ summaries: [] }); return; }
