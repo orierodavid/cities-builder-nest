@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Share, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
@@ -32,6 +32,7 @@ export default function EventManagementScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [issuedCode, setIssuedCode] = useState("");
+  const [issuedMessage, setIssuedMessage] = useState("");
 
   const headers = useCallback(async () => {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -104,7 +105,16 @@ export default function EventManagementScreen() {
       });
       const payload = await response.json() as { code?: string; error?: string };
       if (!response.ok || !payload.code) throw new Error(payload.error || "Invitation could not be generated.");
+      const invitationMessage = [
+        "You're invited to " + (event?.title || "an estate event") + "!",
+        event?.venue ? "Venue: " + event.venue : "",
+        event?.starts_at ? "Date: " + new Date(event.starts_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" }) : "",
+        "Guest: " + guest.guest_name,
+        "Your event access code: " + payload.code,
+        "Please present this code to Security at the estate gate.",
+      ].filter(Boolean).join("\\n");
       setIssuedCode(payload.code);
+      setIssuedMessage(invitationMessage);
       setTab("invitations");
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Invitation could not be generated."); }
@@ -199,7 +209,7 @@ export default function EventManagementScreen() {
           </> : null}
           {tab === "invitations" ? <>
             <Text style={s.section}>Invitation register · {invitations.length}</Text>
-            {issuedCode ? <View style={s.codeCard}><Text style={s.codeLabel}>NEW INVITATION CODE</Text><Text selectable style={s.code}>{issuedCode}</Text><TouchableOpacity onPress={() => void Clipboard.setStringAsync(issuedCode)}><Text style={s.copy}>COPY CODE</Text></TouchableOpacity><Text style={s.codeHint}>Share this code securely with the guest. The previous active code for this guest was revoked.</Text></View> : null}
+            {issuedCode ? <View style={s.codeCard}><Text style={s.codeLabel}>NEW INVITATION CODE</Text><Text selectable style={s.code}>{issuedCode}</Text><TouchableOpacity onPress={() => void Clipboard.setStringAsync(issuedCode)}><Text style={s.copy}>COPY CODE</Text></TouchableOpacity><Text style={s.codeHint}>The previous active code for this guest was revoked. Share the invitation by WhatsApp, SMS or another messaging app.</Text><TouchableOpacity onPress={() => void Clipboard.setStringAsync(issuedMessage || issuedCode)}><Text style={s.copy}>COPY INVITATION</Text></TouchableOpacity><TouchableOpacity onPress={() => void Share.share({ message: issuedMessage || issuedCode, title: "Event invitation" })} style={s.smallAction}><Text style={s.smallActionText}>SHARE VIA WHATSAPP / SMS</Text></TouchableOpacity></View> : null}
             {invitations.map(invitation => <View key={invitation.id} style={s.item}>
               <View style={{ flex: 1, gap: 4 }}><Text style={s.itemTitle}>{invitation.estate_event_guests?.guest_name || "Guest"}</Text><Text style={s.itemMeta}>{invitation.estate_event_guests?.email || invitation.estate_event_guests?.phone || "No contact details"} · {new Date(invitation.created_at).toLocaleDateString()}</Text></View>
               <Text style={[s.inviteStatus, invitation.status === "active" ? s.active : s.revoked]}>{invitation.status.toUpperCase()}</Text>
