@@ -7,6 +7,18 @@ const residentId = "resident-1";
 const managerId = "manager-1";
 const managerBId = "manager-b";
 const securityId = "security-1";
+const userIdsByToken: Record<string, string> = {
+  "resident-token": residentId,
+  "manager-token": managerId,
+  "manager-b-token": managerBId,
+  "security-token": securityId,
+  "security-incoming-token": "security-incoming",
+  "inactive-token": "inactive-resident",
+  "other-token": "someone-else",
+  "security-b-token": "security-b",
+  "event-organiser-token": "event-organiser-a",
+  "event-organiser-b-token": "event-organiser-b",
+};
 const estateA = "estate-a";
 const estateB = "estate-b";
 
@@ -93,19 +105,7 @@ const mockSupabase = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   if (url.pathname === "/auth/v1/user") {
     const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
-    const ids: Record<string, string> = {
-      "resident-token": residentId,
-      "manager-token": managerId,
-      "manager-b-token": managerBId,
-      "security-token": securityId,
-      "security-incoming-token": "security-incoming",
-      "inactive-token": "inactive-resident",
-      "other-token": "someone-else",
-      "security-b-token": "security-b",
-      "event-organiser-token": "event-organiser-a",
-      "event-organiser-b-token": "event-organiser-b",
-    };
-    const id = token ? ids[token] : undefined;
+    const id = token ? userIdsByToken[token] : undefined;
     if (!id) return sendJson(res, 401, { message: "Invalid token" });
     return sendJson(res, 200, { id, aud: "authenticated", role: "authenticated", email: id + "@example.test" });
   }
@@ -159,7 +159,11 @@ const mockSupabase = createServer(async (req, res) => {
   });
   const objectResponse = (req.headers.accept ?? "").includes("application/vnd.pgrst.object+json");
 
-  if (req.method === "GET" && table === "users") return sendJson(res, 200, [], objectResponse);
+  if (req.method === "GET" && table === "users") {
+    const token = req.headers.authorization?.replace(/^Bearer\\s+/i, "") ?? "";
+    const userId = userIdsByToken[token];
+    return sendJson(res, 200, userId ? [{ id: userId, is_active: true }] : [], objectResponse);
+  }
   if (req.method === "GET" && table === "security_shift_handovers") {
     return sendJson(res, 200, shiftHandoverRecords.filter(matches).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, Number(url.searchParams.get("limit") ?? 100)), objectResponse);
   }
