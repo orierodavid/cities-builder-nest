@@ -1,3 +1,4 @@
+import { NIGERIA_LGAS } from "./nigeria-locations.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const headers = {
@@ -97,7 +98,8 @@ Deno.serve(async (req: Request) => {
       id: estate.id, name: estate.name, state: estate.state,
       lga: estate.lga || estate.city || "",
     })).filter((estate: any) => estate.state && estate.lga);
-    return reply(200, { estates });
+    const states = Object.keys(NIGERIA_LGAS).sort();
+    return reply(200, { states, lgas: NIGERIA_LGAS, estates });
   }
 
   if (input.action !== "register") return reply(400, { error: "invalid_action" });
