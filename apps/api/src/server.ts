@@ -1341,7 +1341,7 @@ app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
 
 app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const authenticated = await requireEventOwner(req, res, estateId, eventId);
+  const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return;
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
@@ -1373,7 +1373,7 @@ app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
 app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
-  const authenticated = await requireEventOwner(req, res, estateId, eventId);
+  const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return;
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
