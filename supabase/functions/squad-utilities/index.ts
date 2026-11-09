@@ -33,7 +33,7 @@ Deno.serve(async(req:Request)=>{
   try{
    const finalUrl=new URL(path,base).toString();
    const requestHeaders={Authorization:`Bearer ${squadKey}`,"Content-Type":"application/json"};
-   console.info("[squad-utilities] outgoing request",JSON.stringify({url:finalUrl,method,headers:{Authorization:`Bearer ${squadKey.slice(0, Math.min(12,squadKey.length))}…[MASKED]`,"Content-Type":"application/json"}}));
+   console.info("[squad-utilities] outgoing request",JSON.stringify({url:finalUrl,method,headers:{Authorization:"Bearer [MASKED]","Content-Type":"application/json"}}));
    const r=await fetch(finalUrl,{method,headers:requestHeaders,...(body?{body:JSON.stringify(body)}:{})});
    const raw=await r.text();
    let data:Record<string,unknown>={};
