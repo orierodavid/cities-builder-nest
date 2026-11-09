@@ -65,12 +65,20 @@ export default function LandingPage() {
         </div>
         <div className="mobile-app-grid">
           <article className="mobile-app-card">
-            <div className="mobile-app-visual resident-visual"><span className="phone-frame"><span className="phone-screen"><div className="screen-top-row"><span className="screen-top">CB Nest</span><b>•••</b></div><span className="screen-greeting">Good morning,</span><strong className="screen-user">Alexandra</strong><span className="screen-estate">PEACE ESTATE · B-204</span><div className="screen-access"><small>VISITOR ACCESS</small><strong>Generate code</strong><span className="access-code">482 916</span></div><div className="screen-mini-grid"><span><b>₦</b>Service charge</span><span><b>▦</b>My events</span></div><div className="screen-tabbar"><i>⌂</i><i>▦</i><i>◉</i><i>☻</i></div></span></span></div>
-            <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Residents</h3><p>Generate visitor codes, view service charges, make payments, follow maintenance requests and stay updated with estate notices.</p><ul><li>Visitor access codes</li><li>Payments and service charges</li><li>Maintenance and announcements</li><li>Resident-created events and invitations</li></ul></div>
+            <div className="mobile-app-visual resident-visual">
+              <div className="reference-crop resident-reference" role="img" aria-label="Resident app screens: resident home, generate visitor code and service charges">
+                <img src="/CB%20Nest_%20Smarter%20Estate%20Living.png" alt="" loading="lazy" />
+              </div>
+            </div>
+            <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Residents</h3><p>Manage visitors, service charges, payments, maintenance requests and estate updates from the resident app.</p><ul><li>Visitor access codes</li><li>Service charges and payment history</li><li>Maintenance and estate announcements</li><li>Create events and manage invitations</li></ul></div>
           </article>
           <article className="mobile-app-card">
-            <div className="mobile-app-visual security-visual"><span className="phone-frame"><span className="phone-screen"><div className="screen-top-row"><span className="screen-top">CB Nest · SECURITY</span><b>•••</b></div><span className="screen-greeting">Visitor check-in</span><div className="scan-frame"><i></i><i></i><i></i><i></i><b>QR</b></div><span className="screen-status">Ready to scan</span><div className="screen-visitor"><small>LAST VERIFICATION</small><strong>Visitor approved</strong><span>Resident: Alexandra · B-204</span></div><div className="screen-tabbar"><i>⌂</i><i>▣</i><i>◷</i></div></span></span></div>
-            <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Security</h3><p>Scan visitor QR codes, review resident and visitor details, and approve or deny entry through a dedicated security workflow.</p><ul><li>QR code scanning</li><li>Visitor details and verification</li><li>Access approval and history</li></ul></div>
+            <div className="mobile-app-visual security-visual">
+              <div className="reference-crop security-reference" role="img" aria-label="Security app screens: security home, QR visitor verification and visitor details">
+                <img src="/CB%20Nest_%20Smarter%20Estate%20Living.png" alt="" loading="lazy" />
+              </div>
+            </div>
+            <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Security</h3><p>Verify visitor QR codes, review visitor details and manage entry decisions through a dedicated security workflow.</p><ul><li>QR code scanning</li><li>Visitor details and verification</li><li>Approve or deny entry</li><li>Visitor entry and exit records</li></ul></div>
           </article>
         </div>
         <div className="app-download-panel">
