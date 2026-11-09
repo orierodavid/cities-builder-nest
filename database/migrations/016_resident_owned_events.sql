@@ -292,6 +292,34 @@ CREATE POLICY estate_event_invitations_update_owner_or_legacy ON public.estate_e
 -- Residents can read attendance for their own events. Check-in writes remain on
 -- the existing gate/security workflow and are not granted to residents here.
 DROP POLICY IF EXISTS estate_event_checkins_select_organiser ON public.estate_event_checkins;
+DROP POLICY IF EXISTS estate_event_checkins_insert_organiser ON public.estate_event_checkins;
+
+CREATE POLICY estate_event_checkins_insert_owner_or_legacy ON public.estate_event_checkins
+  FOR INSERT TO authenticated WITH CHECK (
+    checked_in_by = (SELECT auth.uid())
+    AND EXISTS (
+      SELECT 1 FROM public.estate_events e
+      WHERE e.id = estate_event_checkins.event_id
+        AND e.estate_id = estate_event_checkins.estate_id
+        AND (
+          (e.created_by = (SELECT auth.uid()) AND EXISTS (
+            SELECT 1 FROM public.estate_memberships owner_membership
+            WHERE owner_membership.estate_id = e.estate_id
+              AND owner_membership.user_id = (SELECT auth.uid())
+              AND owner_membership.status = 'active'
+              AND owner_membership.membership_role = 'resident'
+          ))
+          OR EXISTS (
+            SELECT 1 FROM public.estate_memberships legacy_membership
+            WHERE legacy_membership.estate_id = e.estate_id
+              AND legacy_membership.user_id = (SELECT auth.uid())
+              AND legacy_membership.status = 'active'
+              AND legacy_membership.membership_role = 'event_organiser'
+          )
+        )
+    )
+  );
+
 CREATE POLICY estate_event_checkins_select_owner_or_legacy ON public.estate_event_checkins
   FOR SELECT TO authenticated USING (
     EXISTS (
