@@ -186,7 +186,7 @@ function UsersPage() {
  const visible=useMemo(()=>memberships.filter(m=>{
   const estate=estates.find(e=>e.id===m.estate_id)?.name||"";
   const q=search.toLowerCase();
-  return (!selectedEstate||m.estate_id===selectedEstate) && (!q||[m.users?.full_name||"",roleLabels[m.membership_role]||m.membership_role,estate,m.users?.phone_e164||""].join(" ").toLowerCase().includes(q));
+  return (!selectedEstate||m.estate_id===selectedEstate) && (!q||[m.users?.full_name||"",roleLabels[m.membership_role]||m.membership_role,estate,m.users?.phone_e164||"",m.users?.home_number||"",m.users?.street_name||""].join(" ").toLowerCase().includes(q));
  }),[memberships,estates,selectedEstate,search]);
  const allowedRoles:Role[]=isAdmin?["facility_manager","resident","security"]:["resident","security"];
  async function approveResident(userId:string){
@@ -267,7 +267,7 @@ function UsersPage() {
    <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents and security personnel in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);}}>{showForm?"Close":"＋ Add user"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">
-    <strong>Account created successfully</strong><p>{success}</p>
+    <strong>{inviteCredentials?"Account created successfully":"Changes saved"}</strong><p>{success}</p>
     {inviteCredentials&&<div style={{display:"grid",gap:10,marginTop:12}}>
      <div><span className="optional-label">USER EMAIL</span><div style={{fontWeight:800,overflowWrap:"anywhere"}}>{inviteCredentials.email}</div><button type="button" className="secondary-action" style={{marginTop:6}} onClick={()=>void navigator.clipboard.writeText(inviteCredentials.email)}>Copy email</button></div>
      <div><span className="optional-label">INITIAL PASSWORD</span><div style={{fontWeight:800,overflowWrap:"anywhere",fontFamily:"monospace"}}>{inviteCredentials.password}</div><button type="button" className="secondary-action" style={{marginTop:6}} onClick={()=>void navigator.clipboard.writeText(inviteCredentials.password)}>Copy password</button></div>
