@@ -1271,7 +1271,7 @@ async function requireEventOrganiser(req: import("express").Request, res: import
     .maybeSingle();
   if (error) { res.status(403).json({ error: "event_organiser_access_check_failed" }); return null; }
   if (!["resident", "event_organiser"].includes(membership?.membership_role ?? "")) {
-    res.status(403).json({ error: "active_resident_membership_required" }); return null;
+    res.status(403).json({ error: "event_organiser_membership_required" }); return null;
   }
   const enabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return null; }
