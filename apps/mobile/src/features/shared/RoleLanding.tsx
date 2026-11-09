@@ -19,10 +19,10 @@ const C={bg:theme.bg,card:theme.card,cardAlt:'#181818',gold:theme.gold,goldBorde
 type Props={role:Role;name?:string;unit?:string;hasUnread?:boolean};
 export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}:Props){
  const router=useRouter(); const cfg=CONFIG[role]; const [signingOut,setSigningOut]=useState(false);
- const [residentName,setResidentName]=useState(providedName||''); const [residentUnit,setResidentUnit]=useState(providedUnit||''); const [profileLoading,setProfileLoading]=useState(role==='resident'&&!providedName); const [profileError,setProfileError]=useState('');
+ const [residentName,setResidentName]=useState(providedName||''); const [residentUnit,setResidentUnit]=useState(providedUnit||''); const [profileLoading,setProfileLoading]=useState(role==='resident'); const [profileError,setProfileError]=useState('');
  const go=(route:string)=>router.push(route as never);
  const loadResidentDetails=async()=>{
-  if(role!=='resident'||providedName)return;
+  if(role!=='resident')return;
   setProfileLoading(true);setProfileError('');
   try{
    // The cached session is sufficient for the profile query; avoid an extra
@@ -37,8 +37,8 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
    const homeNumber=String(profile?.home_number||'').trim();
    const streetName=String(profile?.street_name||'').trim();
    if(homeNumber||streetName){
-    setResidentName(profile?.full_name?.trim()||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
-    setResidentUnit([homeNumber,streetName].filter(Boolean).join(' · '));
+    setResidentName(profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
+    setResidentUnit([homeNumber,streetName].filter(Boolean).join(' · ')||providedUnit||'');
     return;
    }
    // Legacy residents without self-reported home details retain their existing
@@ -62,8 +62,8 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
      unitLabel=[estate?.name,building?.name,unit.unit_code?('Unit '+unit.unit_code):null].filter(Boolean).join(' · ');
     }
    }
-   setResidentName(profile?.full_name?.trim()||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
-   setResidentUnit(unitLabel);
+   setResidentName(profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
+   setResidentUnit(unitLabel||providedUnit||'');
   }catch(e){setProfileError(e instanceof Error?e.message:'Resident details could not be loaded.');}
   finally{setProfileLoading(false);}
  };
