@@ -5,9 +5,8 @@ import "./landing-page.css";
 const roles = [
   { title: "Residents", description: "Access services, make payments and manage your account.", icon: "⌂", image: "https://residifi.com/images/nigerian-family-gate.png", alt: "Residents at their gated community" },
   { title: "Security", description: "Verify visitors and keep your estate safe.", icon: "◇", image: "https://domesticstaff.ai/_next/image?q=75&url=%2F1750073507422-mcd4k57q.webp&w=3840", alt: "Professional estate security officer" },
-  { title: "Event Organisers", description: "Plan events, invite guests and manage check-in.", icon: "▦" },
-  { title: "Facility Managers", description: "Oversee operations, maintenance and payments.", icon: "⚙" },
-  { title: "Super Admins", description: "Manage the platform across all estates.", icon: "♛" },
+  { title: "Facility Managers", description: "Manage estate operations, residents, maintenance and payments.", icon: "⚙" },
+  { title: "Super Admins", description: "Oversee the CB Nest platform, estates and users.", icon: "♛" },
 ];
 const features = [
   ["Visitor Management", "Residents generate secure access codes. Security verifies them at the gate in seconds.", "⌑"],
@@ -50,7 +49,7 @@ export default function LandingPage() {
     </header>
     <section className="hero" id="home"><div className="hero-bg" aria-hidden="true" /><div className="container hero-inner"><div className="hero-copy">
       <p className="eyebrow">Smarter Estate Management</p><h1>CB Nest — One Platform.<br />A <span className="gold">Better Living</span> Experience.</h1>
-      <p className="lead">Connect residents, security, events and management with a powerful, easy-to-use platform.</p>
+      <p className="lead">Connect residents, security teams and estate management with a powerful, easy-to-use platform.</p>
       <div className="hero-actions"><a className="btn-solid" href="#how">Discover How It Works ↗</a></div>
       <ul className="hero-badges"><li><Icon name="shield" /><span>Secure<br />&amp; Reliable</span></li><li><Icon name="bolt" /><span>Simple<br />&amp; Efficient</span></li><li><Icon name="users" /><span>A Connected<br />Community</span></li></ul>
     </div></div><div className="swoosh swoosh-left" /><div className="swoosh swoosh-right" /></section>
@@ -62,7 +61,7 @@ export default function LandingPage() {
         <div className="mobile-apps-heading">
           <p className="eyebrow dark center">CB Nest on Mobile</p>
           <h2>Your Estate, Right in Your Pocket</h2>
-          <p>Dedicated mobile experiences keep residents, security teams and event organisers connected wherever they are.</p>
+          <p>Dedicated mobile apps give residents and security teams the tools they need wherever they are. Residents can create and manage their own estate events directly in the resident app.</p>
         </div>
         <div className="mobile-app-grid">
           <article className="mobile-app-card">
@@ -72,10 +71,6 @@ export default function LandingPage() {
           <article className="mobile-app-card">
             <div className="mobile-app-visual security-visual"><span className="phone-frame"><span className="phone-screen"><span className="screen-top">Gate Access</span><span className="screen-shield">✓</span><span className="screen-line wide"></span><span className="screen-line"></span><span className="screen-status">Visitor verified</span></span></span></div>
             <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Security</h3><p>Verify visitor QR codes at the gate, review visitor details and approve or deny access using a dedicated security workflow.</p><ul><li>QR code scanning</li><li>Visitor details and verification</li><li>Access approval and history</li></ul></div>
-          </article>
-          <article className="mobile-app-card">
-            <div className="mobile-app-visual events-visual"><span className="phone-frame"><span className="phone-screen"><span className="screen-top">My Event</span><span className="screen-calendar">18<span>JUN</span></span><span className="screen-line wide"></span><span className="screen-line"></span><span className="screen-tile-row"><i></i><i></i><i></i></span></span></span></div>
-            <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Event Organisers</h3><p>Create estate events, manage guest lists, share invitations and check guests in at the venue.</p><ul><li>Event and guest management</li><li>Shareable invitations</li><li>Guest check-in and attendance</li></ul></div>
           </article>
         </div>
         <div className="app-download-panel">
@@ -93,7 +88,7 @@ export default function LandingPage() {
     <section className="features" id="features"><div className="container"><header className="section-head"><p className="eyebrow dark center">Powerful Features</p><h2>Everything You Need for Modern Estate Management</h2></header>
       <div className="feature-grid">{features.map(([title, description, icon]) => <article className="feature" key={title}><span className="f-icon">{icon}</span><h3>{title}</h3><p>{description}</p></article>)}</div>
     </div></section>
-    <section className="cta" id="contact"><div className="container cta-inner"><div><h2>Ready to build a better-connected estate?</h2><p>Talk to us and see how CB Nest can work for your community.</p></div><a className="btn-solid" href="mailto:hello@cbnest.com">Get in Touch ↗</a></div></section>
+    <section className="cta" id="contact"><div className="container cta-inner"><div><h2>Ready to build a better-connected estate?</h2><p>Talk to us and see how CB Nest can work for your community.</p></div><a className="btn-solid" href="mailto:info@cbnestltd.com">Get in Touch ↗</a></div></section>
     <footer className="site-footer"><div className="container footer-inner"><a href="/" className="logo"><Icon name="home" /><span className="logo-text">CB <span>Nest</span></span></a><p className="tagline">Building your future. One platform, many estates.</p><p className="copy">© {new Date().getFullYear()} CB Nest. All rights reserved.</p></div></footer>
   </main>;
 }
