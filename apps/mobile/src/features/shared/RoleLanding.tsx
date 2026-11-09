@@ -25,16 +25,27 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   if(role!=='resident'||providedName)return;
   setProfileLoading(true);setProfileError('');
   try{
-   const {data:{user},error:authError}=await supabase.auth.getUser();
-   if(authError)throw authError;
+   // The cached session is sufficient for the profile query; avoid an extra
+   // auth network round trip on every dashboard mount.
+   const {data:{session},error:sessionError}=await supabase.auth.getSession();
+   if(sessionError)throw sessionError;
+   const user=session?.user;
    if(!user)throw new Error('Your session has expired. Please sign in again.');
-   // Keep the dashboard lookup identical to My Property: resolve each relation
-   // separately instead of relying on nested PostgREST relationship joins.
-   const [{data:profile,error:profileQueryError},{data:rows,error:assignmentError}]=await Promise.all([
-    supabase.from('users').select('full_name').eq('id',user.id).maybeSingle(),
-    supabase.from('resident_units').select('unit_id,start_date,estate_id').eq('resident_user_id',user.id).is('end_date',null).order('start_date',{ascending:false}).limit(1)
-   ]);
+   const {data:profile,error:profileQueryError}=await supabase.from('users')
+    .select('full_name,home_number,street_name').eq('id',user.id).maybeSingle();
    if(profileQueryError)throw profileQueryError;
+   const homeNumber=String(profile?.home_number||'').trim();
+   const streetName=String(profile?.street_name||'').trim();
+   if(homeNumber&&streetName){
+    setResidentName(profile?.full_name?.trim()||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
+    setResidentUnit('Unit '+homeNumber+' · '+streetName);
+    return;
+   }
+   // Legacy residents without self-reported home details retain their existing
+   // building/unit assignment display while management completes their profile.
+   const {data:rows,error:assignmentError}=await supabase.from('resident_units')
+    .select('unit_id,start_date,estate_id').eq('resident_user_id',user.id).is('end_date',null)
+    .order('start_date',{ascending:false}).limit(1);
    if(assignmentError)throw assignmentError;
    const row=rows?.[0];
    let unitLabel='';
