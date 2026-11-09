@@ -27,6 +27,7 @@ export default function PropertyScreen(){
  <Text style={{color:theme.muted,fontSize:11,marginTop:9}}>APARTMENT / UNIT</Text><Text style={{color:theme.gold,fontSize:24,fontWeight:'900'}}>{unit.unit_code}</Text>
  <Text style={{color:theme.muted,fontSize:12}}>{unit.unit_type||'Residential unit'} · {unit.status.replace(/_/g,' ')}</Text>
  {!!estate?.address&&<Text style={{color:theme.muted,fontSize:12,marginTop:8}}>{[estate.address,estate.city,estate.state].filter(Boolean).join(', ')}</Text>}
+ {!!homeNumber&&<><Text style={{color:theme.muted,fontSize:11,marginTop:9}}>HOME NUMBER / APARTMENT</Text><Text style={{color:theme.gold,fontSize:20,fontWeight:'900'}}>{homeNumber}</Text></>}{!!streetName&&<><Text style={{color:theme.muted,fontSize:11,marginTop:9}}>STREET NAME</Text><Text style={{color:theme.text,fontSize:14,fontWeight:'700'}}>{streetName}</Text></>}
  <Text style={{color:theme.muted,fontSize:11,marginTop:8}}>OCCUPANCY START DATE</Text><Text style={{color:theme.text,fontSize:13}}>{new Date(assignment.start_date+'T00:00:00').toLocaleDateString('en-NG')}</Text>
  </View></Card>}
  </Screen>;
