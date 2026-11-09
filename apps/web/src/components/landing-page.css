@@ -55,3 +55,42 @@
   .cb-role-image{height:100px;margin-left:-12px;margin-right:-12px}
 }
 @media(max-width:390px){.cb-photo-stage{height:340px}.cb-photo-main-caption strong{font-size:16px}.cb-security-caption{font-size:6px;padding:8px 6px}.cb-role-image{height:90px}}
+
+
+/* Clear management entry point and stronger real-people hero composition */
+.cb-header{gap:24px}
+.cb-nav{margin-left:auto}
+.cb-login-link{min-height:40px;padding:0 15px;display:inline-flex;align-items:center;gap:12px;border:1px solid #c9b27e;border-radius:7px;color:#292c23!important;font-size:10px;font-weight:800;white-space:nowrap;transition:background .2s,color .2s,border-color .2s}
+.cb-login-link span{color:#a77c32;font-size:14px}
+.cb-login-link:hover{background:#1d2119;color:#fff!important;border-color:#1d2119}
+.cb-mobile-login{display:none!important}
+.cb-photo-stage{height:530px}
+.cb-photo-main{inset:0 11% 9% 0}
+.cb-photo-security{width:48%;height:48%;border-width:8px}
+.cb-photo-security img{object-position:center 28%}
+.cb-photo-main img{object-position:center 46%}
+.cb-photo-stamp{right:1%;top:4%}
+.cb-role-image{height:128px}
+@media(max-width:1050px){
+  .cb-header{gap:14px}
+  .cb-nav{gap:18px}
+  .cb-photo-stage{height:470px}
+  .cb-photo-security{width:49%;height:47%}
+  .cb-role-image{height:112px}
+}
+@media(max-width:760px){
+  .cb-header{gap:10px}
+  .cb-login-link{min-height:36px;padding:0 10px;font-size:9px;gap:6px;margin-left:auto}
+  .cb-mobile-menu{margin-left:0}
+  .cb-mobile-login{display:flex!important;align-items:center;justify-content:space-between;margin-top:5px;border-top:1px solid #eeeee7;color:#8d6a2b!important;font-weight:800}
+  .cb-photo-stage{height:405px}
+  .cb-photo-main{inset:0 9% 9% 0}
+  .cb-photo-security{width:49%;height:48%;border-width:6px}
+  .cb-role-image{height:105px}
+}
+@media(max-width:390px){
+  .cb-header{padding-left:14px;padding-right:14px}
+  .cb-login-link{font-size:8px;padding:0 8px}
+  .cb-photo-stage{height:355px}
+  .cb-photo-security{width:51%;height:47%}
+}
