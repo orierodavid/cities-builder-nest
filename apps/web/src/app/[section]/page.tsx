@@ -25,10 +25,10 @@ async function editResidentProfilePrompt(estateId:string,userId:string):Promise<
   supabase.from("units").select("id,unit_code,building_id").eq("estate_id",estateId).order("unit_code"),
   supabase.from("resident_units").select("unit_id").eq("estate_id",estateId).eq("resident_user_id",userId).is("end_date",null).maybeSingle()
  ]);
- if(profileError||unitError||assignmentError)return "Resident details or property units could not be loaded.";
- if(!profile)return "Resident profile could not be found.";
+ if(profileError||unitError||assignmentError)return "ERROR: Resident details or property units could not be loaded.";
+ if(!profile)return "ERROR: Resident profile could not be found.";
  const {data:buildingRows,error:buildingError}=await supabase.from("buildings").select("id,name").eq("estate_id",estateId);
- if(buildingError)return "Building details could not be loaded.";
+ if(buildingError)return "ERROR: Building details could not be loaded.";
  const buildingNames=new Map((buildingRows||[]).map(x=>[x.id,x.name]));
  const fullName=window.prompt("Resident full name",profile.full_name||"");if(fullName===null)return null;
  const phone=window.prompt("Phone number (include country code where possible)",profile.phone_e164||"");if(phone===null)return null;
@@ -39,10 +39,10 @@ async function editResidentProfilePrompt(estateId:string,userId:string):Promise<
  const choice=window.prompt("Choose the resident's assigned property unit. Enter 0 to remove the assignment.\n"+options.join("\n"),current>=0?String(current+1):"0");
  if(choice===null)return null;
  const selected=Number(choice);
- if(!Number.isInteger(selected)||selected<0||selected>(unitRows||[]).length)return "Enter a valid unit number from the list.";
+ if(!Number.isInteger(selected)||selected<0||selected>(unitRows||[]).length)return "ERROR: Enter a valid unit number from the list.";
  const unitId=selected===0?null:unitRows![selected-1].id;
  const {error}=await supabase.rpc("management_update_resident_profile",{p_estate_id:estateId,p_resident_user_id:userId,p_full_name:fullName.trim(),p_phone_e164:phone.trim()||null,p_home_number:home.trim()||null,p_street_name:street.trim()||null,p_unit_id:unitId});
- if(error)return error.message||"Resident details could not be updated.";
+ if(error)return "ERROR: "+(error.message||"Resident details could not be updated.");
  return "Resident profile and property assignment updated successfully.";
 }
 const roleLabels: Record<string,string> = {
@@ -569,7 +569,7 @@ function ResidentsPage(){
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selected} onChange={e=>setSelected(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search resident, phone, unit or estate…" aria-label="Search residents"/></div>
    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Estate</th><th>Unit</th><th>Phone</th><th>Membership</th><th>Date added</th><th>Actions</th></tr></thead><tbody>
-   {loading?<tr><td colSpan={6} className="empty-cell">Loading live resident records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.estate}</td><td>{x.unit}</td><td>{x.phone}</td><td><span className={"status-pill status-"+x.status}>{x.status}</span></td><td>{x.joined}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="secondary-action" onClick={()=>void editResident({userId:x.userId,estateId:x.estateId})}>Edit resident</button><button type="button" className="secondary-action" onClick={()=>void loadActivity({userId:x.userId,estateId:x.estateId,name:x.name,estate:x.estate,unit:x.unit})}>View activity</button></td></tr>):<tr><td colSpan={7} className="empty-cell"><strong>No resident records found</strong><small>There are no matching resident memberships in the estates available to this account.</small></td></tr>}
+   {loading?<tr><td colSpan={7} className="empty-cell">Loading live resident records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.estate}</td><td>{x.unit}</td><td>{x.phone}</td><td><span className={"status-pill status-"+x.status}>{x.status}</span></td><td>{x.joined}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="secondary-action" onClick={()=>void editResident({userId:x.userId,estateId:x.estateId})}>Edit resident</button><button type="button" className="secondary-action" onClick={()=>void loadActivity({userId:x.userId,estateId:x.estateId,name:x.name,estate:x.estate,unit:x.unit})}>View activity</button></td></tr>):<tr><td colSpan={7} className="empty-cell"><strong>No resident records found</strong><small>There are no matching resident memberships in the estates available to this account.</small></td></tr>}
    </tbody></table></div>
    {selectedResident&&<section className="panel module-panel" style={{marginTop:20}}>
     <div className="module-toolbar"><div><h3>Resident activity — {selectedResident.name}</h3><p>{selectedResident.estate} • {selectedResident.unit}. Records are limited to this resident and estate.</p></div><button type="button" className="secondary-action" onClick={()=>{setSelectedResident(null);setActivity(null);setActivityWarnings([]);}}>Close activity</button></div>
