@@ -25,15 +25,15 @@ function normalisePhone(value: string) {
 }
 async function sendEmail(admin: any, userId: string, estateId: string, email: string, name: string) {
   const apiKey = Deno.env.get("RESEND_API_KEY");
-  const from = Deno.env.get("WELCOME_EMAIL_FROM") || "CB Nest <noreply@cbnestltd.com>";
+  const from = Deno.env.get("WELCOME_EMAIL_FROM");
   const eventType = "account_pending_approval";
   const { data: log } = await admin.from("resident_email_notifications").insert({
     user_id: userId, estate_id: estateId, event_type: eventType,
     recipient_email: email, delivery_status: "pending",
   }).select("id").single();
-  if (!apiKey) {
+  if (!apiKey || !from) {
     if (log?.id) await admin.from("resident_email_notifications").update({
-      delivery_status: "failed", last_error: "RESEND_API_KEY is not configured",
+      delivery_status: "failed", last_error: "RESEND_API_KEY or WELCOME_EMAIL_FROM is not configured",
     }).eq("id", log.id);
     return { sent: false, error: "email_delivery_not_configured" };
   }
