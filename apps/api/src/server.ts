@@ -1486,8 +1486,11 @@ app.post("/v1/estates/:estateId/events/:eventId/guests/:guestId/invitations", re
     .select("id, guest_name, email, phone").eq("id", guestId).eq("estate_id", estateId).eq("event_id", eventId).maybeSingle();
   if (guestError || !guest) { res.status(404).json({ error: "event_guest_not_found" }); return; }
   const { data: event, error: eventError } = await authenticated.userSupabase.from("estate_events")
-    .select("id, title, venue, starts_at, ends_at").eq("id", eventId).eq("estate_id", estateId).maybeSingle();
+    .select("id, title, venue, starts_at, ends_at, venue_approval_status").eq("id", eventId).eq("estate_id", estateId).maybeSingle();
   if (eventError || !event) { res.status(404).json({ error: "estate_event_not_found" }); return; }
+  if (event.venue_approval_status !== "approved") {
+    res.status(409).json({ error: "event_venue_approval_pending", message: "Invitations can be sent after the estate venue has been approved." }); return;
+  }
   const code = String(randomInt(100000, 1000000));
   const codeHash = createHash("sha256").update(code).digest("hex");
   const { error: revokeError } = await authenticated.userSupabase.from("estate_event_invitations")
@@ -1650,9 +1653,12 @@ app.post("/v1/estates/:estateId/events/:eventId/security-verify", requireAuth, a
   });
 
   const { data: event, error: eventError } = await adminSupabase.from("estate_events")
-    .select("id, estate_id, title, venue, starts_at, ends_at, status")
+    .select("id, estate_id, title, venue, starts_at, ends_at, status, venue_approval_status")
     .eq("id", eventId).eq("estate_id", estateId).maybeSingle();
   if (eventError || !event) { res.status(404).json({ error: "estate_event_not_found" }); return; }
+  if (event.venue_approval_status !== "approved") {
+    res.status(409).json({ error: "event_venue_approval_pending", message: "This event venue has not been approved." }); return;
+  }
   if (event.status !== "published") { res.status(409).json({ error: "event_not_open_for_guest_checkin" }); return; }
 
   const codeHash = createHash("sha256").update(code).digest("hex");
