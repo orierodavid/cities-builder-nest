@@ -32,7 +32,8 @@ Deno.serve(async(req:Request)=>{
    const raw=await r.text();
    let data:Record<string,unknown>={};
    if(raw){try{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed))data=parsed as Record<string,unknown>;else data={response_type:Array.isArray(parsed)?"array":typeof parsed};}catch{data={message:"Squad returned a non-JSON response."};}}
-   console.info("[squad-utilities] upstream response",JSON.stringify({url:base+path,method,status:r.status,ok:r.ok,responseBody:raw}));
+   if(!r.ok)console.error("[squad-utilities] upstream failure",JSON.stringify({url:base+path,method,status:r.status,responseBody:raw}));
+   else console.info("[squad-utilities] upstream success",JSON.stringify({url:base+path,method,status:r.status}));
    return {r,data,rawBody:raw};
   }catch(error){
    const detail=error instanceof Error?{name:error.name,message:error.message.slice(0,240)}:{name:"UnknownError"};
@@ -59,8 +60,8 @@ Deno.serve(async(req:Request)=>{
  }
  if(action==="products"){
   if(!productServices.has(service)||!provider)return reply(400,{error:"invalid_product_request"});
-  const {r,data}=await squad("/v1/service/products","POST",{service:serviceCodes[service],provider});
-  if(!r.ok)return reply(502,{error:"products_unavailable",message:message(data,"Products could not be loaded.")});
+  const {r,data,rawBody}=await squad("/v1/service/products","POST",{service:serviceCodes[service],provider});
+  if(!r.ok)return reply(502,{error:"products_unavailable",message:message(data,"Products could not be loaded."),upstream:{url:base+"/v1/service/products",status:r.status,body:rawBody}});
   return reply(200,{products:productRows(data)});
  }
  if(action==="lookup"){
@@ -72,10 +73,10 @@ Deno.serve(async(req:Request)=>{
   if(service==="electricity")body.meter_type=meterType;
   if(service==="education"&&productCode)body.product_code=productCode;
   if(service==="education"&&!productCode)return reply(400,{error:"product_required_for_lookup",message:"Select an examination product before verifying the account."});
-  const {r,data}=await squad("/v1/service/lookup","POST",body);
+  const {r,data,rawBody}=await squad("/v1/service/lookup","POST",body);
   const details=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
   const token=str(details.validation_token);
-  if(!r.ok||!token)return reply(422,{error:"customer_lookup_failed",message:message(data,"Could not retrieve account information. Check the provider and customer number.")});
+  if(!r.ok||!token)return reply(422,{error:"customer_lookup_failed",message:message(data,"Could not retrieve account information. Check the provider and customer number."),upstream:{url:base+"/v1/service/lookup",status:r.status,body:rawBody}});
   const {data:saved,error}=await admin.from("utility_validations").insert({
    resident_user_id:auth.user.id,estate_id:estateId,service,provider,customer_identifier:identifier,
    meter_type:service==="electricity"?meterType:null,validation_token:token,customer_name:str(details.customer_name)||null,minimum_vend:details.minimum_vend==null?null:Number(details.minimum_vend),
@@ -116,13 +117,13 @@ Deno.serve(async(req:Request)=>{
   if(v.service==="cable_tv")vendBody.products=[{code:productCode,quantity:1}];
   else vendBody.amount=productServices.has(v.service)?purchaseAmount:amount;
   try{
-   const {r,data}=await squad("/v1/service/vend","POST",vendBody);
+   const {r,data,rawBody}=await squad("/v1/service/vend","POST",vendBody);
    const result=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
    const ps=str(result.processed_status??result.status??data.status).toUpperCase();
    const status=r.status===202||ps==="PENDING"?"pending":r.ok&&ps==="SUCCESS"?"successful":"failed";
    await admin.from("utility_transactions").update({status,provider_status:ps||String(r.status),provider_response:data,receipt:result.token??result.receipt??null,updated_at:new Date().toISOString()}).eq("id",tx.id);
    const transaction={merchantReference:ref,status,amountKobo:toKobo(purchaseAmount),receipt:result.token??result.receipt??null,message:message(data,status==="pending"?"Purchase is processing.":"Purchase could not be completed.")};
-   if(!r.ok&&r.status!==202)return reply(422,{error:"vend_failed",message:message(data,"The utility purchase failed."),transaction});
+   if(!r.ok&&r.status!==202)return reply(422,{error:"vend_failed",message:message(data,"The utility purchase failed."),upstream:{url:base+"/v1/service/vend",status:r.status,body:rawBody},transaction});
    return reply(status==="pending"?202:200,{transaction});
   }catch{
    await admin.from("utility_transactions").update({provider_status:"SUBMISSION_UNKNOWN",updated_at:new Date().toISOString()}).eq("id",tx.id);
