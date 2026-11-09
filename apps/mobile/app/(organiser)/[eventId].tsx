@@ -112,7 +112,7 @@ export default function EventManagementScreen() {
         "Guest: " + guest.guest_name,
         "Your event access code: " + payload.code,
         "Please present this code to Security at the estate gate.",
-      ].filter(Boolean).join("\\n");
+      ].filter(Boolean).join("\n");
       setIssuedCode(payload.code);
       setIssuedMessage(invitationMessage);
       setTab("invitations");
