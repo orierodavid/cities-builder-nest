@@ -243,7 +243,7 @@ function UsersPage() {
   setError("");setSuccess("");
   const result=await editResidentProfilePrompt(membership.estate_id,membership.user_id);
   if(result===null)return;
-  if(result.startsWith("Resident")||result.startsWith("Building")||result.startsWith("Enter")||result.startsWith("Selected")||result.startsWith("You are")||result.startsWith("Authentication")){setError(result);return;}
+  if(result.startsWith("ERROR:")){setError(result.slice(7));return;}
   setSuccess(result);await load();
  }
  async function updateUserPassword(membership:Membership){
