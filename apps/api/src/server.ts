@@ -1445,6 +1445,12 @@ app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res)
       Number.isNaN(endDate.getTime()) || endDate.getTime() <= startDate.getTime()) {
     res.status(400).json({ error: "invalid_event_details" }); return;
   }
+  const { data: currentEvent, error: currentEventError } = await authenticated.userSupabase
+    .from("estate_events").select("venue_approval_status").eq("estate_id", estateId).eq("id", eventId).maybeSingle();
+  if (currentEventError || !currentEvent) { res.status(404).json({ error: "estate_event_not_found" }); return; }
+  if (status === "published" && currentEvent.venue_approval_status !== "approved") {
+    res.status(409).json({ error: "event_venue_approval_pending", message: "This event cannot be published until its selected estate facility is approved." }); return;
+  }
   const { data, error } = await authenticated.userSupabase.from("estate_events")
     .update({ title, description, venue, starts_at: startDate.toISOString(), ends_at: endDate.toISOString(), status, updated_at: new Date().toISOString() })
     .eq("estate_id", estateId).eq("id", eventId)
