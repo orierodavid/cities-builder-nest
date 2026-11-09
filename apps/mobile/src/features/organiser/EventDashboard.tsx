@@ -39,7 +39,6 @@ type AttendanceSummary = {
   activeInvitations: number;
   attendancePercentage: number;
 };
-type EventReport = { summary: AttendanceSummary };
 type DashboardEvent = EstateEvent & { summary: AttendanceSummary | null };
 
 const CARD = { backgroundColor: t.card, borderColor: t.border, borderWidth: 1, borderRadius: 15 } as const;
@@ -104,6 +103,9 @@ export default function EventDashboard() {
       const eventsPayload = await eventsResponse.json() as { events?: EstateEvent[]; error?: string };
       if (!eventsResponse.ok) throw new Error(eventsPayload.error || "Events could not be loaded.");
       const eventRows = eventsPayload.events || [];
+      // Render the event list immediately; attendance figures can hydrate after.
+      setEvents(eventRows.map((event) => ({ ...event, summary: null })));
+      setLoading(false);
 
       // One aggregate request replaces one attendance-report request per event.
       const summaryResponse = await fetch(
