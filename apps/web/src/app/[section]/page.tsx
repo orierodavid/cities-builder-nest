@@ -17,15 +17,16 @@ type Membership = {
   status: string; created_at: string;
   users: { full_name: string; phone_e164: string | null } | null;
 };
-type Role = "facility_manager" | "resident" | "security" | "event_organiser";
+type PendingResident = { membershipId: string; userId: string; name: string; email: string; phone: string; submittedAt: string };
+type Role = "facility_manager" | "resident" | "security";
 const roleLabels: Record<string,string> = {
   facility_manager:"Facility Manager", resident:"Resident", security:"Security Personnel",
-  event_organiser:"Event Coordinator", estate_admin:"Estate Administrator", estate_manager:"Estate Manager",
+  estate_admin:"Estate Administrator", estate_manager:"Estate Manager",
   finance_admin:"Finance Admin"
 };
 const config:Record<string,{title:string;description:string;columns:string[];intro:string}> = {
  estates:{title:"Estates",description:"Create and manage estates across the CB Nest platform.",columns:["Estate name","Location","Properties","Manager","Status"],intro:"No estate records are available yet."},
- users:{title:"User Management",description:"Create accounts, assign roles and manage estate access.",columns:["Name","Role","Estate","Phone","Status","Date added"],intro:"Create and manage accounts for the estates you administer."},
+ users:{title:"User Management",description:"Create accounts, review resident registrations and manage estate access.",columns:["Name","Role","Estate","Phone","Status","Date added"],intro:"Create and manage accounts for the estates you administer."},
  properties:{title:"Properties",description:"View and manage properties and units.",columns:["Property","Estate","Type","Units","Status"],intro:"Property records will appear here."},
  subscriptions:{title:"Subscriptions",description:"Monitor estate plans and subscription status.",columns:["Estate","Plan","Billing cycle","Renewal date","Status"],intro:"Subscription records will appear here."},
  payments:{title:"Payments",description:"Review payments and transaction activity.",columns:["Reference","Payer","Estate","Amount","Date","Status"],intro:"Verified payment transactions will appear here."},
@@ -119,6 +120,8 @@ function insertedEstate(value:EstateRecord):EstateRecord{return value;}
 function UsersPage() {
  const [estates,setEstates]=useState<Estate[]>([]);
  const [memberships,setMemberships]=useState<Membership[]>([]);
+ const [pendingResidents,setPendingResidents]=useState<PendingResident[]>([]);
+ const [approvingUserId,setApprovingUserId]=useState<string|null>(null);
  const [selectedEstate,setSelectedEstate]=useState("");
  const [isAdmin,setIsAdmin]=useState(false);
  const [loading,setLoading]=useState(true);
@@ -161,12 +164,15 @@ function UsersPage() {
   const estateId=selectedEstate&&list.some(x=>x.id===selectedEstate)?selectedEstate:(list[0]?.id||"");
   setSelectedEstate(estateId);
   if(estateId){
+   const {data:pendingData,error:pendingError}=await supabase.functions.invoke("resident-approval",{body:{action:"list",estateId}});
+   if(pendingError||pendingData?.error){setPendingResidents([]);setError("Pending resident approvals could not be loaded. Please refresh.");}
+   else setPendingResidents((pendingData?.pending||[]) as PendingResident[]);
    const {data:memberData,error:memberError}=await supabase.from("estate_memberships")
     .select("id,estate_id,user_id,membership_role,status,created_at,users(full_name,phone_e164)")
     .in("estate_id",admin?list.map(x=>x.id):list.map(x=>x.id)).order("created_at",{ascending:false});
    if(memberError)setError("Estate access was verified, but user records could not be loaded.");
    else setMemberships((memberData||[]) as unknown as Membership[]);
-  } else setMemberships([]);
+  } else { setMemberships([]); setPendingResidents([]); }
   setLoading(false);
  },[selectedEstate]);
 
@@ -176,7 +182,17 @@ function UsersPage() {
   const q=search.toLowerCase();
   return (!selectedEstate||m.estate_id===selectedEstate) && (!q||[m.users?.full_name||"",roleLabels[m.membership_role]||m.membership_role,estate,m.users?.phone_e164||""].join(" ").toLowerCase().includes(q));
  }),[memberships,estates,selectedEstate,search]);
- const allowedRoles:Role[]=isAdmin?["facility_manager","resident","security","event_organiser"]:["resident","security","event_organiser"];
+ const allowedRoles:Role[]=isAdmin?["facility_manager","resident","security"]:["resident","security"];
+ async function approveResident(userId:string){
+  setApprovingUserId(userId);setError("");setSuccess("");
+  const {data,error:invokeError}=await supabase.functions.invoke("resident-approval",{body:{action:"approve",estateId:selectedEstate,userId}});
+  if(invokeError||data?.error){
+   setError(data?.error==="resident_already_approved"?"This resident has already been approved. Refresh the list.":"The resident account could not be approved. Please try again.");
+   setApprovingUserId(null);return;
+  }
+  setSuccess(data?.emailSent===true?"Resident account approved. The activation email has been sent.":"Resident account approved and activated, but the activation email could not be sent. Check email delivery configuration.");
+  await load();setApprovingUserId(null);
+ }
  async function updateUserPassword(membership:Membership){
   const nextPassword=window.prompt("Enter the new password for this user (8–128 characters).");
   if(nextPassword===null)return;
@@ -216,7 +232,7 @@ function UsersPage() {
  }
  return <PortalFrame title="User Management" description="Create accounts, assign roles and manage access within your estate.">
   <section className="panel module-panel">
-   <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents, security personnel and event coordinators in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);}}>{showForm?"Close":"＋ Add user"}</button></div>
+   <div className="module-toolbar"><div><h3>Estate users</h3><p>{isAdmin?"Manage users across all estates. Facility Managers can manage users only in their assigned estate.":"Manage residents and security personnel in your assigned estate."}</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");setInviteCredentials(null);}}>{showForm?"Close":"＋ Add user"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">
     <strong>Account created successfully</strong><p>{success}</p>
@@ -227,6 +243,12 @@ function UsersPage() {
      <button type="button" className="secondary-action" onClick={()=>{setInviteCredentials(null);setSuccess("");}}>Hide credentials</button>
     </div>}
    </div>}
+   <section style={{marginTop:18}}>
+    <div className="module-toolbar"><div><h3>Pending resident approvals</h3><p>Review new resident registrations and activate accounts with one click.</p></div><span className="status-pill status-invited">{pendingResidents.length} awaiting approval</span></div>
+    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Email</th><th>Phone</th><th>Submitted</th><th>Action</th></tr></thead><tbody>
+     {loading?<tr><td colSpan={5} className="empty-cell">Loading pending registrations…</td></tr>:pendingResidents.length?pendingResidents.map(person=><tr key={person.membershipId}><td><strong>{person.name}</strong></td><td>{person.email||"—"}</td><td>{person.phone||"—"}</td><td>{new Date(person.submittedAt).toLocaleDateString("en-NG")}</td><td><button type="button" className="primary-action" disabled={approvingUserId===person.userId} onClick={()=>void approveResident(person.userId)}>{approvingUserId===person.userId?"Approving…":"Approve account"}</button></td></tr>):<tr><td colSpan={5} className="empty-cell"><strong>No pending resident registrations</strong><small>New self-registered residents will appear here.</small></td></tr>}
+    </tbody></table></div>
+   </section>
    {showForm&&<form className="user-form" onSubmit={createUser}>
     <div className="user-form-heading"><strong>Create a new user</strong><span>Create the account and set its initial password. No email will be sent automatically.</span></div>
     <div className="user-form-grid">

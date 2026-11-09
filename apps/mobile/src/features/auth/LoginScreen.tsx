@@ -65,7 +65,7 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Pro
             <Pressable onPress={submit} disabled={!canSubmit} style={({ pressed }) => [s.button, !canSubmit && s.disabled, pressed && { opacity: .86 }]}>
               {loading ? <ActivityIndicator color="#17130B" /> : <><Text style={s.buttonText}>SIGN IN</Text><MaterialCommunityIcons name="arrow-right" size={19} color="#17130B"/></>}
             </Pressable>
-            {onCreateAccount && <Pressable onPress={onCreateAccount} style={s.contact}><Text style={s.contactText}>Need access? <Text style={s.contactGold}>Contact estate management</Text></Text></Pressable>}
+            {onCreateAccount && <Pressable onPress={onCreateAccount} style={s.contact}><Text style={s.contactText}>New to CB Nest? <Text style={s.contactGold}>Create an account</Text></Text></Pressable>}
           </View>
           <View style={s.security}><MaterialCommunityIcons name="shield-check-outline" size={16} color={C.gold}/><Text style={s.securityText}>SECURE ACCESS TO YOUR ESTATE</Text></View>
           <Text style={s.footer}>BUILDING YOUR FUTURE, ONE COMMUNITY AT A TIME.</Text>

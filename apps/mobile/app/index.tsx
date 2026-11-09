@@ -18,6 +18,7 @@ import ResidentElectricity from "../components/ResidentElectricity";
 import ResidentVirtualAccount from "../components/ResidentVirtualAccount";
 import ResidentLegalDocuments from "../components/ResidentLegalDocuments";
 import LoginScreen from "../src/features/auth/LoginScreen";
+import ResidentRegistrationScreen from "../src/features/auth/ResidentRegistrationScreen";
 import SplashScreen from "../components/SplashScreen";
 import { visitorRequest } from "../src/features/security/visitor-api";
 
@@ -73,6 +74,7 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
+  const [showRegistration, setShowRegistration] = useState(false);
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [estates, setEstates] = useState<Estate[]>([]);
   const [estatesLoading, setEstatesLoading] = useState(false);
@@ -844,10 +846,14 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
   if (session && isSecurity) return <Redirect href={"/(security)" as never} />;
   if (session && isResident) return <Redirect href={"/(resident)" as never} />;
 
+  if (!restoring && !session && showRegistration) {
+    return <ResidentRegistrationScreen onBack={() => setShowRegistration(false)} />;
+  }
+
   if (!restoring && !session) {
     return (
       <View style={{ flex: 1, backgroundColor: "#050505" }}>
-        <LoginScreen onSubmit={submitAuth} onForgotPassword={requestPasswordReset} />
+        <LoginScreen onSubmit={submitAuth} onForgotPassword={requestPasswordReset} onCreateAccount={() => setShowRegistration(true)} />
         {!!message && <Text style={{ color: "#D4AF37", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>{message}</Text>}
         {!supabaseConfigured && <Text style={{ color: "#E5484D", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>Sign-in configuration is missing. Contact your administrator.</Text>}
       </View>
@@ -883,7 +889,7 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
               <View style={styles.loadingPage}><ActivityIndicator size="large" color={green}/><Text style={styles.bodyText}>Getting your space ready…</Text></View>
             ) : !session ? (
               <View style={{ flex: 1, backgroundColor: "#050505" }}>
-                <LoginScreen onSubmit={submitAuth} onForgotPassword={requestPasswordReset} />
+                <LoginScreen onSubmit={submitAuth} onForgotPassword={requestPasswordReset} onCreateAccount={() => setShowRegistration(true)} />
                 {!!message && <Text style={{ color: "#D4AF37", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>{message}</Text>}
                 {!supabaseConfigured && <Text style={{ color: "#E5484D", textAlign: "center", paddingHorizontal: 20, paddingBottom: 16 }}>Sign-in configuration is missing. Contact your administrator.</Text>}
               </View>
