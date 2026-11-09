@@ -1330,7 +1330,7 @@ app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   if (!enabled) { rejectInactiveEstate(res); return; }
   const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("estate_events")
-    .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at")
+    .select("id, estate_id, title, description, venue, venue_id, venue_approval_status, starts_at, ends_at, status, created_by, created_at, updated_at")
     .eq("estate_id", estateId)
     .eq("created_by", authenticated.authUser.id)
     .order("starts_at", { ascending: true }).range(page.from, page.to);
@@ -1352,20 +1352,36 @@ app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const startDate = new Date(startsAt), endDate = new Date(endsAt);
   const status = req.body?.status === "published" ? "published" : "draft";
   if (title.length < 3 || title.length > 160 || description.length > 5000 ||
-      !venueId || venue.length < 2 || venue.length > 240 ||
+      !venueId || (venueId !== "home" && venue.length < 2) || venue.length > 240 ||
       !startsAt || !endsAt || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) ||
       endDate.getTime() <= startDate.getTime()) {
     res.status(400).json({ error: "invalid_event_details", message: "Enter an event title, select an available venue, provide valid start and end date/time, and ensure the end is after the start." }); return;
   }
-  const { data: selectedVenue, error: venueError } = await authenticated.userSupabase
-    .from("estate_venues").select("id,name,location,status").eq("id", venueId).eq("estate_id", estateId).maybeSingle();
-  if (venueError || !selectedVenue || selectedVenue.status !== "available") {
-    res.status(400).json({ error: "event_venue_unavailable", message: "That venue is no longer available. Refresh the venue list and choose another." }); return;
+  let selectedVenue: { id: string; name: string; location: string | null; status: string } | null = null;
+  if (venueId !== "home") {
+    const { data, error: venueError } = await authenticated.userSupabase
+      .from("estate_venues").select("id,name,location,status").eq("id", venueId).eq("estate_id", estateId).maybeSingle();
+    if (venueError || !data || data.status !== "available") {
+      res.status(400).json({ error: "event_venue_unavailable", message: "That venue is no longer available. Refresh the venue list and choose another." }); return;
+    }
+    selectedVenue = data;
   }
-  const venueLabel = selectedVenue.location ? selectedVenue.name + " · " + selectedVenue.location : selectedVenue.name;
+  const venueLabel = selectedVenue
+    ? (selectedVenue.location ? selectedVenue.name + " · " + selectedVenue.location : selectedVenue.name)
+    : "Home";
+  const requiresVenueApproval = venueId !== "home";
   const { data, error } = await authenticated.userSupabase.from("estate_events")
-    .insert({ estate_id: estateId, title, description, venue: venueLabel, venue_id: selectedVenue.id, starts_at: startDate.toISOString(), ends_at: endDate.toISOString(), status, created_by: authenticated.authUser.id })
-    .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at").single();
+    .insert({
+      estate_id: estateId, title, description, venue: venueLabel,
+      venue_id: selectedVenue?.id ?? null,
+      venue_approval_status: requiresVenueApproval ? "pending" : "approved",
+      venue_approval_requested_at: requiresVenueApproval ? new Date().toISOString() : null,
+      venue_approval_publish_requested: requiresVenueApproval && status === "published",
+      starts_at: startDate.toISOString(), ends_at: endDate.toISOString(),
+      status: requiresVenueApproval ? "draft" : status,
+      created_by: authenticated.authUser.id,
+    })
+    .select("id, estate_id, title, description, venue, venue_id, venue_approval_status, starts_at, ends_at, status, created_by, created_at, updated_at").single();
   if (error || !data) { res.status(400).json({ error: "estate_event_create_failed" }); return; }
   res.status(201).json({ event: data });
 });
@@ -1668,7 +1684,7 @@ app.get("/v1/me", requireAuth, async (req, res) => {
   try {
     const { data: profile, error } = await authenticated.userSupabase
       .from("users")
-      .select("id, full_name, phone_e164, is_active, created_at, updated_at")
+      .select("id, full_name, phone_e164, home_number, street_name, is_active, created_at, updated_at")
       .eq("id", authenticated.authUser.id)
       .maybeSingle();
 
