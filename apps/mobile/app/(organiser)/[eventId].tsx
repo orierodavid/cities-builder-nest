@@ -8,7 +8,7 @@ import { getApiBaseUrl } from "../../src/lib/api-url";
 import { theme as t } from "../../src/theme/theme";
 
 type Estate = { id: string; name: string; membershipRole?: string | null };
-type EventRow = { id: string; title: string; description: string; venue: string; starts_at: string; ends_at: string; status: "draft" | "published" | "cancelled" };
+type EventRow = { id: string; title: string; description: string; venue: string; starts_at: string; ends_at: string; status: "draft" | "published" | "cancelled"; venue_approval_status?: "pending" | "approved" | "rejected" };
 type Guest = { id: string; guest_name: string; email: string | null; phone: string | null; notes: string | null };
 type Invitation = { id: string; guest_id: string; status: string; created_at: string; estate_event_guests?: { guest_name: string; email: string | null; phone: string | null } };
 type Report = { summary: { totalGuests: number; checkedIn: number; outstanding: number; activeInvitations: number; attendancePercentage: number }; guests: Array<Guest & { invitationStatus: string; checkedInAt: string | null; attendanceStatus: string }> };
@@ -179,8 +179,8 @@ export default function EventManagementScreen() {
           <Text style={s.title}>{event.title}</Text>
           <Text style={s.muted}>{event.venue} · {new Date(event.starts_at).toLocaleString()}</Text>
           <View style={s.statusRow}>
-            <Text style={s.status}>STATUS · {event.status.toUpperCase()}</Text>
-            {event.status !== "cancelled" ? <TouchableOpacity disabled={busy} onPress={() => void changeStatus(event.status === "published" ? "draft" : "published")}><Text style={s.statusAction}>{event.status === "published" ? "UNPUBLISH" : "PUBLISH"}</Text></TouchableOpacity> : null}
+            <Text style={s.status}>{event.venue_approval_status === "pending" ? "VENUE APPROVAL · PENDING" : "STATUS · " + event.status.toUpperCase()}</Text>
+            {event.status !== "cancelled" && event.venue_approval_status !== "pending" ? <TouchableOpacity disabled={busy} onPress={() => void changeStatus(event.status === "published" ? "draft" : "published")}><Text style={s.statusAction}>{event.status === "published" ? "UNPUBLISH" : "PUBLISH"}</Text></TouchableOpacity> : null}
             {event.status !== "cancelled" ? <TouchableOpacity disabled={busy} onPress={() => void changeStatus("cancelled")}><Text style={s.cancelAction}>CANCEL EVENT</Text></TouchableOpacity> : null}
           </View>
           {report ? <View style={s.metrics}>
