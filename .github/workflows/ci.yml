@@ -80,6 +80,10 @@ jobs:
         run: deno check supabase/functions/verify-squad-payment/index.ts
       - name: Type-check resend invitation Edge Function
         run: deno check supabase/functions/resend-account-invitation/index.ts
+      - name: Type-check resident registration Edge Function
+        run: deno check supabase/functions/resident-registration/index.ts
+      - name: Type-check resident approval Edge Function
+        run: deno check supabase/functions/resident-approval/index.ts
 
   web:
     runs-on: ubuntu-latest

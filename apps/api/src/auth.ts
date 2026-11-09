@@ -79,7 +79,7 @@ export async function requireAuth(
       res.status(503).json({ error: "account_status_check_unavailable" });
       return;
     }
-    if (!accountProfile || accountProfile.is_active !== true) {
+    if (accountProfile && accountProfile.is_active !== true) {
       res.status(403).json({ error: "account_pending_approval", message: "Your account is awaiting administrator approval. We will email you when it becomes active." });
       return;
     }
