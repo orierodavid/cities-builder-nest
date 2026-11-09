@@ -476,7 +476,7 @@ function ResidentsPage(){
   if(memberError){setError("Resident records could not be loaded. Please refresh and try again.");setLoading(false);return;}
   const ids=[...new Set((members||[]).map(x=>x.user_id))];
   const [{data:profiles,error:profileError},{data:units,error:unitError}]=await Promise.all([
-   ids.length?supabase.from("users").select("id,full_name,phone_e164").in("id",ids):Promise.resolve({data:[],error:null}),
+   ids.length?supabase.from("users").select("id,full_name,phone_e164,home_number,street_name").in("id",ids):Promise.resolve({data:[],error:null}),
    supabase.from("units").select("id,estate_id,unit_code,building_id").in("estate_id",estateIds)
   ]);
   if(profileError||unitError){setError("Resident profile or property details could not be loaded.");setLoading(false);return;}
@@ -487,7 +487,7 @@ function ResidentsPage(){
   const assignmentMap=new Map((assignments||[]).map(x=>[x.resident_user_id,x.unit_id]));
   const next=(members||[]).map((m:ResidentDirectoryRow)=>{
    const profile=profileMap.get(m.user_id);const unitId=assignmentMap.get(m.user_id);const unit=unitId?unitMap.get(unitId):null;
-   return {id:m.id,userId:m.user_id,estateId:m.estate_id,name:profile?.full_name||"Name unavailable",email:"Email is private",phone:profile?.phone_e164||"—",estate:estateList.find(x=>x.id===m.estate_id)?.name||"—",unit:unit?.unit_code||"Not assigned",status:m.status,joined:new Date(m.created_at).toLocaleDateString("en-NG")};
+   return {id:m.id,userId:m.user_id,estateId:m.estate_id,name:profile?.full_name||"Name unavailable",email:"Email is private",phone:profile?.phone_e164||"—",estate:estateList.find(x=>x.id===m.estate_id)?.name||"—",unit:[profile?.home_number,profile?.street_name].filter(Boolean).join(" · ")||unit?.unit_code||"Not assigned",status:m.status,joined:new Date(m.created_at).toLocaleDateString("en-NG")};
   });
   setRows(next);setLoading(false);
  },[]);
