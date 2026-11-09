@@ -12,12 +12,17 @@ type RegistrationOptions = { states: string[]; lgas: Record<string, string[]>; e
 type SelectOption = { label: string; value: string };
 
 function SelectField({
-  label, value, placeholder, options, disabled, onSelect,
+  label, value, placeholder, options, disabled, onSelect, searchable = false,
 }: {
   label: string; value: string; placeholder: string; options: SelectOption[];
-  disabled?: boolean; onSelect: (value: string) => void;
+  disabled?: boolean; searchable?: boolean; onSelect: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const filteredOptions = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return query ? options.filter(option => option.label.toLocaleLowerCase().includes(query)) : options;
+  }, [options, search]);
   return (
     <>
       <Text style={s.label}>{label}</Text>
@@ -25,20 +30,36 @@ function SelectField({
         <Text numberOfLines={1} style={[s.selectText, !value && s.placeholder]}>{value || placeholder}</Text>
         <MaterialCommunityIcons name="chevron-down" size={21} color={C.gold} />
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={s.modalBackdrop} onPress={() => setOpen(false)}>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => { setOpen(false); setSearch(""); }}>
+        <Pressable style={s.modalBackdrop} onPress={() => { setOpen(false); setSearch(""); }}>
           <Pressable style={s.modalCard} onPress={() => undefined}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Select {label.toLowerCase()}</Text>
-              <Pressable onPress={() => setOpen(false)} hitSlop={10}><MaterialCommunityIcons name="close" size={22} color={C.text}/></Pressable>
+              <Pressable onPress={() => { setOpen(false); setSearch(""); }} hitSlop={10}><MaterialCommunityIcons name="close" size={22} color={C.text}/></Pressable>
             </View>
+            {searchable && (
+              <View style={s.searchBox}>
+                <MaterialCommunityIcons name="magnify" size={19} color={C.gold}/>
+                <TextInput
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder={`Search ${label.toLowerCase()}...`}
+                  placeholderTextColor="#777"
+                  style={s.searchInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  clearButtonMode="while-editing"
+                />
+              </View>
+            )}
             <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 360 }}>
-              {options.map(option => (
-                <Pressable key={option.value} onPress={() => { onSelect(option.value); setOpen(false); }} style={s.option}>
+              {filteredOptions.length ? filteredOptions.map(option => (
+                <Pressable key={option.value} onPress={() => { onSelect(option.value); setOpen(false); setSearch(""); }} style={s.option}>
                   <Text style={s.optionText}>{option.label}</Text>
                   {option.value === value && <MaterialCommunityIcons name="check" size={18} color={C.gold}/>}
                 </Pressable>
-              ))}
+              )) : <Text style={s.noResults}>No matching estates found.</Text>}
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -160,7 +181,7 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
                 <TextInput style={s.input} value={phone} onChangeText={setPhone} placeholder="08012345678 or +2348012345678" placeholderTextColor="#777" keyboardType="phone-pad" textContentType="telephoneNumber"/>
                 <SelectField label="STATE" value={state} placeholder={loadingOptions ? "Loading estates…" : "Select State"} options={states.map(value => ({ label: value, value }))} disabled={loadingOptions} onSelect={value => { setState(value); setLga(""); setEstateId(""); }}/>
                 <SelectField label="LGA" value={lga} placeholder={state ? "Select LGA" : "Select State first"} options={lgas.map(value => ({ label: value, value }))} disabled={!state} onSelect={value => { setLga(value); setEstateId(""); }}/>
-                <SelectField label="ESTATE" value={selectedEstate?.name || ""} placeholder={lga ? "Select Estate" : "Select LGA first"} options={estateOptions.map(item => ({ label: item.name, value: item.id }))} disabled={!lga} onSelect={setEstateId}/>
+                <SelectField label="ESTATE" value={selectedEstate?.name || ""} placeholder={lga ? "Search or select Estate" : "Select LGA first"} options={estateOptions.map(item => ({ label: item.name, value: item.id }))} disabled={!lga} searchable onSelect={setEstateId}/>
                 <Text style={s.label}>PASSWORD</Text>
                 <TextInput style={s.input} value={password} onChangeText={setPassword} placeholder="Create a password (8+ characters)" placeholderTextColor="#777" secureTextEntry textContentType="newPassword"/>
                 <Text style={s.label}>CONFIRM PASSWORD</Text>
@@ -217,6 +238,9 @@ const s = StyleSheet.create({
   modalCard: { maxWidth: 480, width: "100%", maxHeight: "75%", alignSelf: "center", borderRadius: 16, backgroundColor: "#171717", borderWidth: 1, borderColor: "#5A4725", padding: 16 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#39332A" },
   modalTitle: { color: C.text, fontSize: 15, fontWeight: "800" },
+  searchBox: { minHeight: 46, flexDirection: "row", alignItems: "center", gap: 9, borderWidth: 1, borderColor: "#514126", borderRadius: 10, backgroundColor: C.field, paddingHorizontal: 11, marginTop: 13, marginBottom: 7 },
+  searchInput: { flex: 1, color: C.text, fontSize: 13, paddingVertical: 8 },
+  noResults: { color: C.muted, fontSize: 12, textAlign: "center", paddingVertical: 22 },
   option: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#292929", paddingHorizontal: 4 },
   optionText: { color: C.text, fontSize: 12 },
 });
