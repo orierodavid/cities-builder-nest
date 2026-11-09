@@ -1279,6 +1279,44 @@ async function requireEventOrganiser(req: import("express").Request, res: import
   return authenticated;
 }
 
+async function requireEventOwner(
+  req: import("express").Request,
+  res: import("express").Response,
+  estateId: string,
+  eventId: string,
+): Promise<AuthenticatedRequest | null> {
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return null;
+
+  const { data: membership, error: membershipError } = await authenticated.userSupabase
+    .from("estate_memberships")
+    .select("membership_role")
+    .eq("estate_id", estateId)
+    .eq("user_id", authenticated.authUser.id)
+    .eq("status", "active")
+    .maybeSingle();
+  if (membershipError || !membership) {
+    res.status(403).json({ error: "event_organiser_membership_required" });
+    return null;
+  }
+
+  // Legacy event-organiser accounts remain supported; resident accounts can
+  // manage only events they personally created.
+  if (membership.membership_role === "event_organiser") return authenticated;
+
+  const { data: event, error: eventError } = await authenticated.userSupabase
+    .from("estate_events")
+    .select("id, created_by")
+    .eq("estate_id", estateId)
+    .eq("id", eventId)
+    .maybeSingle();
+  if (eventError || !event || event.created_by !== authenticated.authUser.id) {
+    res.status(403).json({ error: "event_owner_required" });
+    return null;
+  }
+  return authenticated;
+}
+
 app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
@@ -1303,7 +1341,7 @@ app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
 
 app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
@@ -1335,7 +1373,7 @@ app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
 app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
@@ -1351,7 +1389,7 @@ app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res)
   }
   const { data, error } = await authenticated.userSupabase.from("estate_events")
     .update({ title, description, venue, starts_at: startDate.toISOString(), ends_at: endDate.toISOString(), status, updated_at: new Date().toISOString() })
-    .eq("estate_id", estateId).eq("id", eventId).eq("created_by", authenticated.authUser.id)
+    .eq("estate_id", estateId).eq("id", eventId)
     .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at").maybeSingle();
   if (error || !data) { res.status(404).json({ error: "estate_event_not_found_or_update_failed" }); return; }
   res.status(200).json({ event: data });
@@ -1360,7 +1398,7 @@ app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res)
 app.get("/v1/estates/:estateId/events/:eventId/guests", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("estate_event_guests")
@@ -1374,7 +1412,7 @@ app.get("/v1/estates/:estateId/events/:eventId/guests", requireAuth, async (req,
 app.post("/v1/estates/:estateId/events/:eventId/guests", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const guestName = typeof req.body?.guestName === "string" ? req.body.guestName.trim() : "";
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
@@ -1399,7 +1437,7 @@ app.delete("/v1/estates/:estateId/events/:eventId/guests/:guestId", requireAuth,
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
   const guestId = Array.isArray(req.params.guestId) ? req.params.guestId[0] : req.params.guestId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const { data, error } = await authenticated.userSupabase.from("estate_event_guests")
     .delete().eq("estate_id", estateId).eq("event_id", eventId).eq("id", guestId)
@@ -1411,7 +1449,7 @@ app.delete("/v1/estates/:estateId/events/:eventId/guests/:guestId", requireAuth,
 app.get("/v1/estates/:estateId/events/:eventId/invitations", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("estate_event_invitations")
@@ -1426,7 +1464,7 @@ app.post("/v1/estates/:estateId/events/:eventId/guests/:guestId/invitations", re
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
   const guestId = Array.isArray(req.params.guestId) ? req.params.guestId[0] : req.params.guestId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const { data: guest, error: guestError } = await authenticated.userSupabase.from("estate_event_guests")
     .select("id, guest_name, email, phone").eq("id", guestId).eq("estate_id", estateId).eq("event_id", eventId).maybeSingle();
@@ -1451,7 +1489,7 @@ app.post("/v1/estates/:estateId/events/:eventId/invitations/:invitationId/revoke
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
   const invitationId = Array.isArray(req.params.invitationId) ? req.params.invitationId[0] : req.params.invitationId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const { data, error } = await authenticated.userSupabase.from("estate_event_invitations")
     .update({ status: "revoked", revoked_at: new Date().toISOString() })
@@ -1464,7 +1502,7 @@ app.post("/v1/estates/:estateId/events/:eventId/invitations/:invitationId/revoke
 app.get("/v1/estates/:estateId/events/:eventId/attendance-report", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const page = getPageWindow(req);
 
@@ -1537,7 +1575,7 @@ app.get("/v1/estates/:estateId/events/:eventId/attendance-report", requireAuth, 
 app.get("/v1/estates/:estateId/events/:eventId/check-ins", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("estate_event_checkins")
@@ -1551,7 +1589,7 @@ app.get("/v1/estates/:estateId/events/:eventId/check-ins", requireAuth, async (r
 app.post("/v1/estates/:estateId/events/:eventId/check-in", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const eventId = Array.isArray(req.params.eventId) ? req.params.eventId[0] : req.params.eventId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
   if (!/^\d{6}$/.test(code)) { res.status(400).json({ error: "invalid_event_invitation_code" }); return; }
