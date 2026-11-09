@@ -21,7 +21,7 @@ type PendingResident = { membershipId: string; userId: string; name: string; ema
 type Role = "facility_manager" | "resident" | "security";
 const roleLabels: Record<string,string> = {
   facility_manager:"Facility Manager", resident:"Resident", security:"Security Personnel",
-  estate_admin:"Estate Administrator", estate_manager:"Estate Manager",
+  event_organiser:"Legacy event access", estate_admin:"Estate Administrator", estate_manager:"Estate Manager",
   finance_admin:"Finance Admin"
 };
 const config:Record<string,{title:string;description:string;columns:string[];intro:string}> = {
@@ -102,13 +102,13 @@ function EstatesPage() {
     <div className="user-form-grid">
      <label>Estate name<input required minLength={2} maxLength={160} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Cities Builders Estate"/></label>
      <label>Street address<input required minLength={3} maxLength={240} value={address} onChange={e=>setAddress(e.target.value)} placeholder="Estate street address"/></label>
-     <label>City<input required maxLength={120} value={city} onChange={e=>setCity(e.target.value)} placeholder="City"/></label>
+     <label>LGA<input required maxLength={120} value={city} onChange={e=>setCity(e.target.value)} placeholder="e.g. Ikeja"/></label>
      <label>State<input required maxLength={120} value={state} onChange={e=>setState(e.target.value)} placeholder="State"/></label>
      <label>Country code<input required minLength={2} maxLength={2} pattern="[A-Za-z]{2}" value={country} onChange={e=>setCountry(e.target.value.toUpperCase())} placeholder="NG"/></label>
     </div>
     <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving}>{saving?"Creating estate…":"Create estate"}</button></div>
    </form>}
-   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Address</th><th>City</th><th>State</th><th>Status</th><th>Created</th></tr></thead><tbody>
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Address</th><th>LGA</th><th>State</th><th>Status</th><th>Created</th></tr></thead><tbody>
     {loading?<tr><td colSpan={7} className="empty-cell">Loading estates…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.address}</td><td>{x.city}</td><td>{x.state}</td><td><span className={"status-pill "+(x.is_enabled?"status-active":"status-suspended")}>{x.is_enabled?"Enabled":"Disabled"}</span></td><td>{new Date(x.created_at).toLocaleDateString()}</td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">▦</span><strong>No estates created yet</strong><small>Create your first estate, then add its Facility Manager under User Management.</small></td></tr>}
    </tbody></table></div>
   </section>
