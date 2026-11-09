@@ -129,9 +129,16 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
         },
       });
       if (invokeError || data?.error) {
-        const detail = data?.message || (data?.error === "email_already_registered"
-          ? "An account already exists for this email address."
-          : "Your account could not be created. Please check your details and try again.");
+        let errorPayload: any = data;
+        const errorContext = (invokeError as any)?.context;
+        if (!errorPayload?.message && errorContext && typeof errorContext.clone === "function") {
+          try { errorPayload = await errorContext.clone().json(); } catch { /* keep the generic fallback */ }
+        }
+        const detail = errorPayload?.message || (errorPayload?.error === "phone_already_registered"
+          ? "This phone number is already associated with an account. Please use another number or contact CB Nest support."
+          : errorPayload?.error === "email_already_registered"
+            ? "An account already exists for this email address."
+            : "Your account could not be created. Please check your details and try again.");
         throw new Error(detail);
       }
       setEmailSent(data?.emailSent === true);
