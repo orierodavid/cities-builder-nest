@@ -19,32 +19,11 @@ type Membership = {
 };
 type PendingResident = { membershipId: string; userId: string; name: string; email: string; phone: string; homeNumber?: string; streetName?: string; submittedAt: string };
 type Role = "facility_manager" | "resident" | "security";
-async function editResidentProfilePrompt(estateId:string,userId:string):Promise<string|null>{
- const [{data:profile,error:profileError},{data:unitRows,error:unitError},{data:assignment,error:assignmentError}]=await Promise.all([
-  supabase.from("users").select("full_name,phone_e164,home_number,street_name").eq("id",userId).maybeSingle(),
-  supabase.from("units").select("id,unit_code,building_id").eq("estate_id",estateId).order("unit_code"),
-  supabase.from("resident_units").select("unit_id").eq("estate_id",estateId).eq("resident_user_id",userId).is("end_date",null).maybeSingle()
- ]);
- if(profileError||unitError||assignmentError)return "ERROR: Resident details or property units could not be loaded.";
- if(!profile)return "ERROR: Resident profile could not be found.";
- const {data:buildingRows,error:buildingError}=await supabase.from("buildings").select("id,name").eq("estate_id",estateId);
- if(buildingError)return "ERROR: Building details could not be loaded.";
- const buildingNames=new Map((buildingRows||[]).map(x=>[x.id,x.name]));
- const fullName=window.prompt("Resident full name",profile.full_name||"");if(fullName===null)return null;
- const phone=window.prompt("Phone number (include country code where possible)",profile.phone_e164||"");if(phone===null)return null;
- const home=window.prompt("Home number / apartment",profile.home_number||"");if(home===null)return null;
- const street=window.prompt("Street name",profile.street_name||"");if(street===null)return null;
- const options=(unitRows||[]).map((u,i)=>`${i+1}. ${buildingNames.get(u.building_id)||"Building"} — ${u.unit_code}`);
- const current=(unitRows||[]).findIndex(u=>u.id===assignment?.unit_id);
- const choice=window.prompt("Choose the resident's assigned property unit. Enter 0 to remove the assignment.\n"+options.join("\n"),current>=0?String(current+1):"0");
- if(choice===null)return null;
- const selected=Number(choice);
- if(!Number.isInteger(selected)||selected<0||selected>(unitRows||[]).length)return "ERROR: Enter a valid unit number from the list.";
- const unitId=selected===0?null:unitRows![selected-1].id;
- const {error}=await supabase.rpc("management_update_resident_profile",{p_estate_id:estateId,p_resident_user_id:userId,p_full_name:fullName.trim(),p_phone_e164:phone.trim()||null,p_home_number:home.trim()||null,p_street_name:street.trim()||null,p_unit_id:unitId});
- if(error)return "ERROR: "+(error.message||"Resident details could not be updated.");
- return "Resident profile and property assignment updated successfully.";
+function editResidentProfilePrompt(estateId:string,userId:string):Promise<string|null>{
+ window.location.assign(`/users/resident-edit?estateId=${encodeURIComponent(estateId)}&userId=${encodeURIComponent(userId)}`);
+ return Promise.resolve(null);
 }
+
 const roleLabels: Record<string,string> = {
   facility_manager:"Facility Manager", resident:"Resident", security:"Security Personnel",
   event_organiser:"Legacy event access", estate_admin:"Estate Administrator", estate_manager:"Estate Manager",
