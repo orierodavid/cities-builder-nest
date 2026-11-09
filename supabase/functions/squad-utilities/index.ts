@@ -26,18 +26,18 @@ Deno.serve(async(req:Request)=>{
  let input:Record<string,unknown>;try{input=await req.json()}catch{return reply(400,{error:"invalid_json"})}
  const action=str(input.action),service=str(input.service),provider=str(input.provider).toUpperCase();
  const base=mode==="live"?"https://api-d.squadco.com":"https://sandbox-api-d.squadco.com";
- const squad=async(path:string,method="GET",body?:Record<string,unknown>):Promise<{r:Response;data:Record<string,unknown>;networkError?:boolean}>=>{
+ const squad=async(path:string,method="GET",body?:Record<string,unknown>):Promise<{r:Response;data:Record<string,unknown>;rawBody:string;networkError?:boolean}>=>{
   try{
    const r=await fetch(base+path,{method,headers:{Authorization:`Bearer ${squadKey}`,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
    const raw=await r.text();
    let data:Record<string,unknown>={};
    if(raw){try{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed))data=parsed as Record<string,unknown>;else data={response_type:Array.isArray(parsed)?"array":typeof parsed};}catch{data={message:"Squad returned a non-JSON response."};}}
-   console.info("[squad-utilities] upstream response",JSON.stringify({path,method,status:r.status,ok:r.ok,topLevelKeys:Object.keys(data),dataKeys:data.data&&typeof data.data==="object"&&!Array.isArray(data.data)?Object.keys(data.data as Record<string,unknown>):[],upstreamMessage:str(data.message).slice(0,180)}));
-   return {r,data};
+   console.info("[squad-utilities] upstream response",JSON.stringify({url:base+path,method,status:r.status,ok:r.ok,responseBody:raw}));
+   return {r,data,rawBody:raw};
   }catch(error){
    const detail=error instanceof Error?{name:error.name,message:error.message.slice(0,240)}:{name:"UnknownError"};
    console.error("[squad-utilities] upstream request failed",JSON.stringify({path,method,detail}));
-   return {r:new Response(null,{status:502}),data:{message:"Squad utility service is temporarily unreachable."},networkError:true};
+   return {r:new Response(null,{status:502}),data:{message:detail.message??"Squad utility service is temporarily unreachable."},rawBody:JSON.stringify(detail),networkError:true};
   }
  };
  const nested=(d:Record<string,unknown>)=>d.data&&typeof d.data==="object"&&!Array.isArray(d.data)?d.data as Record<string,unknown>:d;
@@ -48,14 +48,14 @@ Deno.serve(async(req:Request)=>{
 
  if(action==="billers"){
   if(!services.has(service))return reply(400,{error:"unsupported_utility_service"});
-  const {r,data}=await squad("/v1/service/billers");
-  if(!r.ok)return reply(502,{error:"billers_unavailable",message:message(data,"Utility providers could not be loaded.")});
+  const {r,data,rawBody,networkError}=await squad(`/v1/service/billers?service=${encodeURIComponent(serviceCodes[service])}`);
+  if(!r.ok)return reply(502,{error:"billers_unavailable",message:message(data,"Utility providers could not be loaded."),upstream:{url:base+`/v1/service/billers?service=${serviceCodes[service]}`,status:r.status,body:rawBody,networkError:!!networkError}});
   const groups=billerRows(data);
   const group=groups.find(x=>str(x.code).toUpperCase()===serviceCodes[service]);
   const rawProviders=rowsAt(group?.providers);
   console.info("[squad-utilities] biller catalogue",JSON.stringify({service:serviceCodes[service],groupCodes:groups.map(x=>str(x.code).toUpperCase()).filter(Boolean),matchedGroup:Boolean(group),providerCount:rawProviders.length}));
   const providers=rawProviders.map(x=>({code:str(x.code),name:str(x.name)||str(x.code),type:x.type??null,total_rate_percent:x.total_rate_percent??null,total_rate_cap:x.total_rate_cap??null})).filter(x=>x.code&&x.name);
-  return reply(200,{billers:providers,service:serviceCodes[service]});
+  return reply(200,{billers:providers,service:serviceCodes[service],providerCount:providers.length});
  }
  if(action==="products"){
   if(!productServices.has(service)||!provider)return reply(400,{error:"invalid_product_request"});
@@ -69,8 +69,8 @@ Deno.serve(async(req:Request)=>{
   if(!estates.includes(estateId)||!/^[A-Za-z0-9@._+-]{5,40}$/.test(identifier)||(service==="electricity"&&!["prepaid","postpaid"].includes(meterType)))return reply(400,{error:"invalid_customer_details"});
   const productCode=str(input.productCode);
   const body:Record<string,unknown>={service:serviceCodes[service],provider,customer_identifier:identifier};
-  if(service==="electricity")body.context={meter_type:meterType};
-  if((service==="education"||service==="internet")&&productCode)body.product_code=productCode;
+  if(service==="electricity")body.meter_type=meterType;
+  if(service==="education"&&productCode)body.product_code=productCode;
   if(service==="education"&&!productCode)return reply(400,{error:"product_required_for_lookup",message:"Select an examination product before verifying the account."});
   const {r,data}=await squad("/v1/service/lookup","POST",body);
   const details=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
@@ -113,8 +113,8 @@ Deno.serve(async(req:Request)=>{
   }).select("id").single();
   if(txError||!tx)return reply(503,{error:"transaction_record_failed"});
   const vendBody:Record<string,unknown>={validation_token:v.validation_token,merchant_reference:ref,customer:{phone_number:phone,...(email?{email}:{})}};
-  if(v.service==="electricity"||v.service==="betting")vendBody.amount=amount;
-  else vendBody.products=[{code:productCode,quantity:1}];
+  if(v.service==="cable_tv")vendBody.products=[{code:productCode,quantity:1}];
+  else vendBody.amount=productServices.has(v.service)?purchaseAmount:amount;
   try{
    const {r,data}=await squad("/v1/service/vend","POST",vendBody);
    const result=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
