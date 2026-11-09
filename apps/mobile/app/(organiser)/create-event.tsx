@@ -7,6 +7,7 @@ import { getApiBaseUrl } from "../../src/lib/api-url";
 import { theme as t } from "../../src/theme/theme";
 
 type Estate = { id: string; name: string; membershipRole?: string | null; is_enabled?: boolean };
+type EstateVenue = { id: string; name: string; location: string | null; status: string };
 const inputStyle = { backgroundColor: "#101010", borderColor: t.border, borderWidth: 1, borderRadius: 10, color: t.text, paddingHorizontal: 13, paddingVertical: 13, fontSize: 14 } as const;
 
 function toIso(value: string): string | null {
@@ -21,6 +22,9 @@ export default function CreateEventScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [venue, setVenue] = useState("");
+  const [venueId, setVenueId] = useState("");
+  const [venues, setVenues] = useState<EstateVenue[]>([]);
+  const [venuePickerOpen, setVenuePickerOpen] = useState(false);
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [publish, setPublish] = useState(false);
@@ -44,7 +48,14 @@ export default function CreateEventScreen() {
         if (!response.ok) throw new Error(payload.error || "Estate access could not be loaded.");
         const assigned = (payload.estates || []).find(item => (item.membershipRole || "").toLowerCase().replace(/[- ]/g, "_") === "resident" && item.is_enabled !== false);
         if (!assigned) throw new Error("No active resident membership was found.");
-        if (active) setEstate(assigned);
+        const { data: venueRows, error: venueError } = await supabase.from("estate_venues")
+          .select("id,name,location,status")
+          .eq("estate_id", assigned.id).eq("status", "available").order("name");
+        if (venueError) throw new Error("The estate venue list could not be loaded. Please contact the Facility Manager.");
+        if (active) {
+          setEstate(assigned);
+          setVenues((venueRows || []) as EstateVenue[]);
+        }
       } catch (e) {
         if (active) setError(e instanceof Error ? e.message : "Unable to load estate.");
       } finally {
@@ -58,7 +69,7 @@ export default function CreateEventScreen() {
     setError("");
     const start = toIso(startsAt.trim());
     const end = toIso(endsAt.trim());
-    if (title.trim().length < 3 || venue.trim().length < 2 || !start || !end || new Date(end) <= new Date(start)) {
+    if (title.trim().length < 3 || !venueId || venue.trim().length < 2 || !start || !end || new Date(end) <= new Date(start)) {
       setError("Enter an event title, venue, valid start and end date/time. The end must be after the start.");
       return;
     }
@@ -67,7 +78,7 @@ export default function CreateEventScreen() {
     try {
       const response = await fetch(base + "/v1/estates/" + encodeURIComponent(estate.id) + "/events", {
         method: "POST", headers: await headers(),
-        body: JSON.stringify({ title: title.trim(), description: description.trim(), venue: venue.trim(), startsAt: start, endsAt: end, status: publish ? "published" : "draft" }),
+        body: JSON.stringify({ title: title.trim(), description: description.trim(), venue: venue.trim(), venueId, startsAt: start, endsAt: end, status: publish ? "published" : "draft" }),
       });
       const payload = await response.json() as { event?: { id: string }; error?: string; message?: string };
       if (!response.ok || !payload.event) throw new Error(payload.message || payload.error || "Event could not be created.");
@@ -89,7 +100,17 @@ export default function CreateEventScreen() {
         <Text style={s.subheading}>{estate?.name || "Your assigned estate"}</Text>
         {loading ? <ActivityIndicator color={t.gold} style={{ marginTop: 24 }} /> : <>
           <Text style={s.label}>Event title *</Text><TextInput value={title} onChangeText={setTitle} placeholder="e.g. Residents' End of Year Celebration" placeholderTextColor="#777" style={inputStyle} maxLength={160} />
-          <Text style={s.label}>Venue *</Text><TextInput value={venue} onChangeText={setVenue} placeholder="Event venue" placeholderTextColor="#777" style={inputStyle} maxLength={240} />
+          <Text style={s.label}>Venue *</Text>
+          <TouchableOpacity onPress={() => setVenuePickerOpen(value => !value)} style={[inputStyle, { minHeight: 48, justifyContent: "center" }]}>
+            <Text style={{ color: venue ? t.text : "#777", fontSize: 14 }}>{venue || (venues.length ? "Select an available estate venue" : "No available venues")}</Text>
+          </TouchableOpacity>
+          {venuePickerOpen ? venues.map(item => {
+            const label = item.location ? item.name + " · " + item.location : item.name;
+            return <TouchableOpacity key={item.id} onPress={() => { setVenueId(item.id); setVenue(label); setVenuePickerOpen(false); }} style={[s.venueOption, venueId === item.id && s.venueOptionSelected]}>
+              <Text style={s.venueOptionText}>{label}</Text>
+              {venueId === item.id ? <Text style={s.venueSelected}>SELECTED</Text> : null}
+            </TouchableOpacity>;
+          }) : null}
           <Text style={s.label}>Description</Text><TextInput value={description} onChangeText={setDescription} placeholder="What should guests know about this event?" placeholderTextColor="#777" style={[inputStyle, { minHeight: 100, textAlignVertical: "top" }]} multiline maxLength={5000} />
           <Text style={s.label}>Start date and time *</Text><TextInput value={startsAt} onChangeText={setStartsAt} placeholder="YYYY-MM-DDTHH:mm (e.g. 2026-12-20T15:00)" placeholderTextColor="#777" style={inputStyle} autoCapitalize="none" />
           <Text style={s.hint}>Use your estate's local date and time. Example: 2026-12-20T15:00</Text>
@@ -113,6 +134,10 @@ const s = StyleSheet.create({
   heading: { color: t.text, fontSize: 25, fontWeight: "900" },
   subheading: { color: t.muted, fontSize: 12, marginBottom: 14 },
   label: { color: t.goldSoft, fontSize: 11, fontWeight: "800", marginTop: 9 },
+  venueOption: { minHeight: 46, paddingHorizontal: 12, paddingVertical: 11, borderRadius: 9, borderWidth: 1, borderColor: t.border, backgroundColor: t.card, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  venueOptionSelected: { borderColor: t.gold, backgroundColor: "#211B10" },
+  venueOptionText: { color: t.text, fontSize: 12, flex: 1 },
+  venueSelected: { color: t.goldSoft, fontSize: 9, fontWeight: "900" },
   hint: { color: t.muted, fontSize: 10, lineHeight: 15 },
   publishRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 13, backgroundColor: t.card, borderWidth: 1, borderColor: t.border, borderRadius: 12, marginTop: 12 },
   checkbox: { width: 19, height: 19, borderWidth: 1, borderColor: t.gold, borderRadius: 5, marginTop: 1 },
