@@ -19,6 +19,32 @@ type Membership = {
 };
 type PendingResident = { membershipId: string; userId: string; name: string; email: string; phone: string; homeNumber?: string; streetName?: string; submittedAt: string };
 type Role = "facility_manager" | "resident" | "security";
+async function editResidentProfilePrompt(estateId:string,userId:string):Promise<string|null>{
+ const [{data:profile,error:profileError},{data:unitRows,error:unitError},{data:assignment,error:assignmentError}]=await Promise.all([
+  supabase.from("users").select("full_name,phone_e164,home_number,street_name").eq("id",userId).maybeSingle(),
+  supabase.from("units").select("id,unit_code,building_id").eq("estate_id",estateId).order("unit_code"),
+  supabase.from("resident_units").select("unit_id").eq("estate_id",estateId).eq("resident_user_id",userId).is("end_date",null).maybeSingle()
+ ]);
+ if(profileError||unitError||assignmentError)return "Resident details or property units could not be loaded.";
+ if(!profile)return "Resident profile could not be found.";
+ const {data:buildingRows,error:buildingError}=await supabase.from("buildings").select("id,name").eq("estate_id",estateId);
+ if(buildingError)return "Building details could not be loaded.";
+ const buildingNames=new Map((buildingRows||[]).map(x=>[x.id,x.name]));
+ const fullName=window.prompt("Resident full name",profile.full_name||"");if(fullName===null)return null;
+ const phone=window.prompt("Phone number (include country code where possible)",profile.phone_e164||"");if(phone===null)return null;
+ const home=window.prompt("Home number / apartment",profile.home_number||"");if(home===null)return null;
+ const street=window.prompt("Street name",profile.street_name||"");if(street===null)return null;
+ const options=(unitRows||[]).map((u,i)=>`${i+1}. ${buildingNames.get(u.building_id)||"Building"} — ${u.unit_code}`);
+ const current=(unitRows||[]).findIndex(u=>u.id===assignment?.unit_id);
+ const choice=window.prompt("Choose the resident's assigned property unit. Enter 0 to remove the assignment.\n"+options.join("\n"),current>=0?String(current+1):"0");
+ if(choice===null)return null;
+ const selected=Number(choice);
+ if(!Number.isInteger(selected)||selected<0||selected>(unitRows||[]).length)return "Enter a valid unit number from the list.";
+ const unitId=selected===0?null:unitRows![selected-1].id;
+ const {error}=await supabase.rpc("management_update_resident_profile",{p_estate_id:estateId,p_resident_user_id:userId,p_full_name:fullName.trim(),p_phone_e164:phone.trim()||null,p_home_number:home.trim()||null,p_street_name:street.trim()||null,p_unit_id:unitId});
+ if(error)return error.message||"Resident details could not be updated.";
+ return "Resident profile and property assignment updated successfully.";
+}
 const roleLabels: Record<string,string> = {
   facility_manager:"Facility Manager", resident:"Resident", security:"Security Personnel",
   event_organiser:"Legacy event access", estate_admin:"Estate Administrator", estate_manager:"Estate Manager",
@@ -213,17 +239,12 @@ function UsersPage() {
   await load();
  }
  async function editResidentAddress(membership:Membership){
-  if(membership.membership_role!=="resident"){setError("Only resident home details can be edited here.");return;}
-  const homeNumber=window.prompt("Home number / apartment",membership.users?.home_number||"");
-  if(homeNumber===null)return;
-  const streetName=window.prompt("Street name",membership.users?.street_name||"");
-  if(streetName===null)return;
-  if(homeNumber.trim().length<1||homeNumber.trim().length>80||streetName.trim().length<2||streetName.trim().length>160){setError("Enter a valid home number and street name.");return;}
+  if(membership.membership_role!=="resident"){setError("Only resident details can be edited here.");return;}
   setError("");setSuccess("");
-  const {data,error}=await supabase.from("users").update({home_number:homeNumber.trim(),street_name:streetName.trim()}).eq("id",membership.user_id).select("id").maybeSingle();
-  if(error||!data){setError("Resident home details could not be updated. Confirm your management access and try again.");return;}
-  setSuccess("Resident home number and street name updated.");
-  await load();
+  const result=await editResidentProfilePrompt(membership.estate_id,membership.user_id);
+  if(result===null)return;
+  if(result.startsWith("Resident")||result.startsWith("Building")||result.startsWith("Enter")||result.startsWith("Selected")||result.startsWith("You are")||result.startsWith("Authentication")){setError(result);return;}
+  setSuccess(result);await load();
  }
  async function updateUserPassword(membership:Membership){
   const nextPassword=window.prompt("Enter the new password for this user (8–128 characters).");
@@ -451,7 +472,7 @@ type ResidentActivity = {
 };
 function ResidentsPage(){
  const [rows,setRows]=useState<Array<{id:string;userId:string;estateId:string;name:string;email:string;phone:string;estate:string;unit:string;status:string;joined:string}>>([]);
- const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [search,setSearch]=useState("");const [estates,setEstates]=useState<Estate[]>([]);const [selected,setSelected]=useState("");
+ const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [success,setSuccess]=useState("");const [search,setSearch]=useState("");const [estates,setEstates]=useState<Estate[]>([]);const [selected,setSelected]=useState("");
  const [selectedResident,setSelectedResident]=useState<{userId:string;estateId:string;name:string;estate:string;unit:string}|null>(null);
  const [activity,setActivity]=useState<ResidentActivity|null>(null);const [activityLoading,setActivityLoading]=useState(false);const [activityWarnings,setActivityWarnings]=useState<string[]>([]);
  const load=useCallback(async()=>{
@@ -493,6 +514,14 @@ function ResidentsPage(){
  },[]);
  useEffect(()=>{void load();},[load]);
  const visible=rows.filter(x=>{const q=search.toLowerCase();return (!selected||x.estateId===selected)&&(!q||[x.name,x.phone,x.estate,x.unit,x.status].join(" ").toLowerCase().includes(q));});
+ const editResident=async(resident:{userId:string;estateId:string})=>{
+  setError("");setSuccess("");
+  const result=await editResidentProfilePrompt(resident.estateId,resident.userId);
+  if(result===null)return;
+  if(result.includes("could not")||result.includes("authorised")||result.includes("valid")||result.includes("required"))setError(result);
+  else setSuccess(result);
+  await load();
+ };
  const loadActivity=async(resident:{userId:string;estateId:string;name:string;estate:string;unit:string})=>{
   setSelectedResident(resident);setActivity(null);setActivityWarnings([]);setActivityLoading(true);
   const [passes,maintenance,goals,contributions,electricity,meters,charges]=await Promise.all([
@@ -535,12 +564,12 @@ function ResidentsPage(){
   {key:"savingsContributions",title:"Verified / pending savings contributions"},{key:"electricityOrders",title:"Electricity purchase history"},
   {key:"electricityMeters",title:"Registered electricity meters"},{key:"serviceChargePayments",title:"Service charge payments"}
  ];
- return <PortalFrame title="Residents" description="Read-only resident directory across the estates you are authorized to oversee.">
-  <section className="panel module-panel"><div className="module-toolbar"><div><h3>Resident directory</h3><p>Live resident memberships and assigned property details. This screen does not permit resident-record edits.</p></div><button className="secondary-action" onClick={()=>void load()}>Refresh records</button></div>
+ return <PortalFrame title="Residents" description="Manage resident profiles and assigned property details across the estates you are authorized to oversee.">
+  <section className="panel module-panel"><div className="module-toolbar"><div><h3>Resident directory</h3><p>Live resident memberships, contact details and assigned property information.</p></div><button className="secondary-action" onClick={()=>void load()}>Refresh records</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selected} onChange={e=>setSelected(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search resident, phone, unit or estate…" aria-label="Search residents"/></div>
-   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Estate</th><th>Unit</th><th>Phone</th><th>Membership</th><th>Date added</th><th>Activity</th></tr></thead><tbody>
-   {loading?<tr><td colSpan={6} className="empty-cell">Loading live resident records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.estate}</td><td>{x.unit}</td><td>{x.phone}</td><td><span className={"status-pill status-"+x.status}>{x.status}</span></td><td>{x.joined}</td><td><button type="button" className="secondary-action" onClick={()=>void loadActivity({userId:x.userId,estateId:x.estateId,name:x.name,estate:x.estate,unit:x.unit})}>View activity</button></td></tr>):<tr><td colSpan={7} className="empty-cell"><strong>No resident records found</strong><small>There are no matching resident memberships in the estates available to this account.</small></td></tr>}
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Estate</th><th>Unit</th><th>Phone</th><th>Membership</th><th>Date added</th><th>Actions</th></tr></thead><tbody>
+   {loading?<tr><td colSpan={6} className="empty-cell">Loading live resident records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.estate}</td><td>{x.unit}</td><td>{x.phone}</td><td><span className={"status-pill status-"+x.status}>{x.status}</span></td><td>{x.joined}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="secondary-action" onClick={()=>void editResident({userId:x.userId,estateId:x.estateId})}>Edit resident</button><button type="button" className="secondary-action" onClick={()=>void loadActivity({userId:x.userId,estateId:x.estateId,name:x.name,estate:x.estate,unit:x.unit})}>View activity</button></td></tr>):<tr><td colSpan={7} className="empty-cell"><strong>No resident records found</strong><small>There are no matching resident memberships in the estates available to this account.</small></td></tr>}
    </tbody></table></div>
    {selectedResident&&<section className="panel module-panel" style={{marginTop:20}}>
     <div className="module-toolbar"><div><h3>Resident activity — {selectedResident.name}</h3><p>{selectedResident.estate} • {selectedResident.unit}. Records are limited to this resident and estate.</p></div><button type="button" className="secondary-action" onClick={()=>{setSelectedResident(null);setActivity(null);setActivityWarnings([]);}}>Close activity</button></div>
@@ -553,9 +582,9 @@ function ResidentsPage(){
       <small>{item.date}</small><p style={{margin:"4px 0 0"}}>{item.detail}</p>
      </div>):<p className="empty-cell">No records found for this resident.</p>}
     </div>)}</div>}
-    <p className="notice-line">This activity view is read-only. It does not allow changing resident records, payments, visitor passes, meter details or maintenance requests.</p>
+    <p className="notice-line">This activity view is read-only. Resident profile and property details are managed separately.</p>
    </section>}
-   <p className="notice-line">Read-only oversight. Resident accounts, financial records and personal details cannot be changed from this directory.</p>
+   <p className="notice-line">Financial records, payments, visitor passes, meter details and maintenance history remain read-only here.</p>
   </section>
  </PortalFrame>;
 }
