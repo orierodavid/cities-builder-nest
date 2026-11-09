@@ -93,6 +93,20 @@ Deno.serve(async (req: Request) => {
     return reply(401, { error: "invalid_credentials", message: "Email or password is incorrect." });
   }
 
+  const { data: profile, error: profileError } = await admin.from("users")
+    .select("is_active").eq("id", data.user.id).maybeSingle();
+  if (profileError || !profile) {
+    await publicClient.auth.signOut({ scope: "local" });
+    return reply(503, { error: "account_status_check_unavailable", message: "Sign-in could not be completed. Please try again." });
+  }
+  if (profile.is_active !== true) {
+    await publicClient.auth.signOut({ scope: "local" });
+    return reply(403, {
+      error: "account_pending_approval",
+      message: "Your account has been created and is awaiting administrator approval. We will email you when it is active.",
+    });
+  }
+
   const reset = await admin.rpc("reset_account_login_lockout", { p_email: email });
   if (reset.error) {
     await publicClient.auth.signOut({ scope: "local" });

@@ -70,6 +70,20 @@ export async function requireAuth(
       return;
     }
 
+    const { data: accountProfile, error: accountProfileError } = await userSupabase
+      .from("users")
+      .select("is_active")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    if (accountProfileError) {
+      res.status(503).json({ error: "account_status_check_unavailable" });
+      return;
+    }
+    if (!accountProfile || accountProfile.is_active !== true) {
+      res.status(403).json({ error: "account_pending_approval", message: "Your account is awaiting administrator approval. We will email you when it becomes active." });
+      return;
+    }
+
     const { data: legalStatus, error: legalError } = await userSupabase.rpc("get_legal_consent_status");
     if (legalError) {
       res.status(503).json({ error: "legal_consent_check_unavailable" });
