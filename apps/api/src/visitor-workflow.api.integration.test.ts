@@ -58,7 +58,7 @@ const passes: Record<string, unknown>[] = [
 const visits: Record<string, any>[] = [];
 const denials: Record<string, any>[] = [];
 const eventRecords: Record<string, any>[] = [
-  { id: "event-a", estate_id: estateA, title: "Estate A Gathering", venue: "Clubhouse", status: "published", starts_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(), ends_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() },
+  { id: "event-a", estate_id: estateA, title: "Estate A Gathering", venue: "Clubhouse", status: "published", created_by: "event-organiser-a", starts_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(), ends_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() },
 ];
 const eventGuestRecords: Record<string, any>[] = [
   { id: "event-guest-a", estate_id: estateA, event_id: "event-a", guest_name: "Event Test Guest", email: "guest@example.test", phone: "08000000000" },
@@ -357,7 +357,7 @@ async function request(path: string, token: string, method = "GET", body?: unkno
   return { status: response.status, body: await response.json() as Record<string, any> };
 }
 
-test("event guest lists are restricted to event organisers in the same estate", async () => {
+test("event guest lists are restricted to the event creator or a legacy organiser in the same estate", async () => {
   const organiser = await request(
     `/v1/estates/${estateA}/events/event-a/guests`,
     "event-organiser-token",
@@ -378,7 +378,7 @@ test("event guest lists are restricted to event organisers in the same estate", 
     "resident-token",
   );
   assert.equal(resident.status, 403);
-  assert.equal(resident.body.error, "event_organiser_membership_required");
+  assert.equal(resident.body.error, "event_owner_required");
 
   const security = await request(
     `/v1/estates/${estateA}/events/event-a/guests`,
