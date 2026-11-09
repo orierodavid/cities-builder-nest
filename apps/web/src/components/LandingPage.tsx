@@ -49,7 +49,7 @@ export default function LandingPage() {
     </header>
     <section className="hero" id="home"><div className="hero-bg" aria-hidden="true" /><div className="container hero-inner"><div className="hero-copy">
       <p className="eyebrow">Smarter Estate Management</p><h1>CB Nest — One Platform.<br />A <span className="gold">Better Living</span> Experience.</h1>
-      <p className="lead">Connect residents, security teams and estate management with a powerful, easy-to-use platform.</p>
+      <p className="lead">One connected platform for residents, security teams, facility managers and Super Admins—with the right tools for every part of estate living and operations.</p>
       <div className="hero-actions"><a className="btn-solid" href="#how">Discover How It Works ↗</a></div>
       <ul className="hero-badges"><li><Icon name="shield" /><span>Secure<br />&amp; Reliable</span></li><li><Icon name="bolt" /><span>Simple<br />&amp; Efficient</span></li><li><Icon name="users" /><span>A Connected<br />Community</span></li></ul>
     </div></div><div className="swoosh swoosh-left" /><div className="swoosh swoosh-right" /></section>
@@ -61,16 +61,16 @@ export default function LandingPage() {
         <div className="mobile-apps-heading">
           <p className="eyebrow dark center">CB Nest on Mobile</p>
           <h2>Your Estate, Right in Your Pocket</h2>
-          <p>Dedicated mobile apps give residents and security teams the tools they need wherever they are. Residents can create and manage their own estate events directly in the resident app.</p>
+          <p>Purpose-built apps give residents and security teams clear, role-specific tools. Residents also create and manage their own events inside the resident app—there is no separate event-organiser app.</p>
         </div>
         <div className="mobile-app-grid">
           <article className="mobile-app-card">
-            <div className="mobile-app-visual resident-visual"><span className="phone-frame"><span className="phone-screen"><span className="screen-top">CB Nest</span><span className="screen-house">⌂</span><span className="screen-line wide"></span><span className="screen-line"></span><span className="screen-tile-row"><i></i><i></i><i></i></span></span></span></div>
-            <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Residents</h3><p>Generate visitor codes, view service charges, make payments, follow maintenance requests and stay updated with estate notices.</p><ul><li>Visitor access codes</li><li>Payments and service charges</li><li>Maintenance and announcements</li></ul></div>
+            <div className="mobile-app-visual resident-visual"><span className="phone-frame"><span className="phone-screen"><div className="screen-top-row"><span className="screen-top">CB Nest</span><b>•••</b></div><span className="screen-greeting">Good morning,</span><strong className="screen-user">Alexandra</strong><span className="screen-estate">PEACE ESTATE · B-204</span><div className="screen-access"><small>VISITOR ACCESS</small><strong>Generate code</strong><span className="access-code">482 916</span></div><div className="screen-mini-grid"><span><b>₦</b>Service charge</span><span><b>▦</b>My events</span></div><div className="screen-tabbar"><i>⌂</i><i>▦</i><i>◉</i><i>☻</i></div></span></span></div>
+            <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Residents</h3><p>Generate visitor codes, view service charges, make payments, follow maintenance requests and stay updated with estate notices.</p><ul><li>Visitor access codes</li><li>Payments and service charges</li><li>Maintenance and announcements</li><li>Resident-created events and invitations</li></ul></div>
           </article>
           <article className="mobile-app-card">
-            <div className="mobile-app-visual security-visual"><span className="phone-frame"><span className="phone-screen"><span className="screen-top">Gate Access</span><span className="screen-shield">✓</span><span className="screen-line wide"></span><span className="screen-line"></span><span className="screen-status">Visitor verified</span></span></span></div>
-            <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Security</h3><p>Verify visitor QR codes at the gate, review visitor details and approve or deny access using a dedicated security workflow.</p><ul><li>QR code scanning</li><li>Visitor details and verification</li><li>Access approval and history</li></ul></div>
+            <div className="mobile-app-visual security-visual"><span className="phone-frame"><span className="phone-screen"><div className="screen-top-row"><span className="screen-top">CB Nest · SECURITY</span><b>•••</b></div><span className="screen-greeting">Visitor check-in</span><div className="scan-frame"><i></i><i></i><i></i><i></i><b>QR</b></div><span className="screen-status">Ready to scan</span><div className="screen-visitor"><small>LAST VERIFICATION</small><strong>Visitor approved</strong><span>Resident: Alexandra · B-204</span></div><div className="screen-tabbar"><i>⌂</i><i>▣</i><i>◷</i></div></span></span></div>
+            <div className="mobile-app-copy"><span className="app-kicker">Mobile app</span><h3>For Security</h3><p>Scan visitor QR codes, review resident and visitor details, and approve or deny entry through a dedicated security workflow.</p><ul><li>QR code scanning</li><li>Visitor details and verification</li><li>Access approval and history</li></ul></div>
           </article>
         </div>
         <div className="app-download-panel">
@@ -89,6 +89,6 @@ export default function LandingPage() {
       <div className="feature-grid">{features.map(([title, description, icon]) => <article className="feature" key={title}><span className="f-icon">{icon}</span><h3>{title}</h3><p>{description}</p></article>)}</div>
     </div></section>
     <section className="cta" id="contact"><div className="container cta-inner"><div><h2>Ready to build a better-connected estate?</h2><p>Talk to us and see how CB Nest can work for your community.</p></div><a className="btn-solid" href="mailto:info@cbnestltd.com">Get in Touch ↗</a></div></section>
-    <footer className="site-footer"><div className="container footer-inner"><a href="/" className="logo"><Icon name="home" /><span className="logo-text">CB <span>Nest</span></span></a><p className="tagline">Building your future. One platform, many estates.</p><p className="copy">© {new Date().getFullYear()} CB Nest. All rights reserved.</p></div></footer>
+    <footer className="site-footer"><div className="container footer-inner"><a href="/" className="logo"><Icon name="home" /><span className="logo-text">CB <span>Nest</span></span></a><p className="tagline">Building your future. One platform, many estates.</p><a className="footer-email" href="mailto:info@cbnestltd.com">info@cbnestltd.com</a><p className="copy">© {new Date().getFullYear()} CB Nest. All rights reserved.</p></div></footer>
   </main>;
 }
