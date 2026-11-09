@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import PortalFrame from "@/components/PortalFrame";
 import { supabase } from "@/lib/supabase";
 
@@ -10,9 +10,8 @@ type Unit = { id: string; unit_code: string; building_id: string };
 
 export default function ResidentEditPage() {
   const router = useRouter();
-  const params = useSearchParams();
-  const estateId = params.get("estateId") || "";
-  const userId = params.get("userId") || "";
+  const [estateId, setEstateId] = useState("");
+  const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -27,6 +26,13 @@ export default function ResidentEditPage() {
   const [unitId, setUnitId] = useState("");
 
   useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    setEstateId(query.get("estateId") || "");
+    setUserId(query.get("userId") || "");
+  }, []);
+
+  useEffect(() => {
+    if (!estateId && !userId) return;
     let active = true;
     async function load() {
       if (!estateId || !userId) {
