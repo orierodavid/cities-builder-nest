@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "CB Nest | Smart Estate & Community Management",
   description:
-    "CB Nest brings residents, security teams, event organisers and estate managers together with simpler visitor access, payments, maintenance and estate operations.",
+    "CB Nest connects residents, security teams, facility managers and platform administrators with visitor access, resident-led events, payments, maintenance and estate operations.",
   alternates: {
     canonical: "/",
   },
@@ -18,13 +18,13 @@ export const metadata: Metadata = {
     siteName: "CB Nest",
     title: "CB Nest | Smart Estate & Community Management",
     description:
-      "One connected platform for residents, security teams, event organisers and estate managers.",
+      "One connected platform for residents, security teams, facility managers and platform administrators.",
   },
   twitter: {
     card: "summary_large_image",
     title: "CB Nest | Smart Estate & Community Management",
     description:
-      "One connected platform for residents, security teams, event organisers and estate managers.",
+      "One connected platform for residents, security teams, facility managers and platform administrators.",
   },
 };
 
@@ -37,7 +37,7 @@ const jsonLd = {
       name: "CB Nest",
       url: siteUrl,
       description:
-        "CB Nest provides connected estate and community management tools for residents, security teams, event organisers and estate managers.",
+        "CB Nest provides connected estate and community management tools for residents, security teams, facility managers and platform administrators.",
     },
     {
       "@type": "WebSite",
