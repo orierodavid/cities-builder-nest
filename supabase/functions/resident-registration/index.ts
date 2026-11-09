@@ -24,6 +24,22 @@ function normalisePhone(value: string) {
   if (digits.length === 10 && /^[789]/.test(digits)) return "+234" + digits;
   return "";
 }
+
+async function cleanupIncompleteUser(admin: any, userId: string) {
+  // The auth.users INSERT trigger creates public.users before registration
+  // writes the completed profile. Remove that dependent profile first.
+  const { error: profileDeleteError } = await admin.from("users").delete().eq("id", userId);
+  if (profileDeleteError) {
+    console.error("resident-registration profile cleanup failed", { userId, message: profileDeleteError.message });
+    return false;
+  }
+  const { error: authDeleteError } = await admin.auth.admin.deleteUser(userId);
+  if (authDeleteError) {
+    console.error("resident-registration auth cleanup failed", { userId, message: authDeleteError.message });
+    return false;
+  }
+  return true;
+}
 async function sendEmail(admin: any, userId: string, estateId: string, email: string, name: string) {
   const apiKey = Deno.env.get("RESEND_API_KEY");
   const from = Deno.env.get("WELCOME_EMAIL_FROM");
@@ -132,6 +148,19 @@ Deno.serve(async (req: Request) => {
     return reply(400, { error: "invalid_estate_selection", message: "Select an active estate matching the selected State and LGA." });
   }
 
+  // Friendly preflight validation. The unique database constraint remains the
+  // final protection against two registrations racing at the same time.
+  const { data: phoneOwner, error: phoneLookupError } = await admin.from("users")
+    .select("id").eq("phone_e164", phone).limit(1).maybeSingle();
+  if (phoneLookupError) return reply(503, {
+    error: "phone_validation_unavailable",
+    message: "We could not validate this phone number right now. Please try again.",
+  });
+  if (phoneOwner) return reply(409, {
+    error: "phone_already_registered",
+    message: "This phone number is already associated with an account. Please use another number or contact CB Nest support.",
+  });
+
   const fullName = firstName + " " + lastName;
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email, password, email_confirm: true,
@@ -151,16 +180,27 @@ Deno.serve(async (req: Request) => {
     phone_e164: phone, is_active: false,
   }, { onConflict: "id" });
   if (profileError) {
-    await admin.auth.admin.deleteUser(userId);
-    return reply(500, { error: "registration_profile_failed" });
+    const duplicatePhone = profileError.code === "23505" &&
+      /users_phone_e164_key|phone_e164/i.test(profileError.message ?? "");
+    await cleanupIncompleteUser(admin, userId);
+    if (duplicatePhone) return reply(409, {
+      error: "phone_already_registered",
+      message: "This phone number is already associated with an account. Please use another number or contact CB Nest support.",
+    });
+    return reply(500, {
+      error: "registration_profile_failed",
+      message: "We could not complete your registration. Please try again.",
+    });
   }
   const { data: membership, error: membershipError } = await admin.from("estate_memberships")
     .insert({ estate_id: estateId, user_id: userId, membership_role: "resident", status: "invited" })
     .select("id").single();
   if (membershipError || !membership) {
-    await admin.from("users").delete().eq("id", userId);
-    await admin.auth.admin.deleteUser(userId);
-    return reply(500, { error: "registration_membership_failed" });
+    await cleanupIncompleteUser(admin, userId);
+    return reply(500, {
+      error: "registration_membership_failed",
+      message: "We could not finish linking your account to the selected estate. Please try again.",
+    });
   }
 
   const delivery = await sendEmail(admin, userId, estateId, email, fullName);
