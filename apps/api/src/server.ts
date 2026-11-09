@@ -1448,7 +1448,7 @@ app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res)
   const { data: currentEvent, error: currentEventError } = await authenticated.userSupabase
     .from("estate_events").select("venue_approval_status").eq("estate_id", estateId).eq("id", eventId).maybeSingle();
   if (currentEventError || !currentEvent) { res.status(404).json({ error: "estate_event_not_found" }); return; }
-  if (status === "published" && currentEvent.venue_approval_status !== "approved") {
+  if (status === "published" && currentEvent.venue_approval_status && currentEvent.venue_approval_status !== "approved") {
     res.status(409).json({ error: "event_venue_approval_pending", message: "This event cannot be published until its selected estate facility is approved." }); return;
   }
   const { data, error } = await authenticated.userSupabase.from("estate_events")
@@ -1536,7 +1536,7 @@ app.post("/v1/estates/:estateId/events/:eventId/guests/:guestId/invitations", re
   const { data: event, error: eventError } = await authenticated.userSupabase.from("estate_events")
     .select("id, title, venue, starts_at, ends_at, venue_approval_status").eq("id", eventId).eq("estate_id", estateId).maybeSingle();
   if (eventError || !event) { res.status(404).json({ error: "estate_event_not_found" }); return; }
-  if (event.venue_approval_status !== "approved") {
+  if (event.venue_approval_status && event.venue_approval_status !== "approved") {
     res.status(409).json({ error: "event_venue_approval_pending", message: "Invitations can be sent after the estate venue has been approved." }); return;
   }
   const code = String(randomInt(100000, 1000000));
@@ -1704,7 +1704,7 @@ app.post("/v1/estates/:estateId/events/:eventId/security-verify", requireAuth, a
     .select("id, estate_id, title, venue, starts_at, ends_at, status, venue_approval_status")
     .eq("id", eventId).eq("estate_id", estateId).maybeSingle();
   if (eventError || !event) { res.status(404).json({ error: "estate_event_not_found" }); return; }
-  if (event.venue_approval_status !== "approved") {
+  if (event.venue_approval_status && event.venue_approval_status !== "approved") {
     res.status(409).json({ error: "event_venue_approval_pending", message: "This event venue has not been approved." }); return;
   }
   if (event.status !== "published") { res.status(409).json({ error: "event_not_open_for_guest_checkin" }); return; }
