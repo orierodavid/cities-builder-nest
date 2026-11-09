@@ -22,12 +22,14 @@ export const metadata: Metadata = {
     title: "CB Nest | Smart Estate & Community Management",
     description:
       "A connected platform for smarter estate living and management.",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "CB Nest — Smarter Estate Living" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "CB Nest | Smart Estate & Community Management",
     description:
       "A connected platform for smarter estate living and management.",
+    images: ["/opengraph-image"],
   },
   robots: {
     index: true,
