@@ -94,9 +94,9 @@ export default function EventDashboard() {
       const estatePayload = await estateResponse.json() as { estates?: Estate[]; error?: string };
       if (!estateResponse.ok) throw new Error(estatePayload.error || "Your estate access could not be loaded.");
       const assignedEstate = (estatePayload.estates || []).find((item) =>
-        (item.membershipRole || "").toLowerCase().replace(/[- ]/g, "_") === "event_organiser" && item.is_enabled !== false,
+        (item.membershipRole || "").toLowerCase().replace(/[- ]/g, "_") === "resident" && item.is_enabled !== false,
       );
-      if (!assignedEstate) throw new Error("No active Event Organiser membership was found for an enabled estate.");
+      if (!assignedEstate) throw new Error("No active resident membership was found for an enabled estate.");
       setEstate(assignedEstate);
 
       const eventsResponse = await fetch(base + "/v1/estates/" + encodeURIComponent(assignedEstate.id) + "/events", { headers });
@@ -204,7 +204,7 @@ export default function EventDashboard() {
 
             <View style={styles.sectionHeader}>
               <View><Text style={styles.sectionTitle}>Your events</Text><Text style={styles.countText}>{events.length} total</Text></View>
-              <TouchableOpacity onPress={() => router.push("/(organiser)/create-event")} style={styles.createButton}>
+              <TouchableOpacity onPress={() => router.push("/(resident)/create-event")} style={styles.createButton}>
                 <MaterialCommunityIcons name="plus" size={17} color="#17130B" /><Text style={styles.createButtonText}>CREATE EVENT</Text>
               </TouchableOpacity>
             </View>
@@ -214,11 +214,11 @@ export default function EventDashboard() {
                 <View style={styles.emptyIcon}><MaterialCommunityIcons name="calendar-plus" size={30} color={t.goldSoft} /></View>
                 <Text style={styles.emptyTitle}>No events yet</Text>
                 <Text style={styles.emptyText}>Events you create for this estate will appear here with live guest and attendance figures.</Text>
-                <TouchableOpacity onPress={() => router.push("/(organiser)/create-event")} style={styles.createButton}><MaterialCommunityIcons name="plus" size={17} color="#17130B" /><Text style={styles.createButtonText}>CREATE FIRST EVENT</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push("/(resident)/create-event")} style={styles.createButton}><MaterialCommunityIcons name="plus" size={17} color="#17130B" /><Text style={styles.createButtonText}>CREATE FIRST EVENT</Text></TouchableOpacity>
               </View>
             ) : (
               events.map((event) => (
-                <TouchableOpacity key={event.id} activeOpacity={0.82} onPress={() => router.push({ pathname: "/(organiser)/[eventId]", params: { eventId: event.id } })} style={[CARD, styles.eventCard]}>
+                <TouchableOpacity key={event.id} activeOpacity={0.82} onPress={() => router.push({ pathname: "/(resident)/[eventId]", params: { eventId: event.id } })} style={[CARD, styles.eventCard]}>
                   <View style={styles.eventTop}>
                     <View style={styles.eventTitleWrap}>
                       <Text style={styles.eventTitle}>{event.title}</Text>

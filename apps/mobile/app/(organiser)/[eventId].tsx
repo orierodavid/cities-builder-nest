@@ -47,8 +47,8 @@ export default function EventManagementScreen() {
       const estateResponse = await fetch(base + "/v1/estates", { headers: authHeaders });
       const estatePayload = await estateResponse.json() as { estates?: Estate[]; error?: string };
       if (!estateResponse.ok) throw new Error(estatePayload.error || "Estate access could not be loaded.");
-      const assigned = (estatePayload.estates || []).find(item => (item.membershipRole || "").toLowerCase().replace(/[- ]/g, "_") === "event_organiser");
-      if (!assigned) throw new Error("No active Event Organiser membership was found.");
+      const assigned = (estatePayload.estates || []).find(item => (item.membershipRole || "").toLowerCase().replace(/[- ]/g, "_") === "resident");
+      if (!assigned) throw new Error("No active resident membership was found.");
       setEstate(assigned);
       const root = base + "/v1/estates/" + encodeURIComponent(assigned.id) + "/events/" + encodeURIComponent(eventId);
       const [eventsResponse, guestsResponse, invitesResponse, reportResponse] = await Promise.all([

@@ -42,8 +42,8 @@ export default function CreateEventScreen() {
         const response = await fetch(base + "/v1/estates", { headers: await headers() });
         const payload = await response.json() as { estates?: Estate[]; error?: string };
         if (!response.ok) throw new Error(payload.error || "Estate access could not be loaded.");
-        const assigned = (payload.estates || []).find(item => (item.membershipRole || "").toLowerCase().replace(/[- ]/g, "_") === "event_organiser" && item.is_enabled !== false);
-        if (!assigned) throw new Error("No active Event Organiser membership was found.");
+        const assigned = (payload.estates || []).find(item => (item.membershipRole || "").toLowerCase().replace(/[- ]/g, "_") === "resident" && item.is_enabled !== false);
+        if (!assigned) throw new Error("No active resident membership was found.");
         if (active) setEstate(assigned);
       } catch (e) {
         if (active) setError(e instanceof Error ? e.message : "Unable to load estate.");
@@ -71,7 +71,7 @@ export default function CreateEventScreen() {
       });
       const payload = await response.json() as { event?: { id: string }; error?: string; message?: string };
       if (!response.ok || !payload.event) throw new Error(payload.message || payload.error || "Event could not be created.");
-      router.replace({ pathname: "/(organiser)/[eventId]", params: { eventId: payload.event.id } });
+      router.replace({ pathname: "/(resident)/[eventId]", params: { eventId: payload.event.id } });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Event could not be created.");
     } finally {

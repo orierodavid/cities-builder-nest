@@ -1270,8 +1270,8 @@ async function requireEventOrganiser(req: import("express").Request, res: import
     .eq("status", "active")
     .maybeSingle();
   if (error) { res.status(403).json({ error: "event_organiser_access_check_failed" }); return null; }
-  if (membership?.membership_role !== "event_organiser") {
-    res.status(403).json({ error: "event_organiser_membership_required" }); return null;
+  if (!["resident", "event_organiser"].includes(membership?.membership_role ?? "")) {
+    res.status(403).json({ error: "active_resident_membership_required" }); return null;
   }
   const enabled = await isEstateEnabled(authenticated.userSupabase, estateId);
   if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return null; }
@@ -1293,7 +1293,9 @@ app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const page = getPageWindow(req);
   const { data, error } = await authenticated.userSupabase.from("estate_events")
     .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at")
-    .eq("estate_id", estateId).order("starts_at", { ascending: true }).range(page.from, page.to);
+    .eq("estate_id", estateId)
+    .eq("created_by", authenticated.authUser.id)
+    .order("starts_at", { ascending: true }).range(page.from, page.to);
   if (error) { res.status(403).json({ error: "estate_events_load_failed" }); return; }
   const result = pageResult(data, page);
   res.status(200).json({ events: result.items, pagination: result.pagination });
@@ -1349,7 +1351,7 @@ app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res)
   }
   const { data, error } = await authenticated.userSupabase.from("estate_events")
     .update({ title, description, venue, starts_at: startDate.toISOString(), ends_at: endDate.toISOString(), status, updated_at: new Date().toISOString() })
-    .eq("estate_id", estateId).eq("id", eventId)
+    .eq("estate_id", estateId).eq("id", eventId).eq("created_by", authenticated.authUser.id)
     .select("id, estate_id, title, description, venue, starts_at, ends_at, status, created_by, created_at, updated_at").maybeSingle();
   if (error || !data) { res.status(404).json({ error: "estate_event_not_found_or_update_failed" }); return; }
   res.status(200).json({ event: data });
