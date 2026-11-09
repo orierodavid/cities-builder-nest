@@ -1,8 +1,8 @@
 import "./landing-page.css";
 
 const roles = [
-  { number: "01", title: "Residents", description: "Manage service charges, visitor access, maintenance requests and everyday estate services.", icon: "⌂" },
-  { number: "02", title: "Security teams", description: "Verify visitor passes, review visit details and keep a clear record of gate activity.", icon: "◈" },
+  { number: "01", title: "Residents", description: "Manage service charges, visitor access, maintenance requests and everyday estate services.", icon: "⌂", image: "https://residifi.com/images/nigerian-family-gate.png", imageAlt: "Residents welcomed at their gated community" },
+  { number: "02", title: "Security teams", description: "Verify visitor passes, review visit details and keep a clear record of gate activity.", icon: "◈", image: "https://domesticstaff.ai/_next/image?q=75&url=%2F1750073507422-mcd4k57q.webp&w=3840", imageAlt: "Professional estate security officer at a residential gate" },
   { number: "03", title: "Event organisers", description: "Coordinate guest lists, invitations, event check-in and attendance from one workspace.", icon: "▦" },
   { number: "04", title: "Facility managers", description: "Oversee residents, staff, service charges, maintenance and estate-wide operations.", icon: "▤" },
 ];
@@ -58,21 +58,17 @@ export default function LandingPage() {
           </div>
           <div className="cb-proof-row"><span className="cb-proof-dot" /> ROLE-BASED WORKSPACES <i /> ONE CONNECTED ESTATE</div>
         </div>
-        <div className="cb-product-stage" aria-label="Illustration of the CB Nest estate operations platform">
-          <div className="cb-stage-glow" />
-          <div className="cb-product-window">
-            <div className="cb-window-bar"><div className="cb-window-brand"><span>⌂</span> cbnest</div><div className="cb-window-status"><i /> ESTATE OVERVIEW</div><div className="cb-window-dots"><i /><i /><i /></div></div>
-            <div className="cb-window-body">
-              <aside className="cb-window-sidebar"><div className="cb-sidebar-mark">⌂</div><span className="active">▦</span><span>◈</span><span>₦</span><span>⚒</span><span>⌁</span></aside>
-              <div className="cb-window-content">
-                <div className="cb-window-heading"><div><small>YOUR ESTATE, AT A GLANCE</small><h3>Everything in sync.</h3><p>A connected view of daily estate operations.</p></div><div className="cb-date-chip">OVERVIEW <span>⌄</span></div></div>
-                <div className="cb-metric-grid"><div><small>RESIDENT SERVICES</small><strong>Connected</strong><span className="cb-metric-line"><i style={{width:"78%"}} /></span></div><div><small>VISITOR ACCESS</small><strong>Verified</strong><span className="cb-metric-line"><i style={{width:"88%"}} /></span></div><div><small>ESTATE OPERATIONS</small><strong>In view</strong><span className="cb-metric-line"><i style={{width:"66%"}} /></span></div></div>
-                <div className="cb-activity-panel"><div className="cb-panel-heading"><b>Connected services</b><span>ROLE-BASED TOOLS</span></div><div className="cb-service-row"><span className="cb-service-icon">⌂</span><div><b>Resident experience</b><small>Charges · Visitors · Requests</small></div><span className="cb-service-arrow">↗</span></div><div className="cb-service-row"><span className="cb-service-icon">◈</span><div><b>Gate access</b><small>Passes · Verification · Entry</small></div><span className="cb-service-arrow">↗</span></div><div className="cb-service-row"><span className="cb-service-icon">▦</span><div><b>Events & community</b><small>Guests · Invitations · Check-in</small></div><span className="cb-service-arrow">↗</span></div></div>
-              </div>
-            </div>
-            <div className="cb-window-footer"><span><i /> SYSTEM OVERVIEW</span><span>CB NEST PLATFORM <b>•</b> 01 / 04</span></div>
+        <div className="cb-photo-stage" aria-label="Residents and estate security personnel">
+          <div className="cb-photo-main">
+            <img src="https://residifi.com/images/nigerian-family-gate.png" alt="A Nigerian family greeting estate security personnel at their community entrance" fetchPriority="high" />
+            <div className="cb-photo-main-caption"><span>COMMUNITY FIRST</span><strong>A place that feels like home.</strong></div>
           </div>
-          <div className="cb-stage-note"><span>✳</span> One community. Every role connected.</div>
+          <div className="cb-photo-security">
+            <img src="https://domesticstaff.ai/_next/image?q=75&url=%2F1750073507422-mcd4k57q.webp&w=3840" alt="Professional estate security officer on duty at a residential entrance" loading="lazy" />
+            <div className="cb-security-caption"><span className="cb-security-live" /> SECURITY THAT CONNECTS</div>
+          </div>
+          <div className="cb-photo-stamp"><span>⌂</span><b>One community.<br />Every role connected.</b></div>
+          <div className="cb-photo-index">LIVING WELL <i /> FEELING SECURE</div>
         </div>
         <div className="cb-hero-index">01 <span>/</span> 04</div>
       </section>
@@ -93,7 +89,7 @@ export default function LandingPage() {
       <section className="cb-roles cb-section" id="roles">
         <div className="cb-section-top"><div className="cb-section-label"><span>03</span> / BUILT FOR EVERY ROLE</div><p>Purpose-built experiences, not one crowded interface.</p></div>
         <div className="cb-roles-heading"><h2>Everyone has<br /><em>a place here.</em></h2><p>CB Nest keeps the experience focused on each person’s role and responsibilities within the community.</p></div>
-        <div className="cb-role-grid">{roles.map((role)=><article className="cb-role-card" key={role.number}><div className="cb-role-top"><span>{role.number}</span><b>{role.icon}</b></div><h3>{role.title}</h3><p>{role.description}</p><span className="cb-role-arrow">↗</span></article>)}</div>
+        <div className="cb-role-grid">{roles.map((role)=><article className={`cb-role-card${role.image ? " cb-role-card-photo" : ""}`} key={role.number}>{role.image && <div className="cb-role-image"><img src={role.image} alt={role.imageAlt} loading="lazy" /></div>}<div className="cb-role-top"><span>{role.number}</span><b>{role.icon}</b></div><h3>{role.title}</h3><p>{role.description}</p><span className="cb-role-arrow">↗</span></article>)}</div>
         <div className="cb-admin-note"><span>+</span><p><b>Platform administration</b> — Super Admins oversee the wider CB Nest platform and its estates through a separate authorised workspace.</p></div>
       </section>
 
