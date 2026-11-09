@@ -52,7 +52,7 @@ export default function ResidentEditPage() {
         setLoading(false);
         return;
       }
-      const nameParts = (profile.full_name || "").trim().split(/\\s+/);
+      const nameParts = (profile.full_name || "").trim().split(/\s+/);
       setFirstName(profile.first_name || nameParts.shift() || "");
       setLastName(profile.last_name || nameParts.join(" "));
       setEmail(account?.email || "");
@@ -75,7 +75,7 @@ export default function ResidentEditPage() {
       setError("Enter the resident's first name and, where applicable, last name.");
       return;
     }
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim())) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError("Enter a valid email address. This is the resident's sign-in email.");
       return;
     }
