@@ -43,8 +43,10 @@ export default function LandingPage() {
             <a href="#workflow">How it works</a>
             <a href="#roles">Who it’s for</a>
             <a href="#features">Capabilities</a>
+            <a className="cb-mobile-login" href="/login">Management login <span>↗</span></a>
           </nav>
         </details>
+        <a className="cb-login-link" href="/login">Management login <span>↗</span></a>
       </header>
 
       <section className="cb-hero" id="platform">
@@ -64,7 +66,7 @@ export default function LandingPage() {
             <div className="cb-photo-main-caption"><span>COMMUNITY FIRST</span><strong>A place that feels like home.</strong></div>
           </div>
           <div className="cb-photo-security">
-            <img src="https://domesticstaff.ai/_next/image?q=75&url=%2F1750073507422-mcd4k57q.webp&w=3840" alt="Professional estate security officer on duty at a residential entrance" loading="lazy" />
+            <img src="https://domesticstaff.ai/_next/image?q=75&url=%2F1750073507422-mcd4k57q.webp&w=3840" alt="Professional estate security officer on duty at a residential entrance" loading="eager" fetchPriority="high" />
             <div className="cb-security-caption"><span className="cb-security-live" /> SECURITY THAT CONNECTS</div>
           </div>
           <div className="cb-photo-stamp"><span>⌂</span><b>One community.<br />Every role connected.</b></div>
