@@ -36,9 +36,9 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
    if(profileQueryError)throw profileQueryError;
    const homeNumber=String(profile?.home_number||'').trim();
    const streetName=String(profile?.street_name||'').trim();
-   if(homeNumber&&streetName){
+   if(homeNumber||streetName){
     setResidentName(profile?.full_name?.trim()||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
-    setResidentUnit('Unit '+homeNumber+' · '+streetName);
+    setResidentUnit([homeNumber,streetName].filter(Boolean).join(' · '));
     return;
    }
    // Legacy residents without self-reported home details retain their existing
