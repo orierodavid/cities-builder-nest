@@ -30,6 +30,7 @@ type EstateEvent = {
   starts_at: string;
   ends_at: string;
   status: "draft" | "published" | "cancelled";
+  venue_approval_status?: "pending" | "approved" | "rejected";
 };
 type AttendanceSummary = {
   totalGuests: number;
@@ -104,18 +105,18 @@ export default function EventDashboard() {
       if (!eventsResponse.ok) throw new Error(eventsPayload.error || "Events could not be loaded.");
       const eventRows = eventsPayload.events || [];
 
-      const reports = await Promise.all(eventRows.map(async (event) => {
-        const response = await fetch(
-          base + "/v1/estates/" + encodeURIComponent(assignedEstate.id) + "/events/" + encodeURIComponent(event.id) + "/attendance-report",
-          { headers },
-        );
-        if (!response.ok) return { eventId: event.id, summary: null };
-        const payload = await response.json() as EventReport;
-        return { eventId: event.id, summary: payload.summary || null };
-      }));
-      const reportByEvent = new Map(reports.map((report) => [report.eventId, report.summary]));
-      setReportError(reports.some((report) => report.summary === null));
-      setEvents(eventRows.map((event) => ({ ...event, summary: reportByEvent.get(event.id) || null })));
+      // One aggregate request replaces one attendance-report request per event.
+      const summaryResponse = await fetch(
+        base + "/v1/estates/" + encodeURIComponent(assignedEstate.id) + "/events/attendance-summaries",
+        { headers },
+      );
+      const summaryPayload = summaryResponse.ok
+        ? await summaryResponse.json() as { summaries?: Array<AttendanceSummary & { eventId: string }> }
+        : { summaries: [] };
+      const summaryRows = summaryPayload.summaries || [];
+      const summaryByEvent = new Map(summaryRows.map((summary) => [summary.eventId, summary]));
+      setReportError(!summaryResponse.ok || summaryRows.length !== eventRows.length);
+      setEvents(eventRows.map((event) => ({ ...event, summary: summaryByEvent.get(event.id) || null })));
     } catch (cause) {
       setEstate(null);
       setEvents([]);
@@ -140,8 +141,8 @@ export default function EventDashboard() {
     }),
     { guests: 0, checkedIn: 0, invitations: 0 },
   );
-  const upcomingEvents = events.filter((event) => event.status === "published" && new Date(event.ends_at).getTime() >= Date.now()).length;
-  const activeEvents = events.filter((event) => event.status === "published").length;
+  const upcomingEvents = events.filter((event) => event.status === "published" && event.venue_approval_status !== "pending" && new Date(event.ends_at).getTime() >= Date.now()).length;
+  const activeEvents = events.filter((event) => event.status === "published" && event.venue_approval_status !== "pending").length;
 
   if (loading) {
     return (
@@ -224,8 +225,8 @@ export default function EventDashboard() {
                       <Text style={styles.eventTitle}>{event.title}</Text>
                       <Text style={styles.eventVenue}>{event.venue}</Text>
                     </View>
-                    <View style={[styles.statusPill, event.status === "published" ? styles.publishedPill : event.status === "cancelled" ? styles.cancelledPill : styles.draftPill]}>
-                      <Text style={[styles.statusText, event.status === "published" ? styles.publishedText : event.status === "cancelled" ? styles.cancelledText : styles.draftText]}>{event.status.toUpperCase()}</Text>
+                    <View style={[styles.statusPill, event.venue_approval_status === "pending" ? styles.draftPill : event.status === "published" ? styles.publishedPill : event.status === "cancelled" ? styles.cancelledPill : styles.draftPill]}>
+                      <Text style={[styles.statusText, event.venue_approval_status === "pending" ? styles.draftText : event.status === "published" ? styles.publishedText : event.status === "cancelled" ? styles.cancelledText : styles.draftText]}>{event.venue_approval_status === "pending" ? "PENDING APPROVAL" : event.status.toUpperCase()}</Text>
                     </View>
                   </View>
                   <View style={styles.eventMeta}>
