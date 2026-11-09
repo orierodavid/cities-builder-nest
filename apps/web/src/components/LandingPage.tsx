@@ -1,108 +1,69 @@
+import { useState } from "react";
 import "./landing-page.css";
 
 const roles = [
-  { number: "01", title: "Residents", description: "Manage service charges, visitor access, maintenance requests and everyday estate services.", icon: "⌂", image: "https://residifi.com/images/nigerian-family-gate.png", imageAlt: "Residents welcomed at their gated community" },
-  { number: "02", title: "Security teams", description: "Verify visitor passes, review visit details and keep a clear record of gate activity.", icon: "◈", image: "https://domesticstaff.ai/_next/image?q=75&url=%2F1750073507422-mcd4k57q.webp&w=3840", imageAlt: "Professional estate security officer at a residential gate" },
-  { number: "03", title: "Event organisers", description: "Coordinate guest lists, invitations, event check-in and attendance from one workspace.", icon: "▦" },
-  { number: "04", title: "Facility managers", description: "Oversee residents, staff, service charges, maintenance and estate-wide operations.", icon: "▤" },
+  { title: "Residents", description: "Access services, make payments and manage your account.", icon: "⌂", image: "https://residifi.com/images/nigerian-family-gate.png", alt: "Residents at their gated community" },
+  { title: "Security", description: "Verify visitors and keep your estate safe.", icon: "◇", image: "https://domesticstaff.ai/_next/image?q=75&url=%2F1750073507422-mcd4k57q.webp&w=3840", alt: "Professional estate security officer" },
+  { title: "Event Organisers", description: "Plan events, invite guests and manage check-in.", icon: "▦" },
+  { title: "Facility Managers", description: "Oversee operations, maintenance and payments.", icon: "⚙" },
+  { title: "Super Admins", description: "Manage the platform across all estates.", icon: "♛" },
 ];
-
 const features = [
-  { title: "Visitor access", description: "Generate visitor codes and verify access at the gate.", icon: "⌑" },
-  { title: "Payments & service charges", description: "Keep charges, contributions and payment history organised.", icon: "₦" },
-  { title: "Maintenance", description: "Track requests through resolution and reopen issues that need more attention.", icon: "⚒" },
-  { title: "Utilities", description: "Access supported electricity and cable TV services.", icon: "ϟ" },
-  { title: "Events", description: "Manage guest lists, invitations and event-day attendance.", icon: "◌" },
-  { title: "Estate insights", description: "Give authorised teams a clearer view of activity across the estate.", icon: "⌁" },
+  ["Visitor Management", "Residents generate secure access codes. Security verifies them at the gate in seconds.", "⌑"],
+  ["Service Charges & Payments", "Clear invoices, easy payments and a full payment history for every resident.", "₦"],
+  ["Maintenance Requests", "Report issues, track progress and keep your estate in great shape.", "⚒"],
+  ["Events & Guests", "Plan events, send invitations, check guests in and review attendance.", "▦"],
+  ["Estate Announcements", "Keep the whole community informed with timely updates and notices.", "▤"],
+  ["Analytics & Reports", "Get insight into payments, visitors, requests and estate performance.", "⌁"],
 ];
-
 const steps = [
-  { number: "01", title: "Set up your estate", description: "Authorised administrators configure the estate, teams and management access." },
-  { number: "02", title: "Give every role its own tools", description: "Residents, security and event teams use focused experiences built around their responsibilities." },
-  { number: "03", title: "Keep operations connected", description: "Access, payments, maintenance and events stay connected to the right estate." },
+  ["Set Up Your Estate", "Configure your estate and add members."],
+  ["Access Your Services", "Enjoy tailored services on the go."],
+  ["Stay Connected", "Manage visitors, events and payments."],
+  ["Monitor & Grow", "Track activities and improve management."],
 ];
-
+function Icon({ name }: { name: string }) {
+  const paths: Record<string, string> = {
+    home: "M3 11 12 3l9 8M5 10v10h14V10M10 20v-6h4v6",
+    shield: "M12 3 20 6v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
+    bolt: "m13 2-9 12h7l-1 8 9-12h-7z",
+    users: "M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6M3 20c0-4 2-6 6-6s6 2 6 6M17 9a2.5 2.5 0 1 0 0-5M16 14c3 0 5 2 5 6",
+    chart: "M3 20V12h4v8M10 20V7h4v13M17 20V3h4v17",
+  };
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[name] || paths.home} /></svg>;
+}
 export default function LandingPage() {
-  return (
-    <main className="cb-landing">
-      <header className="cb-header">
-        <a className="cb-brand" href="/" aria-label="CB Nest home">
-          <span className="cb-brand-mark">⌂</span>
-          <span className="cb-brand-name">cb<span>nest</span><small>ESTATE OPERATIONS PLATFORM</small></span>
-        </a>
-        <nav className="cb-nav" aria-label="Main navigation">
-          <a href="#platform">Platform</a>
-          <a href="#workflow">How it works</a>
-          <a href="#roles">Who it’s for</a>
-          <a href="#features">Capabilities</a>
-        </nav>
-        <details className="cb-mobile-menu">
-          <summary aria-label="Open navigation menu">Menu <span>＋</span></summary>
-          <nav aria-label="Mobile navigation">
-            <a href="#platform">Platform</a>
-            <a href="#workflow">How it works</a>
-            <a href="#roles">Who it’s for</a>
-            <a href="#features">Capabilities</a>
-            <a className="cb-mobile-login" href="/login">Management login <span>↗</span></a>
-          </nav>
-        </details>
-        <a className="cb-login-link" href="/login">Management login <span>↗</span></a>
-      </header>
-
-      <section className="cb-hero" id="platform">
-        <div className="cb-hero-copy">
-          <div className="cb-eyebrow"><span /> THE OPERATING SYSTEM FOR BETTER-RUN ESTATES</div>
-          <h1>Estate living,<br />working <em>better.</em></h1>
-          <p className="cb-hero-text">One connected platform for the people who live in, protect and manage residential communities. Bring everyday estate services into a clearer, more coordinated experience.</p>
-          <div className="cb-hero-actions">
-            <a className="cb-button cb-button-primary" href="#workflow">Explore the platform <span>↗</span></a>
-            <a className="cb-text-link" href="#features">Discover capabilities <span>↓</span></a>
-          </div>
-          <div className="cb-proof-row"><span className="cb-proof-dot" /> ROLE-BASED WORKSPACES <i /> ONE CONNECTED ESTATE</div>
-        </div>
-        <div className="cb-photo-stage" aria-label="Residents and estate security personnel">
-          <div className="cb-photo-main">
-            <img src="https://residifi.com/images/nigerian-family-gate.png" alt="A Nigerian family greeting estate security personnel at their community entrance" fetchPriority="high" />
-            <div className="cb-photo-main-caption"><span>COMMUNITY FIRST</span><strong>A place that feels like home.</strong></div>
-          </div>
-          <div className="cb-photo-security">
-            <img src="https://domesticstaff.ai/_next/image?q=75&url=%2F1750073507422-mcd4k57q.webp&w=3840" alt="Professional estate security officer on duty at a residential entrance" loading="eager" fetchPriority="high" />
-            <div className="cb-security-caption"><span className="cb-security-live" /> SECURITY THAT CONNECTS</div>
-          </div>
-          <div className="cb-photo-stamp"><span>⌂</span><b>One community.<br />Every role connected.</b></div>
-          <div className="cb-photo-index">LIVING WELL <i /> FEELING SECURE</div>
-        </div>
-        <div className="cb-hero-index">01 <span>/</span> 04</div>
-      </section>
-
-      <div className="cb-marquee" aria-label="Platform capabilities"><span>RESIDENT EXPERIENCE</span><i /> <span>VISITOR MANAGEMENT</span><i /> <span>ESTATE OPERATIONS</span><i /> <span>COMMUNITY SERVICES</span><i /> <span>MANAGEMENT INSIGHTS</span></div>
-
-      <section className="cb-intro cb-section">
-        <div className="cb-section-label"><span>01</span> / THE PLATFORM</div>
-        <div className="cb-intro-content"><h2>Less friction in the<br /><em>everyday running</em><br />of your estate.</h2><div><p>CB Nest brings the essential work of a residential estate into one coordinated platform. Residents can access services, security can verify visitors, event teams can manage attendance and facility managers can oversee operations.</p><p className="cb-intro-secondary">Different people. Purpose-built tools. A shared view of the community.</p></div></div>
-      </section>
-
-      <section className="cb-workflow cb-section" id="workflow">
-        <div className="cb-section-top"><div className="cb-section-label"><span>02</span> / THE WORKFLOW</div><p>Designed around the way an estate actually works.</p></div>
-        <div className="cb-workflow-heading"><h2>One connected flow.<br /><em>Clear responsibilities.</em></h2><p>Each person gets the tools they need, while activity stays connected to the right estate.</p></div>
-        <div className="cb-steps">{steps.map((step)=><article className="cb-step" key={step.number}><span className="cb-step-number">{step.number}</span><div className="cb-step-rule" /><h3>{step.title}</h3><p>{step.description}</p></article>)}</div>
-      </section>
-
-      <section className="cb-roles cb-section" id="roles">
-        <div className="cb-section-top"><div className="cb-section-label"><span>03</span> / BUILT FOR EVERY ROLE</div><p>Purpose-built experiences, not one crowded interface.</p></div>
-        <div className="cb-roles-heading"><h2>Everyone has<br /><em>a place here.</em></h2><p>CB Nest keeps the experience focused on each person’s role and responsibilities within the community.</p></div>
-        <div className="cb-role-grid">{roles.map((role)=><article className={`cb-role-card${role.image ? " cb-role-card-photo" : ""}`} key={role.number}>{role.image && <div className="cb-role-image"><img src={role.image} alt={role.imageAlt} loading="lazy" /></div>}<div className="cb-role-top"><span>{role.number}</span><b>{role.icon}</b></div><h3>{role.title}</h3><p>{role.description}</p><span className="cb-role-arrow">↗</span></article>)}</div>
-        <div className="cb-admin-note"><span>+</span><p><b>Platform administration</b> — Super Admins oversee the wider CB Nest platform and its estates through a separate authorised workspace.</p></div>
-      </section>
-
-      <section className="cb-capabilities cb-section" id="features">
-        <div className="cb-capabilities-head"><div className="cb-section-label"><span>04</span> / PLATFORM CAPABILITIES</div><h2>The moving parts<br />of estate life, <em>together.</em></h2><p>Practical services and operational tools, brought into one place.</p></div>
-        <div className="cb-feature-grid">{features.map((feature,index)=><article className="cb-feature" key={feature.title}><div className="cb-feature-top"><span>{feature.icon}</span><small>0{index+1}</small></div><h3>{feature.title}</h3><p>{feature.description}</p><div className="cb-feature-line" /></article>)}</div>
-      </section>
-
-      <section className="cb-closing"><div className="cb-closing-orbit">⌂</div><div className="cb-section-label">CB NEST / CONNECTED ESTATE MANAGEMENT</div><h2>A better way to<br /><em>run the everyday.</em></h2><p>One community platform. Clearer operations for everyone.</p></section>
-
-      <footer className="cb-footer"><a className="cb-brand" href="/" aria-label="CB Nest home"><span className="cb-brand-mark">⌂</span><span className="cb-brand-name">cb<span>nest</span><small>ESTATE OPERATIONS PLATFORM</small></span></a><span>© {new Date().getFullYear()} CB Nest</span><span>BUILT FOR CONNECTED COMMUNITIES</span></footer>
-    </main>
-  );
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
+  return <main className="cb-landing">
+    <header className={"site-header" + (menuOpen ? " menu-open" : "")}>
+      <div className="container header-inner">
+        <a href="/" className="logo" aria-label="CB Nest home" onClick={closeMenu}><Icon name="home" /><span className="logo-text">CB <span>Nest</span></span></a>
+        <button className="nav-toggle" type="button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} aria-controls="mainNav" onClick={() => setMenuOpen(!menuOpen)}><span /><span /><span /></button>
+        <nav className="main-nav" id="mainNav" aria-label="Main navigation"><ul>
+          <li><a href="#home" onClick={closeMenu}>Home</a></li><li><a href="#about" onClick={closeMenu}>About</a></li><li><a href="#features" onClick={closeMenu}>Features</a></li>
+          <li className="has-sub"><a href="#roles" onClick={closeMenu}>For Your Estate <span className="caret">⌄</span></a><ul className="sub">{roles.map(role => <li key={role.title}><a href="#roles" onClick={closeMenu}>{role.title}</a></li>)}</ul></li>
+          <li><a href="#how" onClick={closeMenu}>How It Works</a></li><li><a href="#contact" onClick={closeMenu}>Contact</a></li><li className="mobile-login"><a href="/login" onClick={closeMenu}>Management Login ↗</a></li>
+        </ul></nav>
+        <a className="management-login" href="/login">Management Login <span>↗</span></a>
+      </div>
+    </header>
+    <section className="hero" id="home"><div className="hero-bg" aria-hidden="true" /><div className="container hero-inner"><div className="hero-copy">
+      <p className="eyebrow">Smarter Estate Management</p><h1>CB Nest — One Platform.<br />A <span className="gold">Better Living</span> Experience.</h1>
+      <p className="lead">Connect residents, security, events and management with a powerful, easy-to-use platform.</p>
+      <div className="hero-actions"><a className="btn-solid" href="#how">Discover How It Works ↗</a><a className="hero-link" href="/login">Management Login</a></div>
+      <ul className="hero-badges"><li><Icon name="shield" /><span>Secure<br />&amp; Reliable</span></li><li><Icon name="bolt" /><span>Simple<br />&amp; Efficient</span></li><li><Icon name="users" /><span>A Connected<br />Community</span></li></ul>
+    </div></div><div className="swoosh swoosh-left" /><div className="swoosh swoosh-right" /></section>
+    <section className="roles" id="roles"><div className="container roles-grid"><div className="roles-intro" id="about"><p className="eyebrow dark">Built for Everyone</p><h2>A Seamless Experience for Every Role</h2><p>CB Nest offers tailored experiences for all members of your estate community.</p><span className="underline" /></div>
+      <div className="role-cards">{roles.map(role => <article className="role-card" key={role.title}><div className="role-text"><span className="role-icon">{role.icon}</span><h3>{role.title}</h3><p>{role.description}</p><span className="go">↗</span></div>{role.image && <img src={role.image} alt={role.alt} loading="lazy" />}</article>)}</div>
+    </div></section>
+    <section className="how" id="how"><div className="container how-grid"><div className="how-intro"><p className="eyebrow">How It Works</p><h2>Simple. Secure. Effective.</h2><p>Get started in just a few steps and enjoy smarter estate management.</p><a href="#features" className="btn-outline">Discover More ↗</a></div>
+      <ol className="steps">{steps.map(([title, description], i) => <li className="step" key={title}><span className="num">{i + 1}</span><Icon name={["home", "users", "shield", "chart"][i]} /><h3>{title}</h3><p>{description}</p></li>)}</ol>
+    </div></section>
+    <section className="features" id="features"><div className="container"><header className="section-head"><p className="eyebrow dark center">Powerful Features</p><h2>Everything You Need for Modern Estate Management</h2></header>
+      <div className="feature-grid">{features.map(([title, description, icon]) => <article className="feature" key={title}><span className="f-icon">{icon}</span><h3>{title}</h3><p>{description}</p></article>)}</div>
+    </div></section>
+    <section className="cta" id="contact"><div className="container cta-inner"><div><h2>Ready to build a better-connected estate?</h2><p>Talk to us and see how CB Nest can work for your community.</p></div><a className="btn-solid" href="mailto:hello@cbnest.com">Get in Touch ↗</a></div></section>
+    <footer className="site-footer"><div className="container footer-inner"><a href="/" className="logo"><Icon name="home" /><span className="logo-text">CB <span>Nest</span></span></a><p className="tagline">Building your future. One platform, many estates.</p><p className="copy">© {new Date().getFullYear()} CB Nest. All rights reserved.</p></div></footer>
+  </main>;
 }
