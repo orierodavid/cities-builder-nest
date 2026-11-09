@@ -77,7 +77,7 @@ Deno.serve(async(req:Request)=>{
   const rawProviders=rowsAt(group?.providers);
   console.info("[squad-utilities] biller catalogue",JSON.stringify({service:serviceCodes[service],groupCodes:groups.map(x=>str(x.code).toUpperCase()).filter(Boolean),matchedGroup:Boolean(group),providerCount:rawProviders.length}));
   const providers=rawProviders.map(x=>({code:str(x.code),name:str(x.name)||str(x.code),type:x.type??null,total_rate_percent:x.total_rate_percent??null,total_rate_cap:x.total_rate_cap??null})).filter(x=>x.code&&x.name);
-  return reply(200,{billers:providers,service:serviceCodes[service],providerCount:providers.length,cachedUntil:billersCache?.expiresAt??null});
+  return reply(200,{billers:providers,service:serviceCodes[service],providerCount:providers.length,cachedUntil:billerCache?.expiresAt??null});
  }
  if(action==="products"){
   if(!productServices.has(service)||!provider)return reply(400,{error:"invalid_product_request"});
