@@ -5,6 +5,9 @@ const reply=(status:number,body:Record<string,unknown>)=>new Response(JSON.strin
 const str=(v:unknown)=>typeof v==="string"?v.trim():"";
 const services=new Set(["electricity","cable_tv","education","internet","betting"]);
 const productServices=new Set(["cable_tv","education","internet"]);
+const BILLER_CACHE_TTL_MS=10*60*1000;
+let billerCache:{expiresAt:number;billers:Record<string,unknown>[]} | null=null;
+let billerCachePromise:Promise<{r:Response;data:Record<string,unknown>;rawBody:string;networkError?:boolean}>|null=null;
 const serviceCodes:Record<string,string>={electricity:"ELECTRICITY",cable_tv:"CABLE",education:"EDUCATION",internet:"INTERNET",betting:"BETTING"};
 const toKobo=(n:number)=>Math.round(n*100);
 
@@ -28,7 +31,10 @@ Deno.serve(async(req:Request)=>{
  const base=mode==="live"?"https://api-d.squadco.com":"https://sandbox-api-d.squadco.com";
  const squad=async(path:string,method="GET",body?:Record<string,unknown>):Promise<{r:Response;data:Record<string,unknown>;rawBody:string;networkError?:boolean}>=>{
   try{
-   const r=await fetch(base+path,{method,headers:{Authorization:`Bearer ${squadKey}`,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
+   const finalUrl=new URL(path,base).toString();
+   const requestHeaders={Authorization:`Bearer ${squadKey}`,"Content-Type":"application/json"};
+   console.info("[squad-utilities] outgoing request",JSON.stringify({url:finalUrl,method,headers:{Authorization:`Bearer ${squadKey.slice(0, Math.min(12,squadKey.length))}…[MASKED]`,"Content-Type":"application/json"}}));
+   const r=await fetch(finalUrl,{method,headers:requestHeaders,...(body?{body:JSON.stringify(body)}:{})});
    const raw=await r.text();
    let data:Record<string,unknown>={};
    if(raw){try{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed))data=parsed as Record<string,unknown>;else data={response_type:Array.isArray(parsed)?"array":typeof parsed};}catch{data={message:"Squad returned a non-JSON response."};}}
@@ -43,20 +49,35 @@ Deno.serve(async(req:Request)=>{
  };
  const nested=(d:Record<string,unknown>)=>d.data&&typeof d.data==="object"&&!Array.isArray(d.data)?d.data as Record<string,unknown>:d;
  const rowsAt=(v:unknown):Record<string,unknown>[]=>Array.isArray(v)?v as Record<string,unknown>[]:[];
- const billerRows=(d:Record<string,unknown>)=>rowsAt(d.billers).length?rowsAt(d.billers):rowsAt(nested(d).billers);
+ const billerRows=(d:Record<string,unknown>)=>rowsAt(nested(d).billers);
+ const getCachedBillers=async()=>{
+  if(billerCache&&billerCache.expiresAt>Date.now())return {ok:true as const,billers:billerCache.billers};
+  if(!billerCachePromise){
+   billerCachePromise=squad("/v1/service/billers","GET").finally(()=>{billerCachePromise=null;});
+  }
+  const result=await billerCachePromise;
+  if(!result.r.ok)return {ok:false as const,result};
+  const billers=billerRows(result.data);
+  billerCache={billers,expiresAt:Date.now()+BILLER_CACHE_TTL_MS};
+  return {ok:true as const,billers};
+ };
  const productRows=(d:Record<string,unknown>)=>rowsAt(nested(d).products).length?rowsAt(nested(d).products):rowsAt(d.products);
  const message=(d:Record<string,unknown>,fallback:string)=>str(d.message)||fallback;
 
  if(action==="billers"){
   if(!services.has(service))return reply(400,{error:"unsupported_utility_service"});
-  const {r,data,rawBody,networkError}=await squad(`/v1/service/billers?service=${encodeURIComponent(serviceCodes[service])}`);
-  if(!r.ok)return reply(502,{error:"billers_unavailable",message:message(data,"Utility providers could not be loaded."),upstream:{url:base+`/v1/service/billers?service=${serviceCodes[service]}`,status:r.status,body:rawBody,networkError:!!networkError}});
-  const groups=billerRows(data);
+  const catalogue=await getCachedBillers();
+  if(!catalogue.ok){
+   const {r,data,rawBody,networkError}=catalogue.result;
+   const upstreamMessage=message(data,"Squad provider catalogue request failed.");
+   return reply(r.status,{error:"billers_unavailable",message:upstreamMessage,upstream:{url:base+"/v1/service/billers",method:"GET",status:r.status,message:upstreamMessage,body:rawBody,networkError:!!networkError}});
+  }
+  const groups=catalogue.billers;
   const group=groups.find(x=>str(x.code).toUpperCase()===serviceCodes[service]);
   const rawProviders=rowsAt(group?.providers);
   console.info("[squad-utilities] biller catalogue",JSON.stringify({service:serviceCodes[service],groupCodes:groups.map(x=>str(x.code).toUpperCase()).filter(Boolean),matchedGroup:Boolean(group),providerCount:rawProviders.length}));
   const providers=rawProviders.map(x=>({code:str(x.code),name:str(x.name)||str(x.code),type:x.type??null,total_rate_percent:x.total_rate_percent??null,total_rate_cap:x.total_rate_cap??null})).filter(x=>x.code&&x.name);
-  return reply(200,{billers:providers,service:serviceCodes[service],providerCount:providers.length});
+  return reply(200,{billers:providers,service:serviceCodes[service],providerCount:providers.length,cachedUntil:billersCache?.expiresAt??null});
  }
  if(action==="products"){
   if(!productServices.has(service)||!provider)return reply(400,{error:"invalid_product_request"});
