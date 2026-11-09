@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
 
   if (action === "list") {
     const { data, error } = await admin.from("estate_memberships")
-      .select("id,user_id,created_at,users(full_name,first_name,last_name,phone_e164)")
+      .select("id,user_id,created_at,users(full_name,first_name,last_name,phone_e164,home_number,street_name)")
       .eq("estate_id", estateId).eq("membership_role", "resident").eq("status", "invited")
       .order("created_at", { ascending: true });
     if (error) return reply(503, { error: "pending_residents_unavailable" });
@@ -108,6 +108,8 @@ Deno.serve(async (req: Request) => {
         name: row.users?.full_name || [row.users?.first_name, row.users?.last_name].filter(Boolean).join(" ") || "Resident",
         email: authUser.user?.email ?? "",
         phone: row.users?.phone_e164 ?? "",
+        homeNumber: row.users?.home_number ?? "",
+        streetName: row.users?.street_name ?? "",
         submittedAt: row.created_at,
       };
     }));
