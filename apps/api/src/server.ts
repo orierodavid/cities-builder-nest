@@ -1339,6 +1339,47 @@ app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   res.status(200).json({ events: result.items, pagination: result.pagination });
 });
 
+app.get("/v1/estates/:estateId/events/attendance-summaries", requireAuth, async (req, res) => {
+  const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
+  const authenticated = await requireEventOrganiser(req, res, estateId);
+  if (!authenticated) return;
+  const { data: events, error: eventsError } = await authenticated.userSupabase
+    .from("estate_events").select("id").eq("estate_id", estateId)
+    .eq("created_by", authenticated.authUser.id).limit(100);
+  if (eventsError) { res.status(503).json({ error: "event_summaries_load_failed" }); return; }
+  const eventIds = (events ?? []).map((event) => event.id);
+  if (!eventIds.length) { res.status(200).json({ summaries: [] }); return; }
+  const [guests, invitations, checkIns] = await Promise.all([
+    authenticated.userSupabase.from("estate_event_guests").select("id,event_id").eq("estate_id", estateId).in("event_id", eventIds),
+    authenticated.userSupabase.from("estate_event_invitations").select("event_id,guest_id").eq("estate_id", estateId).in("event_id", eventIds).eq("status", "active"),
+    authenticated.userSupabase.from("estate_event_checkins").select("event_id,guest_id").eq("estate_id", estateId).in("event_id", eventIds),
+  ]);
+  if (guests.error || invitations.error || checkIns.error) {
+    res.status(503).json({ error: "event_summaries_load_failed" }); return;
+  }
+  const totals = new Map<string, { totalGuests: number; checkedIn: number; activeInvitations: number }>();
+  for (const id of eventIds) totals.set(id, { totalGuests: 0, checkedIn: 0, activeInvitations: 0 });
+  for (const guest of guests.data ?? []) {
+    const summary = totals.get(guest.event_id);
+    if (summary) summary.totalGuests += 1;
+  }
+  for (const invitation of invitations.data ?? []) {
+    const summary = totals.get(invitation.event_id);
+    if (summary) summary.activeInvitations += 1;
+  }
+  for (const checkIn of checkIns.data ?? []) {
+    const summary = totals.get(checkIn.event_id);
+    if (summary) summary.checkedIn += 1;
+  }
+  res.status(200).json({
+    summaries: [...totals.entries()].map(([eventId, summary]) => ({
+      eventId, ...summary,
+      outstanding: Math.max(0, summary.totalGuests - summary.checkedIn),
+      attendancePercentage: summary.totalGuests ? Math.round(summary.checkedIn / summary.totalGuests * 100) : 0,
+    })),
+  });
+});
+
 app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const authenticated = await requireEventOrganiser(req, res, estateId);
