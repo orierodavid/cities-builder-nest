@@ -10,6 +10,7 @@ export default function ProfileScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [unitDetails, setUnitDetails] = useState('');
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState('');
 
@@ -20,11 +21,12 @@ export default function ProfileScreen() {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
         if (!user) { if (mounted) setLoading(false); return; }
-        const { data: account, error: accountError } = await supabase.from('users').select('full_name, phone_e164').eq('id', user.id).maybeSingle();
+        const { data: account, error: accountError } = await supabase.from('users').select('full_name, phone_e164, home_number, street_name').eq('id', user.id).maybeSingle();
         if (accountError) throw accountError;
         if (mounted) {
           setFullName(account?.full_name?.trim() || user.user_metadata?.full_name || '');
           setPhone(account?.phone_e164 || '');
+          setUnitDetails([account?.home_number, account?.street_name].filter(Boolean).join(' · '));
           setEmail(user.email || '');
         }
       } catch { if (mounted) setFullName('Profile details unavailable'); }
@@ -43,6 +45,7 @@ export default function ProfileScreen() {
           <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900' }}>{fullName || 'Name unavailable'}</Text>
           <Text style={{ color: '#B9B9B9', fontSize: 12 }}>{email || 'Email unavailable'}</Text>
           {!!phone && <Text style={{ color: '#B9B9B9', fontSize: 12 }}>{phone}</Text>}
+          {!!unitDetails && <Text style={{ color: '#D4A84B', fontSize: 12, fontWeight: '700' }}>Unit {unitDetails}</Text>}
         </View>}
         <ListRow icon="home-city-outline" title="My property" subtitle="View your assigned property" onPress={() => router.push('/property' as never)} />
       </Card>
