@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "CB Nest | Smart Estate & Community Management",
   description:
-    "CB Nest connects residents, security teams, facility managers and platform administrators with visitor access, resident-led events, payments, maintenance and estate operations.",
+    "CB Nest connects residents, security teams, facility managers and Super Admins with visitor access, resident-led events, payments, maintenance and estate operations.",
   alternates: {
     canonical: "/",
   },
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     siteName: "CB Nest",
     title: "CB Nest | Smart Estate & Community Management",
     description:
-      "One connected platform for residents, security teams, facility managers and platform administrators.",
+      "One connected platform for residents, security teams, facility managers and Super Admins.",
   },
   twitter: {
     card: "summary_large_image",
