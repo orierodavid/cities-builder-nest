@@ -80,8 +80,11 @@ export default function CreateEventScreen() {
         method: "POST", headers: await headers(),
         body: JSON.stringify({ title: title.trim(), description: description.trim(), venue: venue.trim(), venueId, startsAt: start, endsAt: end, status: publish ? "published" : "draft" }),
       });
-      const payload = await response.json() as { event?: { id: string }; error?: string; message?: string };
+      const payload = await response.json() as { event?: { id: string; venue_approval_status?: string }; error?: string; message?: string };
       if (!response.ok || !payload.event) throw new Error(payload.message || payload.error || "Event could not be created.");
+      if (payload.event.venue_approval_status === "pending") {
+        Alert.alert("Venue approval pending", "Your event has been saved as pending. The Facility Manager or administrator must approve the selected estate facility before the event can be published.");
+      }
       router.replace({ pathname: "/(resident)/[eventId]", params: { eventId: payload.event.id } });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Event could not be created.");
@@ -102,15 +105,22 @@ export default function CreateEventScreen() {
           <Text style={s.label}>Event title *</Text><TextInput value={title} onChangeText={setTitle} placeholder="e.g. Residents' End of Year Celebration" placeholderTextColor="#777" style={inputStyle} maxLength={160} />
           <Text style={s.label}>Venue *</Text>
           <TouchableOpacity onPress={() => setVenuePickerOpen(value => !value)} style={[inputStyle, { minHeight: 48, justifyContent: "center" }]}>
-            <Text style={{ color: venue ? t.text : "#777", fontSize: 14 }}>{venue || (venues.length ? "Select an available estate venue" : "No available venues")}</Text>
+            <Text style={{ color: venue ? t.text : "#777", fontSize: 14 }}>{venue || "Select Home or an estate facility"}</Text>
           </TouchableOpacity>
-          {venuePickerOpen ? venues.map(item => {
+          {venuePickerOpen ? <>
+            <TouchableOpacity onPress={() => { setVenueId("home"); setVenue("Home"); setVenuePickerOpen(false); }} style={[s.venueOption, venueId === "home" && s.venueOptionSelected]}>
+              <Text style={s.venueOptionText}>Home</Text>
+              {venueId === "home" ? <Text style={s.venueSelected}>AUTO-APPROVED</Text> : null}
+            </TouchableOpacity>
+            {venues.map(item => {
             const label = item.location ? item.name + " · " + item.location : item.name;
             return <TouchableOpacity key={item.id} onPress={() => { setVenueId(item.id); setVenue(label); setVenuePickerOpen(false); }} style={[s.venueOption, venueId === item.id && s.venueOptionSelected]}>
               <Text style={s.venueOptionText}>{label}</Text>
               {venueId === item.id ? <Text style={s.venueSelected}>SELECTED</Text> : null}
             </TouchableOpacity>;
-          }) : null}
+          })}
+          </> : null}
+          {!!venueId && venueId !== "home" ? <Text style={s.hint}>Estate facilities require approval by the Facility Manager or administrator. Your event will remain pending until approved.</Text> : null}
           <Text style={s.label}>Description</Text><TextInput value={description} onChangeText={setDescription} placeholder="What should guests know about this event?" placeholderTextColor="#777" style={[inputStyle, { minHeight: 100, textAlignVertical: "top" }]} multiline maxLength={5000} />
           <Text style={s.label}>Start date and time *</Text><TextInput value={startsAt} onChangeText={setStartsAt} placeholder="YYYY-MM-DDTHH:mm (e.g. 2026-12-20T15:00)" placeholderTextColor="#777" style={inputStyle} autoCapitalize="none" />
           <Text style={s.hint}>Use your estate's local date and time. Example: 2026-12-20T15:00</Text>
