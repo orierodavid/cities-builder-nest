@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 
 type EstateOption = { id: string; name: string; state: string; lga: string };
+type RegistrationOptions = { states: string[]; lgas: Record<string, string[]>; estates: EstateOption[] };
 type SelectOption = { label: string; value: string };
 
 function SelectField({
@@ -48,6 +49,8 @@ function SelectField({
 
 export default function ResidentRegistrationScreen({ onBack }: { onBack: () => void }) {
   const [estates, setEstates] = useState<EstateOption[]>([]);
+  const [availableStates, setAvailableStates] = useState<string[]>([]);
+  const [availableLgas, setAvailableLgas] = useState<Record<string, string[]>>({});
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -72,15 +75,18 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
           setError("Estate options could not be loaded. Please try again.");
           return;
         }
-        setEstates((data?.estates || []) as EstateOption[]);
+        const options = data as RegistrationOptions;
+        setEstates((options?.estates || []) as EstateOption[]);
+        setAvailableStates(Array.isArray(options?.states) ? options.states : []);
+        setAvailableLgas(options?.lgas && typeof options.lgas === "object" ? options.lgas : {});
       })
       .catch(() => { if (active) setError("Estate options could not be loaded. Check your connection and try again."); })
       .finally(() => { if (active) setLoadingOptions(false); });
     return () => { active = false; };
   }, []);
 
-  const states = useMemo(() => [...new Set(estates.map(item => item.state))].sort(), [estates]);
-  const lgas = useMemo(() => [...new Set(estates.filter(item => item.state === state).map(item => item.lga))].sort(), [estates, state]);
+  const states = availableStates;
+  const lgas = useMemo(() => availableLgas[state] || [], [availableLgas, state]);
   const estateOptions = useMemo(() => estates.filter(item => item.state === state && item.lga === lga), [estates, state, lga]);
   const selectedEstate = estateOptions.find(item => item.id === estateId);
 
