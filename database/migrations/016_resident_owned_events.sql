@@ -43,7 +43,13 @@ CREATE POLICY estate_events_insert_resident_or_legacy ON public.estate_events
 CREATE POLICY estate_events_update_owner_or_legacy ON public.estate_events
   FOR UPDATE TO authenticated
   USING (
-    created_by = (SELECT auth.uid())
+    (created_by = (SELECT auth.uid()) AND EXISTS (
+      SELECT 1 FROM public.estate_memberships owner_membership
+      WHERE owner_membership.estate_id = estate_events.estate_id
+        AND owner_membership.user_id = (SELECT auth.uid())
+        AND owner_membership.status = 'active'
+        AND owner_membership.membership_role = 'resident'
+    ))
     OR EXISTS (
       SELECT 1 FROM public.estate_memberships m
       WHERE m.estate_id = estate_events.estate_id
@@ -57,7 +63,13 @@ CREATE POLICY estate_events_update_owner_or_legacy ON public.estate_events
     )
   )
   WITH CHECK (
-    created_by = (SELECT auth.uid())
+    (created_by = (SELECT auth.uid()) AND EXISTS (
+      SELECT 1 FROM public.estate_memberships owner_membership
+      WHERE owner_membership.estate_id = estate_events.estate_id
+        AND owner_membership.user_id = (SELECT auth.uid())
+        AND owner_membership.status = 'active'
+        AND owner_membership.membership_role = 'resident'
+    ))
     OR EXISTS (
       SELECT 1 FROM public.estate_memberships m
       WHERE m.estate_id = estate_events.estate_id
@@ -101,7 +113,13 @@ CREATE POLICY estate_event_guests_select_owner_or_legacy ON public.estate_event_
       WHERE e.id = estate_event_guests.event_id
         AND e.estate_id = estate_event_guests.estate_id
         AND (
-          e.created_by = (SELECT auth.uid())
+          (e.created_by = (SELECT auth.uid()) AND EXISTS (
+            SELECT 1 FROM public.estate_memberships owner_membership
+            WHERE owner_membership.estate_id = e.estate_id
+              AND owner_membership.user_id = (SELECT auth.uid())
+              AND owner_membership.status = 'active'
+              AND owner_membership.membership_role = 'resident'
+          ))
           OR EXISTS (
             SELECT 1 FROM public.estate_memberships m
             WHERE m.estate_id = e.estate_id AND m.user_id = (SELECT auth.uid())
@@ -119,7 +137,13 @@ CREATE POLICY estate_event_guests_insert_owner_or_legacy ON public.estate_event_
       WHERE e.id = estate_event_guests.event_id
         AND e.estate_id = estate_event_guests.estate_id
         AND (
-          e.created_by = (SELECT auth.uid())
+          (e.created_by = (SELECT auth.uid()) AND EXISTS (
+            SELECT 1 FROM public.estate_memberships owner_membership
+            WHERE owner_membership.estate_id = e.estate_id
+              AND owner_membership.user_id = (SELECT auth.uid())
+              AND owner_membership.status = 'active'
+              AND owner_membership.membership_role = 'resident'
+          ))
           OR EXISTS (
             SELECT 1 FROM public.estate_memberships m
             WHERE m.estate_id = e.estate_id AND m.user_id = (SELECT auth.uid())
