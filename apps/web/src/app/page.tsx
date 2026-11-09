@@ -28,6 +28,48 @@ export const metadata: Metadata = {
   },
 };
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${siteUrl}/#organization`,
+      name: "CB Nest",
+      url: siteUrl,
+      description:
+        "CB Nest provides connected estate and community management tools for residents, security teams, event organisers and estate managers.",
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}/#website`,
+      name: "CB Nest",
+      url: siteUrl,
+      publisher: { "@id": `${siteUrl}/#organization` },
+      inLanguage: "en",
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "CB Nest",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      description:
+        "An estate and community management platform for visitor access, service charges, payments, maintenance, events and estate operations.",
+      url: siteUrl,
+      publisher: { "@id": `${siteUrl}/#organization` },
+    },
+  ],
+};
+
 export default function Home() {
-  return <LandingPage />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+      <LandingPage />
+    </>
+  );
 }
