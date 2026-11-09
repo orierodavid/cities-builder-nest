@@ -44,15 +44,14 @@ export default function LandingPage() {
         <nav className="main-nav" id="mainNav" aria-label="Main navigation"><ul>
           <li><a href="#home" onClick={closeMenu}>Home</a></li><li><a href="#about" onClick={closeMenu}>About</a></li><li><a href="#features" onClick={closeMenu}>Features</a></li><li><a href="#mobile-apps" onClick={closeMenu}>Mobile Apps</a></li>
           <li className="has-sub"><a href="#roles" onClick={closeMenu}>For Your Estate <span className="caret">⌄</span></a><ul className="sub">{roles.map(role => <li key={role.title}><a href="#roles" onClick={closeMenu}>{role.title}</a></li>)}</ul></li>
-          <li><a href="#how" onClick={closeMenu}>How It Works</a></li><li><a href="#contact" onClick={closeMenu}>Contact</a></li><li className="mobile-login"><a href="/login" onClick={closeMenu}>Management Login ↗</a></li>
+          <li><a href="#how" onClick={closeMenu}>How It Works</a></li><li><a href="#contact" onClick={closeMenu}>Contact</a></li>
         </ul></nav>
-        <a className="management-login" href="/login">Management Login <span>↗</span></a>
       </div>
     </header>
     <section className="hero" id="home"><div className="hero-bg" aria-hidden="true" /><div className="container hero-inner"><div className="hero-copy">
       <p className="eyebrow">Smarter Estate Management</p><h1>CB Nest — One Platform.<br />A <span className="gold">Better Living</span> Experience.</h1>
       <p className="lead">Connect residents, security, events and management with a powerful, easy-to-use platform.</p>
-      <div className="hero-actions"><a className="btn-solid" href="#how">Discover How It Works ↗</a><a className="hero-link" href="/login">Management Login</a></div>
+      <div className="hero-actions"><a className="btn-solid" href="#how">Discover How It Works ↗</a></div>
       <ul className="hero-badges"><li><Icon name="shield" /><span>Secure<br />&amp; Reliable</span></li><li><Icon name="bolt" /><span>Simple<br />&amp; Efficient</span></li><li><Icon name="users" /><span>A Connected<br />Community</span></li></ul>
     </div></div><div className="swoosh swoosh-left" /><div className="swoosh swoosh-right" /></section>
     <section className="roles" id="roles"><div className="container roles-grid"><div className="roles-intro" id="about"><p className="eyebrow dark">Built for Everyone</p><h2>A Seamless Experience for Every Role</h2><p>CB Nest offers tailored experiences for all members of your estate community.</p><span className="underline" /></div>
