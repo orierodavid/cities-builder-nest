@@ -63,3 +63,18 @@
 .cb-landing .store-badge em{font-style:normal;font-size:.58rem;color:var(--gold);margin-top:3px}
 @media(max-width:860px){.cb-landing .mobile-app-grid{grid-template-columns:1fr}.cb-landing .mobile-app-card{grid-template-columns:125px 1fr}.cb-landing .mobile-app-visual{height:180px}}
 @media(max-width:640px){.cb-landing .mobile-apps{padding:54px 0 58px}.cb-landing .mobile-app-grid{gap:13px;margin-top:24px}.cb-landing .mobile-app-card{grid-template-columns:92px 1fr;gap:13px;padding:13px}.cb-landing .mobile-app-visual{height:170px}.cb-landing .phone-frame{transform:scale(.88)}.cb-landing .mobile-app-copy h3{font-size:1rem}.cb-landing .mobile-app-copy p{font-size:.76rem}.cb-landing .mobile-app-copy li{font-size:.69rem}.cb-landing .app-download-panel{align-items:flex-start;flex-direction:column;padding:20px 17px}.cb-landing .store-badges{width:100%}.cb-landing .store-badge{flex:1;min-width:138px}.cb-landing .store-badge strong{font-size:.82rem}}
+
+
+/* Authentic app-screen crops from the supplied CB Nest reference image */
+.cb-landing .mobile-app-card{grid-template-columns:minmax(190px,.95fr) minmax(0,1.05fr);gap:20px}
+.cb-landing .mobile-app-visual{height:auto;aspect-ratio:675/646;min-width:0}
+.cb-landing .reference-crop{position:relative;width:100%;height:100%;overflow:hidden;background:#080808}
+.cb-landing .reference-crop img{position:absolute;top:0;left:0;width:227.56%;max-width:none;height:auto;display:block}
+.cb-landing .security-reference img{left:-100.15%}
+@media(max-width:860px){
+  .cb-landing .mobile-app-card{grid-template-columns:minmax(190px,.85fr) minmax(0,1.15fr)}
+}
+@media(max-width:640px){
+  .cb-landing .mobile-app-card{grid-template-columns:minmax(125px,.8fr) minmax(0,1.2fr);gap:12px;padding:12px}
+  .cb-landing .mobile-app-visual{height:auto;aspect-ratio:675/646}
+}
