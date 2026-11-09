@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s | CB Nest",
   },
   description:
-    "CB Nest connects residents, security teams, event organisers and estate managers through one estate-management platform.",
+    "CB Nest connects residents, security teams, facility managers and Super Admins through one estate-management platform.",
   applicationName: "CB Nest",
   openGraph: {
     type: "website",
