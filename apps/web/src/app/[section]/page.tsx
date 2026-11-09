@@ -15,7 +15,7 @@ type Estate = { id: string; name: string };
 type Membership = {
   id: string; estate_id: string; user_id: string; membership_role: string;
   status: string; created_at: string;
-  users: { full_name: string; phone_e164: string | null } | null;
+  users: { full_name: string; phone_e164: string | null; home_number?: string | null; street_name?: string | null } | null;
 };
 type PendingResident = { membershipId: string; userId: string; name: string; email: string; phone: string; submittedAt: string };
 type Role = "facility_manager" | "resident" | "security";
@@ -121,6 +121,7 @@ function UsersPage() {
  const [estates,setEstates]=useState<Estate[]>([]);
  const [memberships,setMemberships]=useState<Membership[]>([]);
  const [pendingResidents,setPendingResidents]=useState<PendingResident[]>([]);
+ const [pendingVenueEvents,setPendingVenueEvents]=useState<Array<{id:string;title:string;venue:string;starts_at:string;created_at:string;venue_approval_publish_requested:boolean}>>([]);
  const [approvingUserId,setApprovingUserId]=useState<string|null>(null);
  const [selectedEstate,setSelectedEstate]=useState("");
  const [isAdmin,setIsAdmin]=useState(false);
@@ -167,12 +168,17 @@ function UsersPage() {
    const {data:pendingData,error:pendingError}=await supabase.functions.invoke("resident-approval",{body:{action:"list",estateId}});
    if(pendingError||pendingData?.error){setPendingResidents([]);setError("Pending resident approvals could not be loaded. Please refresh.");}
    else setPendingResidents((pendingData?.pending||[]) as PendingResident[]);
+   const {data:venueApprovalData,error:venueApprovalError}=await supabase.from("estate_events")
+    .select("id,title,venue,starts_at,created_at,venue_approval_publish_requested")
+    .eq("estate_id",estateId).eq("venue_approval_status","pending").order("venue_approval_requested_at",{ascending:true});
+   if(venueApprovalError){setPendingVenueEvents([]);setError("Pending venue approvals could not be loaded. Please refresh.");}
+   else setPendingVenueEvents((venueApprovalData||[]) as typeof pendingVenueEvents);
    const {data:memberData,error:memberError}=await supabase.from("estate_memberships")
-    .select("id,estate_id,user_id,membership_role,status,created_at,users(full_name,phone_e164)")
+    .select("id,estate_id,user_id,membership_role,status,created_at,users(full_name,phone_e164,home_number,street_name)")
     .in("estate_id",admin?list.map(x=>x.id):list.map(x=>x.id)).order("created_at",{ascending:false});
    if(memberError)setError("Estate access was verified, but user records could not be loaded.");
    else setMemberships((memberData||[]) as unknown as Membership[]);
-  } else { setMemberships([]); setPendingResidents([]); }
+  } else { setMemberships([]); setPendingResidents([]); setPendingVenueEvents([]); }
   setLoading(false);
  },[selectedEstate]);
 
@@ -192,6 +198,32 @@ function UsersPage() {
   }
   setSuccess(data?.emailSent===true?"Resident account approved. The activation email has been sent.":"Resident account approved and activated, but the activation email could not be sent. Check email delivery configuration.");
   await load();setApprovingUserId(null);
+ }
+ async function reviewVenueRequest(event:{id:string;venue_approval_publish_requested:boolean},decision:"approved"|"rejected"){
+  setError("");setSuccess("");
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user){setError("Your session has expired. Sign in again.");return;}
+  const {data,error}=await supabase.from("estate_events").update({
+   venue_approval_status:decision,venue_approved_by:user.id,venue_approved_at:new Date().toISOString(),
+   venue_approval_note:decision==="rejected"?"Rejected by estate management":null,
+   status:decision==="approved"&&event.venue_approval_publish_requested?"published":"draft",updated_at:new Date().toISOString()
+  }).eq("id",event.id).eq("estate_id",selectedEstate).eq("venue_approval_status","pending").select("id").maybeSingle();
+  if(error||!data){setError("The venue request could not be updated. Refresh and try again.");return;}
+  setSuccess(decision==="approved"?"Venue approved. The event can now be published or used for invitations.":"Venue request rejected. The event remains a draft.");
+  await load();
+ }
+ async function editResidentAddress(membership:Membership){
+  if(membership.membership_role!=="resident"){setError("Only resident home details can be edited here.");return;}
+  const homeNumber=window.prompt("Home number / apartment",membership.users?.home_number||"");
+  if(homeNumber===null)return;
+  const streetName=window.prompt("Street name",membership.users?.street_name||"");
+  if(streetName===null)return;
+  if(homeNumber.trim().length<1||homeNumber.trim().length>80||streetName.trim().length<2||streetName.trim().length>160){setError("Enter a valid home number and street name.");return;}
+  setError("");setSuccess("");
+  const {data,error}=await supabase.from("users").update({home_number:homeNumber.trim(),street_name:streetName.trim()}).eq("id",membership.user_id).select("id").maybeSingle();
+  if(error||!data){setError("Resident home details could not be updated. Confirm your management access and try again.");return;}
+  setSuccess("Resident home number and street name updated.");
+  await load();
  }
  async function updateUserPassword(membership:Membership){
   const nextPassword=window.prompt("Enter the new password for this user (8–128 characters).");
@@ -244,6 +276,12 @@ function UsersPage() {
     </div>}
    </div>}
    <section style={{marginTop:18}}>
+    <div className="module-toolbar"><div><h3>Pending venue approvals</h3><p>Estate facilities selected by residents remain pending until management approves them. Home events are auto-approved.</p></div><span className="status-pill status-invited">{pendingVenueEvents.length} awaiting approval</span></div>
+    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Event</th><th>Venue</th><th>Event date</th><th>Requested</th><th>Action</th></tr></thead><tbody>
+     {loading?<tr><td colSpan={5} className="empty-cell">Loading venue requests…</td></tr>:pendingVenueEvents.length?pendingVenueEvents.map(event=><tr key={event.id}><td><strong>{event.title}</strong><small>{event.venue_approval_publish_requested?"Requested to publish":"Draft event"}</small></td><td>{event.venue}</td><td>{new Date(event.starts_at).toLocaleString("en-NG")}</td><td>{new Date(event.created_at).toLocaleDateString("en-NG")}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="primary-action" onClick={()=>void reviewVenueRequest(event,"approved")}>Approve</button><button type="button" className="secondary-action" onClick={()=>void reviewVenueRequest(event,"rejected")}>Reject</button></td></tr>):<tr><td colSpan={5} className="empty-cell"><strong>No pending venue approvals</strong><small>Resident requests for estate facilities will appear here.</small></td></tr>}
+    </tbody></table></div>
+   </section>
+   <section style={{marginTop:18}}>
     <div className="module-toolbar"><div><h3>Pending resident approvals</h3><p>Review new resident registrations and activate accounts with one click.</p></div><span className="status-pill status-invited">{pendingResidents.length} awaiting approval</span></div>
     <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Email</th><th>Phone</th><th>Submitted</th><th>Action</th></tr></thead><tbody>
      {loading?<tr><td colSpan={5} className="empty-cell">Loading pending registrations…</td></tr>:pendingResidents.length?pendingResidents.map(person=><tr key={person.membershipId}><td><strong>{person.name}</strong></td><td>{person.email||"—"}</td><td>{person.phone||"—"}</td><td>{new Date(person.submittedAt).toLocaleDateString("en-NG")}</td><td><button type="button" className="primary-action" disabled={approvingUserId===person.userId} onClick={()=>void approveResident(person.userId)}>{approvingUserId===person.userId?"Approving…":"Approve account"}</button></td></tr>):<tr><td colSpan={5} className="empty-cell"><strong>No pending resident registrations</strong><small>New self-registered residents will appear here.</small></td></tr>}
@@ -262,8 +300,8 @@ function UsersPage() {
     <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving||!selectedEstate}>{saving?"Creating account…":"Create account"}</button></div>
    </form>}
    <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, role or phone…" aria-label="Search users"/></div>
-   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Name</th><th>Role</th><th>Estate</th><th>Phone</th><th>Status</th><th>Date added</th><th>Actions</th></tr></thead><tbody>
-    {loading?<tr><td colSpan={7} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="secondary-action" disabled={sendingPasswordUserId===m.user_id} onClick={()=>void updateUserPassword(m)}>{sendingPasswordUserId===m.user_id?"Updating…":"Update password"}</button><a className="secondary-action" href={`/welcome-email?userId=${encodeURIComponent(m.user_id)}&estateId=${encodeURIComponent(m.estate_id)}`}>Send welcome email</a></td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Users will appear here once their accounts are created.</small></td></tr>}
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Name</th><th>Role</th><th>Estate</th><th>Unit details</th><th>Phone</th><th>Status</th><th>Date added</th><th>Actions</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={7} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{[m.users?.home_number,m.users?.street_name].filter(Boolean).join(" · ")||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}>{m.membership_role==="resident"&&<button type="button" className="secondary-action" onClick={()=>void editResidentAddress(m)}>Edit unit details</button>}<button type="button" className="secondary-action" disabled={sendingPasswordUserId===m.user_id} onClick={()=>void updateUserPassword(m)}>{sendingPasswordUserId===m.user_id?"Updating…":"Update password"}</button><a className="secondary-action" href={`/welcome-email?userId=${encodeURIComponent(m.user_id)}&estateId=${encodeURIComponent(m.estate_id)}`}>Send welcome email</a></td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Users will appear here once their accounts are created.</small></td></tr>}
    </tbody></table></div>
   </section>
  </PortalFrame>;
