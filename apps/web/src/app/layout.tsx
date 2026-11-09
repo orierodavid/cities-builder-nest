@@ -16,6 +16,8 @@ export const metadata: Metadata = {
   applicationName: "CB Nest",
   openGraph: {
     type: "website",
+    url: siteUrl,
+    locale: "en_NG",
     siteName: "CB Nest",
     title: "CB Nest | Smart Estate & Community Management",
     description:
