@@ -1,0 +1,123 @@
+name: API ephemeral load test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/api-load-test.yml"
+      - "apps/api/src/server.ts"
+      - "apps/api/src/load-test-server.ts"
+      - "load-tests/api-read-only.js"
+      - "docs/LOAD_TESTING.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-ephemeral-load-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    name: Read-only API load test (250 / 500 / 1,000 VUs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cbnest_load_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cbnest_load_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      CI: "true"
+      NODE_ENV: test
+      LOAD_TEST_MODE: "true"
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/cbnest_load_test
+      DB_POOL_MAX: "30"
+      DB_POOL_CONNECTION_TIMEOUT_MS: "10000"
+      PORT: "4000"
+    steps:
+      - name: Check out main commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/api/package.json
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: npm install --no-audit --no-fund
+
+      - name: Build API
+        working-directory: apps/api
+        run: npm run build
+
+      - name: Start isolated API instance
+        working-directory: apps/api
+        run: |
+          set -euo pipefail
+          nohup node dist/load-test-server.js > "$RUNNER_TEMP/cbnest-api.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/cbnest-api.pid"
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:4000/__loadtest/database-read; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat "$RUNNER_TEMP/cbnest-api.log"
+            echo "Isolated API did not become ready on the database-read route."
+            exit 1
+          fi
+
+      - name: Pull pinned k6 runner
+        run: docker pull grafana/k6:0.54.0
+
+      - name: Run progressive 250, 500 and 1,000 VU profile
+        run: |
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/work" -w /work \
+            -e LOAD_TEST_ENVIRONMENT=github-actions-ephemeral \
+            -e LOAD_TEST_CONFIRM=YES \
+            -e LOAD_TEST_BASE_URL=http://127.0.0.1:4000 \
+            -e LOAD_TEST_ALLOWED_HOST=127.0.0.1:4000 \
+            -e LOAD_TEST_ALLOW_LOCAL_HTTP=true \
+            -e LOAD_TEST_PATH=/__loadtest/database-read \
+            -e LOAD_TEST_PROFILE=full \
+            grafana/k6:0.54.0 run \
+            --summary-export=/work/load-test-summary.json \
+            load-tests/api-read-only.js
+
+      - name: Stop isolated API
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/cbnest-api.pid" ]; then
+            kill -TERM "$(cat "$RUNNER_TEMP/cbnest-api.pid")" 2>/dev/null || true
+          fi
+
+      - name: Upload load-test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cbnest-api-load-test-${{ github.run_number }}
+          path: |
+            load-test-summary.json
+            ${{ runner.temp }}/cbnest-api.log
+          if-no-files-found: warn
+          retention-days: 14
