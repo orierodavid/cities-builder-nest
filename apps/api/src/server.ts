@@ -6,7 +6,8 @@ import { decryptVisitorAccessCode, encryptVisitorAccessCode } from "./visitor-pa
 import { createClient } from "@supabase/supabase-js";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
-import { checkDatabase } from "./storage.js";
+import { checkDatabase, pool } from "./storage.js";
+import { getBackgroundJobQueueMetrics } from "./background-job-monitor.js";
 import { withAuthenticatedTransaction } from "./database.js";
 import { getMeData } from "./me.repository.js";
 import { getEstatesForUser } from "./estates.repository.js";
@@ -149,6 +150,24 @@ async function hasPlatformAdmin(userSupabase: AuthenticatedRequest["userSupabase
     .maybeSingle();
   return !error && Boolean(data);
 }
+
+app.get("/v1/admin/background-jobs", requireAuth, async (req, res) => {
+  const authenticated = req as AuthenticatedRequest;
+  if (!(await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id))) {
+    res.status(403).json({ error: "platform_admin_required" });
+    return;
+  }
+  if (!pool) {
+    res.status(503).json({ error: "background_job_monitor_unavailable" });
+    return;
+  }
+  try {
+    const queue = await getBackgroundJobQueueMetrics(pool);
+    res.status(200).json({ generatedAt: new Date().toISOString(), queue });
+  } catch {
+    res.status(503).json({ error: "background_job_monitor_unavailable" });
+  }
+});
 
 async function hasEstateManager(userSupabase: AuthenticatedRequest["userSupabase"], userId: string, estateId: string): Promise<boolean> {
   if (process.env.NATIVE_POSTGRES_READS === "true") {
