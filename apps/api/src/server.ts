@@ -1199,14 +1199,31 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
 app.get("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const { data: membership, error: membershipError } = await authenticated.userSupabase
-    .from("estate_memberships")
-    .select("estate_id, membership_role, status")
-    .eq("estate_id", estateId)
-    .eq("user_id", authenticated.authUser.id)
-    .maybeSingle();
+  let membership: { estate_id: string; membership_role: string; status: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getEstateMembershipAccess(client, authenticated.authUser.id, estateId),
+      );
+    } catch {
+      res.status(503).json({ error: "visitor_pass_membership_check_failed" });
+      return;
+    }
+  } else {
+    const result = await authenticated.userSupabase
+      .from("estate_memberships")
+      .select("estate_id, membership_role, status")
+      .eq("estate_id", estateId)
+      .eq("user_id", authenticated.authUser.id)
+      .maybeSingle();
+    if (result.error) {
+      res.status(403).json({ error: "estate_membership_required" });
+      return;
+    }
+    membership = result.data;
+  }
 
-  if (membershipError || !canCreateVisitorPass(membership, estateId)) {
+  if (!canCreateVisitorPass(membership, estateId)) {
     res.status(403).json({ error: "estate_membership_required" });
     return;
   }
