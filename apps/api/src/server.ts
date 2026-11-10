@@ -19,6 +19,7 @@ import { getSecurityIncidents } from "./security-incidents.repository.js";
 import { acknowledgeSecurityShiftHandover, createSecurityIncident, createSecurityShiftHandover } from "./security-workflows.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { createVisitorPass } from "./visitor-pass-mutations.repository.js";
+import { addExistingResidentMembership, assignExistingStaffMembership, assignResidentToEstateUnit, createEstate, createEstateBuilding, createEstateUnit, updateEstateSubscription } from "./estate-management-mutations.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { getEstateEventsForCreator } from "./estate-events.repository.js";
 import { getEstateEventGuests } from "./estate-event-guests.repository.js";
@@ -194,6 +195,16 @@ app.patch("/v1/estates/:estateId/subscription", requireAuth, async (req, res) =>
     return;
   }
 
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        updateEstateSubscription(client, { estateId, enabled, reason, updatedAt: new Date().toISOString() }),
+      );
+      if (!data) { res.status(400).json({ error: "estate_subscription_update_failed", message: "Confirm migration 009 is applied and the estate exists." }); return; }
+      res.status(200).json({ estate: data });
+    } catch { res.status(503).json({ error: "estate_subscription_update_failed" }); }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase
     .from("estates")
     .update({
@@ -231,6 +242,16 @@ app.post("/v1/estates", requireAuth, async (req, res) => {
     return;
   }
 
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        createEstate(client, { name, address, city, state, countryCode, timezone }),
+      );
+      if (!data) { res.status(400).json({ error: "estate_create_failed" }); return; }
+      res.status(201).json({ estate: data });
+    } catch { res.status(503).json({ error: "estate_create_failed" }); }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase
     .from("estates")
     .insert({ name, address, city, state, country_code: countryCode, timezone })
@@ -265,6 +286,16 @@ app.post("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
     return;
   }
 
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        addExistingResidentMembership(client, { estateId, residentUserId }),
+      );
+      if (!result) { res.status(404).json({ error: "active_registered_user_not_found", message: "The resident must already have a registered, active account and be eligible for this estate." }); return; }
+      res.status(201).json({ resident: { id: result.resident.id, fullName: result.resident.full_name, phone: result.resident.phone_e164 }, membership: result.membership });
+    } catch { res.status(503).json({ error: "resident_membership_create_failed" }); }
+    return;
+  }
   const { data: residentCandidates, error: residentError } = await authenticated.userSupabase
     .rpc("get_active_resident_candidate", {
       target_estate_id: estateId,
@@ -426,6 +457,16 @@ app.post("/v1/estates/:estateId/staff", requireAuth, async (req, res) => {
     return;
   }
 
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        assignExistingStaffMembership(client, { estateId, userId, role }),
+      );
+      if (!data) { res.status(404).json({ error: "active_staff_account_not_found" }); return; }
+      res.status(201).json({ staff: { id: userId, fullName: "" }, membership: data });
+    } catch { res.status(503).json({ error: "staff_assignment_failed" }); }
+    return;
+  }
   const { data: staff, error: staffError } = await authenticated.userSupabase
     .from("users")
     .select("id, full_name, is_active")
@@ -593,6 +634,17 @@ app.post("/v1/estates/:estateId/buildings", requireAuth, async (req, res) => {
     res.status(403).json({ error: "estate_manager_access_required" });
     return;
   }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => createEstateBuilding(client, estateId, name));
+      if (!data) { res.status(400).json({ error: "building_create_failed" }); return; }
+      res.status(201).json({ building: data });
+    } catch (error) {
+      const conflict = (error as { code?: string })?.code === "23505";
+      res.status(conflict ? 409 : 503).json({ error: conflict ? "building_name_exists" : "building_create_failed" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase
     .from("buildings")
     .insert({ estate_id: estateId, name })
@@ -624,6 +676,19 @@ app.post("/v1/estates/:estateId/buildings/:buildingId/units", requireAuth, async
   const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
   if (!platformAdmin && !(await hasEstateManager(authenticated.userSupabase, authenticated.authUser.id, estateId))) {
     res.status(403).json({ error: "estate_manager_access_required" });
+    return;
+  }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        createEstateUnit(client, { estateId, buildingId, unitCode, unitType }),
+      );
+      if (!data) { res.status(404).json({ error: "building_not_found_in_estate" }); return; }
+      res.status(201).json({ unit: data });
+    } catch (error) {
+      const conflict = (error as { code?: string })?.code === "23505";
+      res.status(conflict ? 409 : 503).json({ error: conflict ? "unit_code_exists" : "unit_create_failed" });
+    }
     return;
   }
   const { data: building, error: buildingError } = await authenticated.userSupabase
@@ -672,6 +737,26 @@ app.post("/v1/estates/:estateId/units/:unitId/assignments", requireAuth, async (
     return;
   }
 
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        assignResidentToEstateUnit(client, { estateId, unitId, residentUserId, ...(startDate ? { startDate } : {}) }),
+      );
+      if (result.kind === "unit_not_found") { res.status(404).json({ error: "unit_not_found_in_estate" }); return; }
+      if (result.kind === "unit_not_available") { res.status(409).json({ error: "unit_not_available", message: "Only available units can be assigned." }); return; }
+      if (result.kind === "resident_not_found") { res.status(404).json({ error: "active_resident_membership_required" }); return; }
+      res.status(201).json({ assignment: result.assignment });
+    } catch (error) {
+      const conflict = (error as { code?: string })?.code === "23505";
+      res.status(conflict ? 409 : 503).json({
+        error: conflict ? "unit_or_resident_already_assigned" : "unit_assignment_failed",
+        message: conflict
+          ? "The unit is already occupied or this resident already has an active unit assignment."
+          : "Confirm the resident, unit, estate, and that migration 007 has been applied.",
+      });
+    }
+    return;
+  }
   const { data: unit, error: unitError } = await authenticated.userSupabase
     .from("units")
     .select("id, estate_id, building_id, unit_code, status")
