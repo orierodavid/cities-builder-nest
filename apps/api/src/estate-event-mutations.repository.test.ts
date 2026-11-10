@@ -43,7 +43,7 @@ test("invitation replacement locks the guest and atomically revokes before inser
   const invitation = { id: "i1", guest_id: "g1", status: "active", created_at: "now" };
   const { client, calls } = mockClient([[context], [], [invitation]]);
   const result = await issueEstateEventInvitation(client, { estateId: "e1", eventId: "ev1", guestId: "g1", codeHash: "a".repeat(64), userId: "u1", revokedAt: "now" });
-  assert.deepEqual(result, { context, invitation });
+  assert.deepEqual(result, { kind: "created", context, invitation });
   assert.equal(calls.length, 3);
   assert.match(calls[0].sql, /FOR UPDATE OF g/);
   assert.match(calls[1].sql, /status = 'revoked'/);
@@ -93,4 +93,15 @@ test("check-in fails closed when the invitation is not visible", async () => {
   const { client, calls } = mockClient([[]]);
   assert.deepEqual(await createEstateEventCheckIn(client, { estateId: "e1", eventId: "ev1", codeHash: "b".repeat(64), userId: "u1" }), { kind: "not_found" });
   assert.equal(calls.length, 1);
+});
+
+test("pending venue approval prevents invitation revocation and insertion", async () => {
+  const context = {
+    guest: { id: "g1", guest_name: "Guest", email: null, phone: null },
+    event: { id: "ev1", title: "Event", venue: "Hall", starts_at: "start", ends_at: "end", venue_approval_status: "pending" },
+  };
+  const { client, calls } = mockClient([[context]]);
+  const result = await issueEstateEventInvitation(client, { estateId: "e1", eventId: "ev1", guestId: "g1", codeHash: "a".repeat(64), userId: "u1", revokedAt: "now" });
+  assert.deepEqual(result, { kind: "venue_pending", context });
+  assert.equal(calls.length, 1, "must not revoke or insert before approval");
 });
