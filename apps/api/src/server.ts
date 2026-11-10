@@ -15,6 +15,7 @@ import { getBuildingsForEstate, getUnitsForEstate } from "./property-directory.r
 import { getResidentsForEstate } from "./resident-directory.repository.js";
 import { getSecurityShiftHandovers } from "./security-shift-handovers.repository.js";
 import { getSecurityEmergencyAlerts } from "./security-emergency-alerts.repository.js";
+import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -980,6 +981,34 @@ app.get("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =>
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
 
   const page = getPageWindow(req);
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getVisitorPassesForHost(client, estateId, authenticated.authUser.id, page.pageSize, page.from),
+      );
+      const encryptionSecret = process.env.VISITOR_PASS_ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+      const visitorPasses = result.visitorPasses.map((pass) => {
+        const { access_code_ciphertext: ciphertext, ...safePass } = pass;
+        return {
+          ...safePass,
+          accessCode: decryptVisitorAccessCode(typeof ciphertext === "string" ? ciphertext : null, encryptionSecret),
+        };
+      });
+      res.status(200).json({
+        visitorPasses,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch {
+      res.status(503).json({ error: "visitor_pass_list_failed" });
+    }
+    return;
+  }
+
   const { data, error } = await authenticated.userSupabase
     .from("visitor_passes")
     .select("id, estate_id, visitor_name, visitor_phone, valid_from, valid_until, status, created_at, access_code_ciphertext")
