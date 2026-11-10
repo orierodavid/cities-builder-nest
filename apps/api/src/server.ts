@@ -22,6 +22,7 @@ import { getEstateEventsForCreator } from "./estate-events.repository.js";
 import { getEstateEventGuests } from "./estate-event-guests.repository.js";
 import { getEstateEventInvitations } from "./estate-event-invitations.repository.js";
 import { getEstateEventCheckIns } from "./estate-event-checkins.repository.js";
+import { getEstateEventAttendanceReport } from "./estate-event-attendance.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -1845,6 +1846,31 @@ app.get("/v1/estates/:estateId/events/:eventId/attendance-report", requireAuth, 
   const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const page = getPageWindow(req);
+
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const report = await withAuthenticatedTransaction(
+        authenticated.authUser.id,
+        (client) => getEstateEventAttendanceReport(client, estateId, eventId, page.pageSize, page.from),
+      );
+      if (!report) { res.status(404).json({ error: "estate_event_not_found" }); return; }
+      res.status(200).json({
+        event: report.event,
+        summary: report.summary,
+        guests: report.guests,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: report.hasMore,
+          nextPage: report.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch (error) {
+      console.error("native_postgres_event_attendance_report_failed", error);
+      res.status(503).json({ error: "event_attendance_report_load_failed" });
+    }
+    return;
+  }
 
   const [eventResult, guestResult, invitationCountResult, checkInCountResult] = await Promise.all([
     authenticated.userSupabase.from("estate_events")
