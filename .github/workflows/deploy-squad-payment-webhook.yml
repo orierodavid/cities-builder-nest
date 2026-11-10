@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "supabase/functions/squad-payment-webhook/**"
+      - "supabase/functions/reconcile-squad-payments/**"
       - "supabase/functions/initiate-squad-payment/**"
       - "supabase/functions/verify-squad-payment/**"
       - "supabase/config.toml"
@@ -39,6 +40,9 @@ jobs:
       - name: Type-check Squad webhook
         run: deno check supabase/functions/squad-payment-webhook/index.ts
 
+      - name: Type-check Squad payment reconciliation
+        run: deno check supabase/functions/reconcile-squad-payments/index.ts
+
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
@@ -57,3 +61,6 @@ jobs:
 
       - name: Deploy webhook with project configuration
         run: supabase functions deploy squad-payment-webhook --project-ref "$PROJECT_ID" --yes
+
+      - name: Deploy payment reconciliation with project configuration
+        run: supabase functions deploy reconcile-squad-payments --project-ref "$PROJECT_ID" --yes
