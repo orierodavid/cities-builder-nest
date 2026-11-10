@@ -463,7 +463,7 @@ app.post("/v1/estates/:estateId/staff", requireAuth, async (req, res) => {
         assignExistingStaffMembership(client, { estateId, userId, role }),
       );
       if (!data) { res.status(404).json({ error: "active_staff_account_not_found" }); return; }
-      res.status(201).json({ staff: { id: userId, fullName: "" }, membership: data });
+      res.status(201).json({ staff: { id: data.staff.id, fullName: data.staff.full_name }, membership: data.membership });
     } catch { res.status(503).json({ error: "staff_assignment_failed" }); }
     return;
   }
