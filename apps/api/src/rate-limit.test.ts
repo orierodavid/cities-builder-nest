@@ -80,7 +80,7 @@ test("Redis atomically shares one counter across concurrent requests", async (co
   }
 });
 
-test("rejects malformed Redis responses rather than allowing a request", async () =>
+test("rejects malformed Redis responses rather than allowing a request", async () => {
   const fakeRedis = { async eval() { return null; } };
   await assert.rejects(
     consumeRedisBucket(fakeRedis, "key", 60),
