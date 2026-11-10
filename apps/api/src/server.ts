@@ -19,6 +19,7 @@ import { getSecurityIncidents } from "./security-incidents.repository.js";
 import { acknowledgeSecurityShiftHandover, createSecurityIncident, createSecurityShiftHandover } from "./security-workflows.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { createVisitorPass } from "./visitor-pass-mutations.repository.js";
+import { checkoutGateVisitorVisit, createGateVisitorVisit, getGateVisitorPass } from "./visitor-gate.repository.js";
 import { addExistingResidentMembership, assignExistingStaffMembership, assignResidentToEstateUnit, createEstate, createEstateBuilding, createEstateUnit, updateEstateSubscription } from "./estate-management-mutations.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { getEstateEventsForCreator } from "./estate-events.repository.js";
@@ -1214,10 +1215,17 @@ app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, r
   const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
   if (!isValidVisitorAccessCode(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
   const hash = createHash("sha256").update(accessCode).digest("hex");
-  const { data: pass, error } = await authenticated.userSupabase.from("visitor_passes")
-    .select("id, host_user_id, visitor_name, visitor_phone, valid_from, valid_until, status")
-    .eq("estate_id", estateId).eq("access_code_hash", hash).maybeSingle();
-  if (error || !pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
+  let pass: { id: string; host_user_id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try { pass = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => getGateVisitorPass(client, estateId, hash)); }
+    catch { res.status(503).json({ error: "visitor_pass_lookup_failed" }); return; }
+  } else {
+    const result = await authenticated.userSupabase.from("visitor_passes")
+      .select("id, host_user_id, visitor_name, visitor_phone, valid_from, valid_until, status")
+      .eq("estate_id", estateId).eq("access_code_hash", hash).maybeSingle();
+    pass = result.error ? null : result.data;
+  }
+  if (!pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
   let hostName: string | null = null;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (serviceKey && process.env.SUPABASE_URL) {
@@ -1264,9 +1272,14 @@ app.post("/v1/estates/:estateId/gate/visitor-passes/:passId/deny", requireAuth, 
 app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
-    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .maybeSingle();
+  let membership: { estate_id: string; membership_role: string; status: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => getEstateMembershipAccess(client, authenticated.authUser.id, estateId));
+  } else {
+    const result = await authenticated.userSupabase.from("estate_memberships")
+      .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id).maybeSingle();
+    membership = result.data;
+  }
   if (!canUseGateWorkflow(membership, estateId)) { res.status(403).json({ error: "security_membership_required" }); return; }
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId, authenticated.authUser.id);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
@@ -1274,6 +1287,26 @@ app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) =>
   const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
   if (!isValidVisitorAccessCode(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
   const hash = createHash("sha256").update(accessCode).digest("hex");
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, async (client) => {
+        const pass = await getGateVisitorPass(client, estateId, hash);
+        if (!pass) return { kind: "not_found" as const };
+        const availabilityError = visitorPassAvailabilityError(pass);
+        if (availabilityError) return { kind: "unavailable" as const, error: availabilityError };
+        const visit = await createGateVisitorVisit(client, { estateId, visitorPassId: pass.id, checkedInBy: authenticated.authUser.id });
+        return visit ? { kind: "created" as const, pass, visit } : { kind: "failed" as const };
+      });
+      if (result.kind === "not_found") { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
+      if (result.kind === "unavailable") { res.status(409).json({ error: result.error }); return; }
+      if (result.kind === "failed") { res.status(400).json({ error: "visitor_check_in_failed" }); return; }
+      res.status(201).json({ visit: result.visit, visitor: { name: result.pass.visitor_name, phone: result.pass.visitor_phone } });
+    } catch (error) {
+      const failure = visitorCheckInFailure((error as { code?: string })?.code);
+      res.status(failure.status).json({ error: failure.error });
+    }
+    return;
+  }
   const { data: pass, error: passError } = await authenticated.userSupabase.from("visitor_passes")
     .select("id, visitor_name, visitor_phone, valid_from, valid_until, status")
     .eq("estate_id", estateId).eq("access_code_hash", hash).maybeSingle();
@@ -1294,9 +1327,14 @@ app.post("/v1/estates/:estateId/gate/check-in", requireAuth, async (req, res) =>
 app.get("/v1/estates/:estateId/gate/visits", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
-    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .maybeSingle();
+  let membership: { estate_id: string; membership_role: string; status: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => getEstateMembershipAccess(client, authenticated.authUser.id, estateId));
+  } else {
+    const result = await authenticated.userSupabase.from("estate_memberships")
+      .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id).maybeSingle();
+    membership = result.data;
+  }
   if (!canUseGateWorkflow(membership, estateId)) { res.status(403).json({ error: "security_membership_required" }); return; }
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId, authenticated.authUser.id);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
@@ -1335,13 +1373,28 @@ app.post("/v1/estates/:estateId/gate/visits/:visitId/check-out", requireAuth, as
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const visitId = Array.isArray(req.params.visitId) ? req.params.visitId[0] : req.params.visitId;
-  const { data: membership } = await authenticated.userSupabase.from("estate_memberships")
-    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .maybeSingle();
+  let membership: { estate_id: string; membership_role: string; status: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => getEstateMembershipAccess(client, authenticated.authUser.id, estateId));
+  } else {
+    const result = await authenticated.userSupabase.from("estate_memberships")
+      .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id).maybeSingle();
+    membership = result.data;
+  }
   if (!canUseGateWorkflow(membership, estateId)) { res.status(403).json({ error: "security_membership_required" }); return; }
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId, authenticated.authUser.id);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        checkoutGateVisitorVisit(client, { estateId, visitId, checkedOutBy: authenticated.authUser.id, checkedOutAt: new Date().toISOString() }),
+      );
+      if (!data) { res.status(409).json({ error: "open_visit_not_found_or_checkout_failed" }); return; }
+      res.status(200).json({ visit: data });
+    } catch { res.status(503).json({ error: "visitor_visit_checkout_failed" }); }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("visitor_visits")
     .update({ checked_out_by: authenticated.authUser.id, checked_out_at: new Date().toISOString() })
     .eq("id", visitId).eq("estate_id", estateId).is("checked_out_at", null)
