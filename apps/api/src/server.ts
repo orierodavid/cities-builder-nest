@@ -10,6 +10,7 @@ import { checkDatabase } from "./storage.js";
 import { withAuthenticatedTransaction } from "./database.js";
 import { getMeData } from "./me.repository.js";
 import { getEstatesForUser } from "./estates.repository.js";
+import { getEstateDashboard } from "./dashboard.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -696,6 +697,29 @@ app.get("/v1/estates", requireAuth, async (req, res) => {
 app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = req.params.estateId;
+
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const dashboard = await withAuthenticatedTransaction(
+        authenticated.authUser.id,
+        (client) => getEstateDashboard(client, authenticated.authUser.id, estateId),
+      );
+      if (!dashboard.estate) {
+        res.status(403).json({ error: "active_estate_membership_required" });
+        return;
+      }
+      if (!dashboard.estate.is_enabled) {
+        res.status(423).json({ error: "estate_subscription_inactive", message: "This estate is temporarily unavailable because its subscription is inactive." });
+        return;
+      }
+      const { membershipFound: _membershipFound, ...response } = dashboard;
+      res.status(200).json(response);
+      return;
+    } catch {
+      res.status(503).json({ error: "estate_dashboard_data_access_denied" });
+      return;
+    }
+  }
 
   // Platform admins can inspect estate dashboards without being estate members.
   const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
