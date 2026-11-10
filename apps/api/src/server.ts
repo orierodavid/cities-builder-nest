@@ -23,6 +23,7 @@ import { getEstateEventGuests } from "./estate-event-guests.repository.js";
 import { getEstateEventInvitations } from "./estate-event-invitations.repository.js";
 import { getEstateEventCheckIns } from "./estate-event-checkins.repository.js";
 import { getEstateEventAttendanceReport } from "./estate-event-attendance.repository.js";
+import { createEstateEventCheckIn, createEstateEventGuest, deleteEstateEventGuest, issueEstateEventInvitation, revokeEstateEventInvitation } from "./estate-event-mutations.repository.js";
 import { getEstateEnabledStatus, getEstateMembershipAccess, getEventCreator, hasEstateManagerRole, hasPlatformAdminRole } from "./authorization.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
@@ -1781,6 +1782,18 @@ app.post("/v1/estates/:estateId/events/:eventId/guests", requireAuth, async (req
       phone.length > 32 || notes.length > 1000) {
     res.status(400).json({ error: "invalid_event_guest", message: "Enter a guest name and valid optional contact details." }); return;
   }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        createEstateEventGuest(client, { estateId, eventId, guestName, email: email || null, phone: phone || null, notes, userId: authenticated.authUser.id }),
+      );
+      if (!data) { res.status(400).json({ error: "event_guest_add_failed" }); return; }
+      res.status(201).json({ guest: data });
+    } catch {
+      res.status(503).json({ error: "event_guest_add_failed" });
+    }
+    return;
+  }
   const { data: event, error: eventError } = await authenticated.userSupabase.from("estate_events")
     .select("id").eq("estate_id", estateId).eq("id", eventId).maybeSingle();
   if (eventError || !event) { res.status(404).json({ error: "estate_event_not_found" }); return; }
@@ -1797,6 +1810,18 @@ app.delete("/v1/estates/:estateId/events/:eventId/guests/:guestId", requireAuth,
   const guestId = Array.isArray(req.params.guestId) ? req.params.guestId[0] : req.params.guestId;
   const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const removedId = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        deleteEstateEventGuest(client, estateId, eventId, guestId),
+      );
+      if (!removedId) { res.status(404).json({ error: "event_guest_not_found_or_remove_failed" }); return; }
+      res.status(200).json({ removed: true, guestId: removedId });
+    } catch {
+      res.status(503).json({ error: "event_guest_not_found_or_remove_failed" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("estate_event_guests")
     .delete().eq("estate_id", estateId).eq("event_id", eventId).eq("id", guestId)
     .select("id").maybeSingle();
@@ -1846,6 +1871,24 @@ app.post("/v1/estates/:estateId/events/:eventId/guests/:guestId/invitations", re
   const guestId = Array.isArray(req.params.guestId) ? req.params.guestId[0] : req.params.guestId;
   const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
+  const code = String(randomInt(100000, 1000000));
+  const codeHash = createHash("sha256").update(code).digest("hex");
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        issueEstateEventInvitation(client, { estateId, eventId, guestId, codeHash, userId: authenticated.authUser.id, revokedAt: new Date().toISOString() }),
+      );
+      if (!result) { res.status(404).json({ error: "event_guest_not_found" }); return; }
+      const { guest, event } = result.context;
+      if (event.venue_approval_status && event.venue_approval_status !== "approved") {
+        res.status(409).json({ error: "event_venue_approval_pending", message: "Invitations can be sent after the estate venue has been approved." }); return;
+      }
+      res.status(201).json({ invitation: result.invitation, code, guest, event });
+    } catch {
+      res.status(503).json({ error: "event_invitation_create_failed" });
+    }
+    return;
+  }
   const { data: guest, error: guestError } = await authenticated.userSupabase.from("estate_event_guests")
     .select("id, guest_name, email, phone").eq("id", guestId).eq("estate_id", estateId).eq("event_id", eventId).maybeSingle();
   if (guestError || !guest) { res.status(404).json({ error: "event_guest_not_found" }); return; }
@@ -1855,8 +1898,6 @@ app.post("/v1/estates/:estateId/events/:eventId/guests/:guestId/invitations", re
   if (event.venue_approval_status && event.venue_approval_status !== "approved") {
     res.status(409).json({ error: "event_venue_approval_pending", message: "Invitations can be sent after the estate venue has been approved." }); return;
   }
-  const code = String(randomInt(100000, 1000000));
-  const codeHash = createHash("sha256").update(code).digest("hex");
   const { error: revokeError } = await authenticated.userSupabase.from("estate_event_invitations")
     .update({ status: "revoked", revoked_at: new Date().toISOString() })
     .eq("estate_id", estateId).eq("event_id", eventId).eq("guest_id", guestId).eq("status", "active");
@@ -1874,6 +1915,18 @@ app.post("/v1/estates/:estateId/events/:eventId/invitations/:invitationId/revoke
   const invitationId = Array.isArray(req.params.invitationId) ? req.params.invitationId[0] : req.params.invitationId;
   const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        revokeEstateEventInvitation(client, { estateId, eventId, invitationId, revokedAt: new Date().toISOString() }),
+      );
+      if (!data) { res.status(404).json({ error: "active_event_invitation_not_found" }); return; }
+      res.status(200).json({ invitation: data });
+    } catch {
+      res.status(503).json({ error: "active_event_invitation_revoke_failed" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("estate_event_invitations")
     .update({ status: "revoked", revoked_at: new Date().toISOString() })
     .eq("id", invitationId).eq("estate_id", estateId).eq("event_id", eventId).eq("status", "active")
@@ -2025,6 +2078,21 @@ app.post("/v1/estates/:estateId/events/:eventId/check-in", requireAuth, async (r
   const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
   if (!/^\d{6}$/.test(code)) { res.status(400).json({ error: "invalid_event_invitation_code" }); return; }
   const codeHash = createHash("sha256").update(code).digest("hex");
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        createEstateEventCheckIn(client, { estateId, eventId, codeHash, userId: authenticated.authUser.id }),
+      );
+      if (result.kind === "not_found") { res.status(404).json({ error: "event_invitation_not_found_or_inactive" }); return; }
+      if (result.kind === "already_checked_in") {
+        res.status(409).json({ error: "event_guest_already_checked_in", checkIn: result.checkIn, guest: result.guest }); return;
+      }
+      res.status(201).json({ checkIn: result.checkIn, guest: result.guest });
+    } catch {
+      res.status(503).json({ error: "event_guest_checkin_failed" });
+    }
+    return;
+  }
   const { data: invitation, error: invitationError } = await authenticated.userSupabase.from("estate_event_invitations")
     .select("id, guest_id, status, estate_event_guests!inner(id, guest_name, email, phone)")
     .eq("estate_id", estateId).eq("event_id", eventId).eq("code_hash", codeHash).eq("status", "active").maybeSingle();
