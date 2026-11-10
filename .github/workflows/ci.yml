@@ -56,6 +56,12 @@ jobs:
       - run: npm test
       - name: Build production API and worker container
         run: docker build --pull -f Dockerfile -t cbnest-api:ci .
+      - name: Validate Docker Compose configuration
+        working-directory: ../..
+        run: |
+          cp docker.env.example .env
+          cp apps/api/.env.example apps/api/.env
+          docker compose config --quiet
 
   mobile:
     runs-on: ubuntu-latest
