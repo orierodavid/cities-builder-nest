@@ -28,6 +28,7 @@ import { getEstateEventsForCreator } from "./estate-events.repository.js";
 import { getEstateEventGuests } from "./estate-event-guests.repository.js";
 import { getEstateEventInvitations } from "./estate-event-invitations.repository.js";
 import { getEstateEventCheckIns } from "./estate-event-checkins.repository.js";
+import { verifyEstateEventInvitation } from "./estate-event-security.repository.js";
 import { getEstateEventAttendanceReport } from "./estate-event-attendance.repository.js";
 import { createEstateEvent, createEstateEventCheckIn, createEstateEventGuest, deleteEstateEventGuest, issueEstateEventInvitation, revokeEstateEventInvitation, updateEstateEvent } from "./estate-event-mutations.repository.js";
 import { getEstateEnabledStatus, getEstateMembershipAccess, getEventCreator, hasEstateManagerRole, hasPlatformAdminRole } from "./authorization.repository.js";
@@ -2472,6 +2473,28 @@ app.post("/v1/estates/:estateId/events/:eventId/security-verify", requireAuth, a
     res.status(400).json({ error: "invalid_event_invitation_code" }); return;
   }
 
+  const codeHash = createHash("sha256").update(code).digest("hex");
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        verifyEstateEventInvitation(client, estateId, eventId, codeHash),
+      );
+      if (!result) { res.status(403).json({ error: "security_membership_required" }); return; }
+      if (result.status === "event_not_found") { res.status(404).json({ error: "estate_event_not_found" }); return; }
+      if (result.status === "venue_pending") { res.status(409).json({ error: "event_venue_approval_pending", message: "This event venue has not been approved." }); return; }
+      if (result.status === "event_not_open") { res.status(409).json({ error: "event_not_open_for_guest_checkin" }); return; }
+      if (result.status === "invitation_not_found") { res.status(404).json({ error: "event_invitation_not_found_or_inactive" }); return; }
+      if (result.status === "guest_not_found") { res.status(404).json({ error: "event_invitation_guest_not_found" }); return; }
+      if (result.status === "already_checked_in") { res.status(409).json({ error: "event_guest_already_checked_in", checkIn: result.checkIn, guest: result.guest }); return; }
+      if (result.status !== "verified") { res.status(503).json({ error: "event_invitation_verification_failed" }); return; }
+      // Security authorises entry only. Attendance is recorded later by the Event Coordinator.
+      res.status(200).json({ verified: true, event: result.event, guest: result.guest, invitation: result.invitation });
+    } catch {
+      res.status(503).json({ error: "event_invitation_verification_failed" });
+    }
+    return;
+  }
+
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey || !process.env.SUPABASE_URL) {
     res.status(503).json({ error: "event_verification_service_not_configured" }); return;
@@ -2490,7 +2513,6 @@ app.post("/v1/estates/:estateId/events/:eventId/security-verify", requireAuth, a
   }
   if (event.status !== "published") { res.status(409).json({ error: "event_not_open_for_guest_checkin" }); return; }
 
-  const codeHash = createHash("sha256").update(code).digest("hex");
   const { data: invitation, error: invitationError } = await adminSupabase.from("estate_event_invitations")
     .select("id, guest_id, status")
     .eq("estate_id", estateId).eq("event_id", eventId).eq("code_hash", codeHash).eq("status", "active")
