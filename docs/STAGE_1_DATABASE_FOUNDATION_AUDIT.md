@@ -35,6 +35,19 @@ Scope: API database access, current PostgreSQL connection setup, auth/RLS bounda
 
 The table inventory above is the set of API PostgREST targets found in the current TypeScript runtime files. It is not a claim that these are the only tables in the whole product: Supabase Edge Functions, web/mobile clients, triggers, and RPC implementations also access data.
 
+## Live Supabase verification (2026-11-10)
+
+The linked `cities-builder-nest` project was inspected read-only through the Supabase connection:
+
+- Project ref: `ldnxotehzkrrtovelmiz`; project status: `ACTIVE_HEALTHY`; PostgreSQL version: `17.11.0.003`.
+- The inspected database login was `postgres`. It is not marked SUPERUSER, is a member of `authenticated`, and has `BYPASSRLS`. This makes the transaction role switch mandatory: application queries must execute only after `SET LOCAL ROLE authenticated`, never directly as the login role.
+- The `authenticated` role has SELECT grants on the seven tables used by the first `/v1/me` repository: `users`, `user_roles`, `estate_memberships`, `resident_units`, `units`, `buildings`, and `estates`.
+- A live transaction test successfully switched to `authenticated`, set a synthetic JWT subject transaction-locally, and confirmed `auth.uid()` returned that subject. A query against `public.users` for that synthetic subject returned zero rows under RLS. No real user data was read or changed by this test.
+- The SQL shape used by the first `/v1/me` repository was checked against the live schema. The API's own local `apps/api/.env` connection string is not accessible from this repository inspection, so its exact login identity and connectivity remain unverified.
+- The applied Supabase migration ledger currently ends at `20261109163811` (`resident_edit_free_text_property_details`). The newer committed dashboard-count, event-attendance-summary, and event-attendance-index migrations from 2026-11-10 are not listed as applied. They remain unapplied; this Stage 1 work did not apply them.
+
+**Security implication:** Supabase's `postgres` database login can bypass RLS. The new helper switches into `authenticated` within a transaction before executing user-scoped SQL, and the integration test covers this behavior. Any future native query that uses the pool outside that helper would bypass the intended user-level RLS boundary. Privileged work must receive a separate, explicit design rather than reusing this helper.
+
 ## Stage 1 design constraints
 
 1. Keep Supabase Auth as the token issuer and validator during this stage. Do not change the mobile/web sign-in contract.
