@@ -57,7 +57,7 @@ Apply reviewed migrations in order: `001_initial_schema.sql`, `002_auth_rls_poli
 5. Start the API and Expo app using the scripts in their package manifests.
 6. Configure the mobile and API environment variables using their `.env.example` files. Run the CI typechecks and API middleware tests; then verify signup, email confirmation, sign-in, `/v1/me`, and estate isolation against the connected Supabase project. See `docs/SUPABASE_SETUP.md`.
 
-Railway remains an optional hosting alternative. Supabase environment placeholders and documentation do not mean that Supabase Auth is already integrated or that deployment is complete.
+The API is developed and tested locally from this repository. GitHub Actions starts temporary PostgreSQL and Redis services for integration tests; these CI services are not persistent hosting. In local development, the API rate limiter uses an in-memory store so no local Redis installation is required. Production mode requires a shared Redis instance configured with `REDIS_URL`; do not run production mode without it. Hosting and production Redis provisioning will be configured when a deployment target is selected.
 
 ## Important safety note
 This is an early scaffold, not a production-ready financial application. Authentication scaffolding is implemented, but estate authorization, end-to-end security tests, provider integration, webhook verification, reconciliation jobs, and hardened deployment still need implementation. Do not accept real money until the regulated financial partner, legal/compliance reviewers, and security reviewers have approved the full flow.
