@@ -31,7 +31,7 @@ test("handover acknowledgement is estate-scoped, pending-only and prevents self-
   const row = { id: "h1", estate_id: "e1", status: "acknowledged", acknowledged_by: "u2", acknowledged_at: "now" };
   const { client, calls } = mockClient([[row]]);
   assert.deepEqual(await acknowledgeSecurityShiftHandover(client, { estateId: "e1", handoverId: "h1", userId: "u2", acknowledgedAt: "now" }), row);
-  assert.deepEqual(calls[0].values, ["h1", "e1", "u2", "u2", "now"]);
+  assert.deepEqual(calls[0].values, ["h1", "e1", "u2", "now"]);
   assert.match(calls[0].sql, /status = 'pending'/);
   assert.match(calls[0].sql, /outgoing_officer <> \$4/);
 });
