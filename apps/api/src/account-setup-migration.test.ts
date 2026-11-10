@@ -18,7 +18,7 @@ test("estate account provisioning is an authenticated, narrowly granted security
   assert.match(sql, /target_role = 'estate_admin' AND NOT is_admin/);
   assert.match(sql, /INSERT INTO public\.estate_memberships/);
   assert.match(sql, /INSERT INTO public\.resident_units/);
-  assert.match(sql, /UPDATE public\.units SET status = 'occupied'/);
+  assert.match(sql, /UPDATE public\.units AS target\s+SET status = 'occupied'/);
   assert.ok(sql.includes("REVOKE ALL ON FUNCTION public.create_estate_account_membership(uuid, uuid, text, text, uuid) FROM PUBLIC, anon"));
   assert.ok(sql.includes("GRANT EXECUTE ON FUNCTION public.create_estate_account_membership(uuid, uuid, text, text, uuid) TO authenticated"));
 });
