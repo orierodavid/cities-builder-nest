@@ -651,41 +651,26 @@ app.get("/v1/estates", requireAuth, async (req, res) => {
     res.status(200).json({ estates: (allEstates ?? []).map((estate) => ({ ...estate, membershipRole: "platform_admin" })) });
     return;
   }
-  const { data, error } = await authenticated.userSupabase
+  const { data: memberships, error } = await authenticated.userSupabase
     .from("estate_memberships")
-    .select("estate_id, membership_role, status, created_at")
+    .select("estate_id, membership_role, estates!inner(id, name, address, city, state, timezone, is_enabled, disabled_at, disabled_reason)")
     .eq("user_id", authenticated.authUser.id)
-    .eq("status", "active")
-    .order("created_at", { ascending: true });
+    .eq("status", "active");
 
   if (error) {
     res.status(403).json({ error: "estate_memberships_access_denied" });
     return;
   }
 
-  const memberships = data ?? [];
-  if (memberships.length === 0) {
-    res.status(200).json({ estates: [] });
-    return;
-  }
+  const estates = (memberships ?? [])
+    .map((membership) => {
+      const estate = Array.isArray(membership.estates) ? membership.estates[0] : membership.estates;
+      return estate ? { ...estate, membershipRole: membership.membership_role } : null;
+    })
+    .filter((estate): estate is NonNullable<typeof estate> => estate !== null)
+    .sort((left, right) => left.name.localeCompare(right.name));
 
-  const ids = [...new Set(memberships.map((item) => item.estate_id))];
-  const result = await authenticated.userSupabase
-    .from("estates")
-    .select("id, name, address, city, state, timezone, is_enabled, disabled_at, disabled_reason")
-    .in("id", ids)
-    .order("name", { ascending: true });
-
-  if (result.error) {
-    res.status(403).json({ error: "estate_access_denied" });
-    return;
-  }
-
-  const roleByEstate = new Map(memberships.map((item) => [item.estate_id, item.membership_role]));
-  res.status(200).json({ estates: (result.data ?? []).map((estate) => ({
-    ...estate,
-    membershipRole: roleByEstate.get(estate.id) ?? null,
-  })) });
+  res.status(200).json({ estates });
 });
 
 
