@@ -13,15 +13,18 @@ if (!["isolated-staging", "github-actions-ephemeral"].includes(environment) || _
   throw new Error("Explicit isolated-staging or GitHub Actions ephemeral confirmation required.");
 }
 if (!base || !allowed) throw new Error("Set base URL and exact allowed host.");
-let target;
-try { target = new URL(base); } catch { throw new Error("Invalid absolute base URL."); }
-if (target.host !== allowed || target.username || target.password || target.search || target.hash) throw new Error("URL must match exact allowed host and contain no credentials/query/fragment.");
-const local = __ENV.LOAD_TEST_ALLOW_LOCAL_HTTP === "true" && ["localhost", "127.0.0.1"].includes(target.hostname);
-if (ciEphemeral && (target.hostname !== "127.0.0.1" || path !== "/__loadtest/database-read")) {
+const targetMatch = base.match(/^(https?):\\/\\/([^/?#]+)$/);
+if (!targetMatch) throw new Error("Base URL must be an absolute HTTP(S) origin without a path, query, or fragment.");
+const protocol = targetMatch[1] + ":";
+const host = targetMatch[2];
+const hostname = host.split(":")[0].toLowerCase();
+if (host !== allowed || host.includes("@")) throw new Error("URL must match the exact allowed host and contain no credentials.");
+const local = __ENV.LOAD_TEST_ALLOW_LOCAL_HTTP === "true" && ["localhost", "127.0.0.1"].includes(hostname);
+if (ciEphemeral && (hostname !== "127.0.0.1" || path !== "/__loadtest/database-read")) {
   throw new Error("GitHub Actions ephemeral mode is restricted to 127.0.0.1 and the CI-only database read endpoint.");
 }
-if (target.protocol !== "https:" && !(local && target.protocol === "http:")) throw new Error("HTTPS required except explicitly allowed localhost.");
-if (target.hostname.endsWith(".supabase.co")) throw new Error("Do not target Supabase directly.");
+if (protocol !== "https:" && !(local && protocol === "http:")) throw new Error("HTTPS required except explicitly allowed localhost.");
+if (hostname.endsWith(".supabase.co")) throw new Error("Do not target Supabase directly.");
 if (ciEphemeral ? path !== "/__loadtest/database-read" : path !== "/v1/me") {
   throw new Error("Only the isolated CI database read route or authenticated staging /v1/me route is permitted.");
 }
