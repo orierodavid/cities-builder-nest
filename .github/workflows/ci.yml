@@ -36,6 +36,7 @@ jobs:
       VISITOR_LIFECYCLE_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/visitor_lifecycle_test
       ROLE_ISOLATION_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/role_isolation_test
       DATABASE_ACCESS_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/database_access_test
+      DATABASE_MIGRATION_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/database_migration_test
       REDIS_URL: redis://localhost:6379
     defaults:
       run:
@@ -50,6 +51,7 @@ jobs:
         run: |
           PGPASSWORD=postgres createdb -h localhost -U postgres role_isolation_test
           PGPASSWORD=postgres createdb -h localhost -U postgres database_access_test
+          PGPASSWORD=postgres createdb -h localhost -U postgres database_migration_test
       - run: npm run typecheck
       - run: npm test
 
