@@ -4,10 +4,10 @@ A starter monorepo for an estate and community management app for iOS and Androi
 
 ## Architecture
 - **Mobile:** React Native + Expo + TypeScript
-- **API:** Node.js + TypeScript (host on an available provider; Railway is optional)
+- **API:** Express + Node.js + TypeScript; deployable as a Docker container
 - **Database:** Supabase PostgreSQL by default
-- **Authentication:** Supabase Auth sign-up/sign-in and API bearer-token validation are implemented; full estate-role authorization and end-to-end tests remain outstanding
-- **Jobs:** Background worker for payment events and reconciliation (hosting provider is configurable)
+- **Authentication:** Supabase bearer-token verification and server-side role/estate authorization are implemented; database RLS remains the second authorization boundary
+- **Jobs:** Durable PostgreSQL background queue with a separate Node worker; welcome-email delivery is opt-in and disabled by default
 - **Financial partner:** Holds Save for Rent funds and confirms deposits and payouts
 
 ## Local browser development
@@ -63,3 +63,8 @@ The API is developed and tested locally from this repository. GitHub Actions sta
 This is an early scaffold, not a production-ready financial application. Authentication scaffolding is implemented, but estate authorization, end-to-end security tests, provider integration, webhook verification, reconciliation jobs, and hardened deployment still need implementation. Do not accept real money until the regulated financial partner, legal/compliance reviewers, and security reviewers have approved the full flow.
 
 Save for Rent amounts must use integer minor units (NGN kobo). Payment confirmations must come from verified provider events or status checks, with unique references, idempotency, append-only ledger records, atomic withdrawal reservations, audit trails, and reconciliation.
+
+
+## Docker API and worker deployment
+
+The API and background worker share a multi-stage production image. Docker Compose runs the API, worker, and a private Redis instance; Supabase PostgreSQL and Auth remain managed externally. See [Docker deployment](docs/DOCKER_DEPLOYMENT.md) for secure environment setup, build, health checks, and host reverse-proxy guidance. Docker files package the services but do not deploy them to a VPS.
