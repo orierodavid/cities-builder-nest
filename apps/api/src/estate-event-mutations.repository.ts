@@ -49,7 +49,11 @@ export async function deleteEstateEventGuest(
 export async function issueEstateEventInvitation(
   client: PoolClient,
   input: { estateId: string; eventId: string; guestId: string; codeHash: string; userId: string; revokedAt: string },
-): Promise<{ context: EventInvitationContext; invitation: { id: string; guest_id: string; status: string; created_at: string } } | null> {
+): Promise<
+  | { kind: "venue_pending"; context: EventInvitationContext }
+  | { kind: "created"; context: EventInvitationContext; invitation: { id: string; guest_id: string; status: string; created_at: string } }
+  | null
+> {
   // Lock the guest row so two simultaneous issue requests cannot race while
   // replacing the one-active-invitation-per-guest record.
   const contextResult = await client.query<EventInvitationContext>(
@@ -66,6 +70,9 @@ export async function issueEstateEventInvitation(
   );
   const context = contextResult.rows[0];
   if (!context) return null;
+  if (context.event.venue_approval_status && context.event.venue_approval_status !== "approved") {
+    return { kind: "venue_pending", context };
+  }
 
   await client.query(
     `UPDATE public.estate_event_invitations
@@ -82,7 +89,7 @@ export async function issueEstateEventInvitation(
     [input.estateId, input.eventId, input.guestId, input.codeHash, input.userId],
   );
   const invitation = invitationResult.rows[0];
-  return invitation ? { context, invitation } : null;
+  return invitation ? { kind: "created", context, invitation } : null;
 }
 
 export async function revokeEstateEventInvitation(
