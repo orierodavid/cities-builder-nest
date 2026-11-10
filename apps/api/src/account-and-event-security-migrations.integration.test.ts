@@ -9,6 +9,7 @@ const databaseUrl = process.env.DATABASE_MIGRATION_TEST_DATABASE_URL;
 const here = dirname(fileURLToPath(import.meta.url));
 const accountMigration = resolve(here, "../../../supabase/migrations/20261110180000_atomic_estate_account_provisioning.sql");
 const eventMigration = resolve(here, "../../../supabase/migrations/20261110190000_security_event_invitation_verification.sql");
+const visitorSecurityMigration = resolve(here, "../../../supabase/migrations/20261110210000_security_visitor_pass_operations.sql");
 
 test("PostgreSQL enforces account provisioning and security event verification permissions", {
   skip: !databaseUrl ? "Set DATABASE_MIGRATION_TEST_DATABASE_URL to an isolated disposable PostgreSQL database." : false,
@@ -109,6 +110,15 @@ test("PostgreSQL enforces account provisioning and security event verification p
         id uuid PRIMARY KEY, estate_id uuid NOT NULL, event_id uuid NOT NULL, guest_id uuid NOT NULL,
         checked_in_at timestamptz NOT NULL DEFAULT now()
       );
+      CREATE TABLE public.visitor_passes (
+        id uuid PRIMARY KEY, estate_id uuid NOT NULL, host_user_id uuid NOT NULL,
+        visitor_name text NOT NULL, visitor_phone text, access_code_hash text NOT NULL,
+        valid_from timestamptz NOT NULL, valid_until timestamptz NOT NULL, status text NOT NULL
+      );
+      CREATE TABLE public.visitor_pass_denials (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
+        visitor_pass_id uuid NOT NULL, denied_by uuid NOT NULL, reason text, denied_at timestamptz NOT NULL DEFAULT now()
+      );
       GRANT USAGE ON SCHEMA public, auth, private TO authenticated;
       GRANT EXECUTE ON FUNCTION auth.uid(), public.current_user_has_required_legal_consent(),
         private.is_platform_admin(), private.is_active_estate_manager(uuid) TO authenticated;
@@ -116,6 +126,7 @@ test("PostgreSQL enforces account provisioning and security event verification p
 
     await adminPool.query(await readFile(accountMigration, "utf8"));
     await adminPool.query(await readFile(eventMigration, "utf8"));
+    await adminPool.query(await readFile(visitorSecurityMigration, "utf8"));
 
     await adminPool.query(
       "INSERT INTO public.estates (id, is_enabled) VALUES ($1, true), ($2, false)",
@@ -126,6 +137,9 @@ test("PostgreSQL enforces account provisioning and security event verification p
     await adminPool.query("INSERT INTO public.estate_memberships (estate_id, user_id, membership_role, status) VALUES ($1, $2, 'facility_manager', 'active'), ($1, $3, 'security', 'active')",
       [estate, manager, security]);
     await adminPool.query("INSERT INTO public.user_roles (user_id, role) VALUES ($1, 'platform_admin')", [platformAdmin]);
+    const hostUser = "90000000-0000-4000-8000-000000000001";
+    await addAuthUser(hostUser);
+    await adminPool.query("INSERT INTO public.users (id, full_name, phone_e164, is_active) VALUES ($1, 'Host Resident', NULL, true)", [hostUser]);
 
     const residentUser = "70000000-0000-4000-8000-000000000001";
     const staffUser = "70000000-0000-4000-8000-000000000002";
@@ -219,10 +233,43 @@ test("PostgreSQL enforces account provisioning and security event verification p
       [estate, event, codeHash],
     ), false);
     assert.equal(noLegalConsent.rows[0]?.status, "forbidden");
+
+    const passId = "a0000000-0000-4000-8000-000000000001";
+    const denialPassId = "a0000000-0000-4000-8000-000000000002";
+    await adminPool.query(
+      "INSERT INTO public.visitor_passes (id, estate_id, host_user_id, visitor_name, visitor_phone, access_code_hash, valid_from, valid_until, status) VALUES ($1, $2, $3, 'Visitor One', NULL, $4, now() - interval '1 minute', now() + interval '1 hour', 'active'), ($5, $2, $3, 'Visitor Two', NULL, $6, now() - interval '1 minute', now() + interval '1 hour', 'active')",
+      [passId, estate, hostUser, "b".repeat(64), denialPassId, "c".repeat(64)],
+    );
+    const gateLookup = await asUser(security, (client) => client.query(
+      "SELECT * FROM public.get_gate_visitor_pass_for_security($1, $2)",
+      [estate, "b".repeat(64)],
+    ));
+    assert.equal(gateLookup.rows[0]?.host_full_name, "Host Resident");
+    const denied = await asUser(security, (client) => client.query(
+      "SELECT * FROM public.deny_visitor_pass_for_security($1, $2, $3)",
+      [estate, denialPassId, "Not authorised"],
+    ));
+    assert.equal(denied.rows[0]?.result, "denied");
+    assert.equal(denied.rows[0]?.pass_status, "revoked");
+    const passStatus = await adminPool.query("SELECT status FROM public.visitor_passes WHERE id = $1", [denialPassId]);
+    assert.equal(passStatus.rows[0]?.status, "revoked");
+    const denialAudit = await adminPool.query("SELECT denied_by, reason FROM public.visitor_pass_denials WHERE visitor_pass_id = $1", [denialPassId]);
+    assert.equal(denialAudit.rows[0]?.denied_by, security);
+    assert.equal(denialAudit.rows[0]?.reason, "Not authorised");
+    const deniedAgain = await asUser(security, (client) => client.query(
+      "SELECT * FROM public.deny_visitor_pass_for_security($1, $2, NULL)",
+      [estate, denialPassId],
+    ));
+    assert.equal(deniedAgain.rows[0]?.result, "not_active");
+    const outsiderLookup = await asUser(outsider, (client) => client.query(
+      "SELECT * FROM public.get_gate_visitor_pass_for_security($1, $2)",
+      [estate, "b".repeat(64)],
+    ));
+    assert.equal(outsiderLookup.rowCount, 0);
   } finally {
     await adminPool.query("DROP SCHEMA IF EXISTS private CASCADE").catch(() => undefined);
     await adminPool.query("DROP SCHEMA IF EXISTS auth CASCADE").catch(() => undefined);
-    for (const table of ["estate_event_checkins", "estate_event_invitations", "estate_event_guests", "estate_events", "resident_units", "units", "estate_memberships", "estates", "users", "user_roles"]) {
+    for (const table of ["visitor_pass_denials", "visitor_passes", "estate_event_checkins", "estate_event_invitations", "estate_event_guests", "estate_events", "resident_units", "units", "estate_memberships", "estates", "users", "user_roles"]) {
       await adminPool.query(`DROP TABLE IF EXISTS public.${table} CASCADE`).catch(() => undefined);
     }
     await adminPool.end();
