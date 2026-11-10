@@ -125,3 +125,53 @@ export async function getEstateEventAttendanceReport(
     hasMore: row.guests.length > pageSize,
   };
 }
+
+export interface EstateEventAttendanceSummary {
+  event_id: string;
+  total_guests: number;
+  checked_in: number;
+  active_invitations: number;
+}
+
+/** Read paginated event attendance totals under the authenticated role and RLS. */
+export async function getEstateEventAttendanceSummaries(
+  client: PoolClient,
+  estateId: string,
+  creatorUserId: string,
+  pageSize: number,
+  offset: number,
+): Promise<Array<{
+  eventId: string;
+  totalGuests: number;
+  checkedIn: number;
+  activeInvitations: number;
+  outstanding: number;
+  attendancePercentage: number;
+}>> {
+  const result = await client.query<EstateEventAttendanceSummary>(
+    `SELECT e.id AS event_id,
+       (SELECT count(*)::int FROM public.estate_event_guests g
+         WHERE g.estate_id = e.estate_id AND g.event_id = e.id) AS total_guests,
+       (SELECT count(*)::int FROM public.estate_event_checkins c
+         WHERE c.estate_id = e.estate_id AND c.event_id = e.id) AS checked_in,
+       (SELECT count(*)::int FROM public.estate_event_invitations i
+         WHERE i.estate_id = e.estate_id AND i.event_id = e.id AND i.status = 'active') AS active_invitations
+     FROM public.estate_events e
+     WHERE e.estate_id = $1 AND e.created_by = $2
+     ORDER BY e.starts_at ASC, e.id ASC
+     LIMIT $3 OFFSET $4`,
+    [estateId, creatorUserId, pageSize, offset],
+  );
+  return result.rows.map((row) => {
+    const totalGuests = Number(row.total_guests);
+    const checkedIn = Number(row.checked_in);
+    return {
+      eventId: row.event_id,
+      totalGuests,
+      checkedIn,
+      activeInvitations: Number(row.active_invitations),
+      outstanding: Math.max(0, totalGuests - checkedIn),
+      attendancePercentage: totalGuests ? Math.round((checkedIn / totalGuests) * 100) : 0,
+    };
+  });
+}

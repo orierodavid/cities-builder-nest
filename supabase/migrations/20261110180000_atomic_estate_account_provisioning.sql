@@ -30,6 +30,9 @@ BEGIN
   IF actor_id IS NULL THEN
     RAISE EXCEPTION 'authenticated actor required' USING ERRCODE = '42501';
   END IF;
+  IF NOT public.current_user_has_required_legal_consent() THEN
+    RAISE EXCEPTION 'current legal consent required' USING ERRCODE = '42501';
+  END IF;
   IF target_full_name IS NULL OR length(btrim(target_full_name)) < 2 OR length(btrim(target_full_name)) > 120 THEN
     RAISE EXCEPTION 'invalid account name' USING ERRCODE = '22023';
   END IF;

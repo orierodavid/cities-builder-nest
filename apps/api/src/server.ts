@@ -30,6 +30,7 @@ import { getEstateEventInvitations } from "./estate-event-invitations.repository
 import { getEstateEventCheckIns } from "./estate-event-checkins.repository.js";
 import { verifyEstateEventInvitation } from "./estate-event-security.repository.js";
 import { getEstateEventAttendanceReport } from "./estate-event-attendance.repository.js";
+import { getEstateEventAttendanceSummaries } from "./estate-event-attendance.repository.js";
 import { createEstateEvent, createEstateEventCheckIn, createEstateEventGuest, deleteEstateEventGuest, issueEstateEventInvitation, revokeEstateEventInvitation, updateEstateEvent } from "./estate-event-mutations.repository.js";
 import { getEstateEnabledStatus, getEstateMembershipAccess, getEventCreator, hasEstateManagerRole, hasPlatformAdminRole } from "./authorization.repository.js";
 import { startApiServer } from "./lifecycle.js";
@@ -1949,6 +1950,17 @@ app.get("/v1/estates/:estateId/events/attendance-summaries", requireAuth, async 
   const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return;
   const page = getPageWindow(req);
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const summaries = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getEstateEventAttendanceSummaries(client, estateId, authenticated.authUser.id, page.pageSize, page.from),
+      );
+      res.status(200).json({ summaries });
+    } catch {
+      res.status(503).json({ error: "event_summaries_load_failed" });
+    }
+    return;
+  }
   const { data: events, error: eventsError } = await authenticated.userSupabase
     .from("estate_events").select("id").eq("estate_id", estateId)
     .eq("created_by", authenticated.authUser.id).order("starts_at", { ascending: true }).range(page.from, page.to);

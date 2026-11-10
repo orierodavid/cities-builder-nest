@@ -12,6 +12,7 @@ test("estate account provisioning is an authenticated, narrowly granted security
   assert.match(sql, /SECURITY DEFINER/);
   assert.match(sql, /SET search_path = ''/);
   assert.match(sql, /actor_id uuid := auth\.uid\(\)/);
+  assert.match(sql, /public\.current_user_has_required_legal_consent\(\)/);
   assert.match(sql, /private\.is_active_estate_manager\(target_estate_id\)/);
   assert.match(sql, /private\.is_platform_admin\(\)/);
   assert.match(sql, /target_role = 'estate_admin' AND NOT is_admin/);
