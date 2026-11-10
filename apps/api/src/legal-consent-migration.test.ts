@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const migration = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261102090000_legal_consents_and_virtual_accounts.sql"),
+  resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261102081313_legal_consents_and_virtual_accounts.sql"),
   "utf8",
 );
 

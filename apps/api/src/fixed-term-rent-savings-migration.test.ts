@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations");
-const migration = readFileSync(resolve(root, "20261104090000_fixed_term_rent_savings_goals.sql"), "utf8");
+const migration = readFileSync(resolve(root, "20261104155750_fixed_term_rent_savings_goals.sql"), "utf8");
 
 test("rent savings goals are restricted to three- or six-month terms", () => {
   assert.match(migration, /duration_months IN \(3, 6\)/);

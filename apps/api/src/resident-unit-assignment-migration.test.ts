@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const migrationPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261028110000_resident_unit_assignment_rls.sql");
+const migrationPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261028101846_resident_unit_assignment_rls.sql");
 
 test("resident unit assignment INSERT is restricted to managers or platform admins in the same enabled estate", async () => {
   const sql = await readFile(migrationPath, "utf8");

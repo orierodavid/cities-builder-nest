@@ -7,8 +7,8 @@ import pg from "pg";
 
 const { Pool } = pg;
 const here = dirname(fileURLToPath(import.meta.url));
-const singleUseMigrationPath = resolve(here, "../../../supabase/migrations/20261028020000_visitor_pass_single_use.sql");
-const lifecycleMigrationPath = resolve(here, "../../../supabase/migrations/20261028020100_visitor_pass_lifecycle_guards.sql");
+const singleUseMigrationPath = resolve(here, "../../../supabase/migrations/20261028095151_visitor_pass_single_use.sql");
+const lifecycleMigrationPath = resolve(here, "../../../supabase/migrations/20261028095159_visitor_pass_lifecycle_guards.sql");
 const databaseUrl = process.env.VISITOR_LIFECYCLE_TEST_DATABASE_URL;
 
 test("PostgreSQL enforces visitor pass lifecycle, estate boundaries, and single use", {

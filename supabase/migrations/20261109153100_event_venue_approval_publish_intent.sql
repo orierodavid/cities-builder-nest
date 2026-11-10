@@ -1,1 +1,0 @@
-alter table public.estate_events add column if not exists venue_approval_publish_requested boolean not null default false;

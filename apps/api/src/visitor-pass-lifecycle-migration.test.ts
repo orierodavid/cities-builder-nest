@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const migrationPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261028020100_visitor_pass_lifecycle_guards.sql");
+const migrationPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261028095159_visitor_pass_lifecycle_guards.sql");
 
 test("check-in consumes only an active, unexpired pass for the same enabled estate", async () => {
   const sql = await readFile(migrationPath, "utf8");

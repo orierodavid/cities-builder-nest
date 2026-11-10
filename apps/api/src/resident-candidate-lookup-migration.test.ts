@@ -4,8 +4,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const baseMigration = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261028130000_resident_candidate_lookup_rpc.sql"), "utf8");
-const hardeningMigration = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261108220000_resident_candidate_lookup_estate_scope.sql"), "utf8");
+const baseMigration = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261028102334_resident_candidate_lookup_rpc.sql"), "utf8");
+const hardeningMigration = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261108203916_resident_candidate_lookup_estate_scope.sql"), "utf8");
 
 test("resident candidate RPC retains authenticated-only execution and safe search path", () => {
   assert.match(baseMigration, /CREATE OR REPLACE FUNCTION public\.get_active_resident_candidate\(/);
