@@ -1880,8 +1880,10 @@ app.post("/v1/estates/:estateId/events/:eventId/guests/:guestId/invitations", re
       );
       if (!result) { res.status(404).json({ error: "event_guest_not_found" }); return; }
       if (result.kind === "venue_pending") {
-        res.status(409).json({ error: "event_venue_approval_pending", message: "Invitations can be sent after the estate venue has been approved." }); return;
+        res.status(409).json({ error: "event_venue_approval_pending", message: "Invitations can be sent after the estate venue has been approved." });
+        return;
       }
+      if (result.kind !== "created") return;
       const { guest, event } = result.context;
       res.status(201).json({ invitation: result.invitation, code, guest, event });
     } catch {
