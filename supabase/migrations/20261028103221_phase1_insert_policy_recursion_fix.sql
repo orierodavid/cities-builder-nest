@@ -1,0 +1,4 @@
+-- Historical migration version retained for exact parity with the live migration ledger.
+-- Its final RLS helper/policy definitions are represented by
+-- 20261028102734_phase1_insert_policy_recursion_fix.sql and
+-- 20261028103242_resident_assignment_recursion_fix.sql.

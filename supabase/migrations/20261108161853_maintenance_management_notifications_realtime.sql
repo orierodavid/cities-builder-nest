@@ -1,0 +1,3 @@
+-- Historical migration version retained for exact parity with the live migration ledger.
+-- The consolidated 20261108161606 migration already creates the management notification
+-- table, its RLS policies, and the realtime publication membership.

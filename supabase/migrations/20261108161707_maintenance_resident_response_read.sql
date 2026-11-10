@@ -1,0 +1,3 @@
+-- Historical migration version retained for exact parity with the live migration ledger.
+-- The consolidated 20261108161606_maintenance_two_way_replies_and_notifications.sql
+-- already adds resident_response_read_at and mark_maintenance_response_read().
