@@ -12,6 +12,7 @@ import { getMeData } from "./me.repository.js";
 import { getEstatesForUser } from "./estates.repository.js";
 import { getEstateDashboard } from "./dashboard.repository.js";
 import { getBuildingsForEstate, getUnitsForEstate } from "./property-directory.repository.js";
+import { getResidentsForEstate } from "./resident-directory.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -518,6 +519,26 @@ app.get("/v1/estates/:estateId/residents", requireAuth, async (req, res) => {
     return;
   }
   const page = getPageWindow(req);
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getResidentsForEstate(client, estateId, page.pageSize, page.from),
+      );
+      res.status(200).json({
+        residents: result.residents,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch (error) {
+      console.error("native_postgres_resident_list_failed", error);
+      res.status(503).json({ error: "resident_list_unavailable" });
+    }
+    return;
+  }
   const { data: memberships, error } = await authenticated.userSupabase.from("estate_memberships")
     .select("user_id").eq("estate_id", estateId).eq("membership_role", "resident").eq("status", "active")
     .order("created_at", { ascending: true }).range(page.from, page.to);
