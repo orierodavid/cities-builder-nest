@@ -10,6 +10,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const accountMigration = resolve(here, "../../../supabase/migrations/20261110180000_atomic_estate_account_provisioning.sql");
 const eventMigration = resolve(here, "../../../supabase/migrations/20261110190000_security_event_invitation_verification.sql");
 const visitorSecurityMigration = resolve(here, "../../../supabase/migrations/20261110210000_security_visitor_pass_operations.sql");
+const activeAssignmentMigration = resolve(here, "../../../supabase/migrations/20261110220000_resident_unit_active_assignment_unique.sql");
 
 test("PostgreSQL enforces account provisioning and security event verification permissions", {
   skip: !databaseUrl ? "Set DATABASE_MIGRATION_TEST_DATABASE_URL to an isolated disposable PostgreSQL database." : false,
@@ -127,6 +128,7 @@ test("PostgreSQL enforces account provisioning and security event verification p
     await adminPool.query(await readFile(accountMigration, "utf8"));
     await adminPool.query(await readFile(eventMigration, "utf8"));
     await adminPool.query(await readFile(visitorSecurityMigration, "utf8"));
+    await adminPool.query(await readFile(activeAssignmentMigration, "utf8"));
 
     await adminPool.query(
       "INSERT INTO public.estates (id, is_enabled) VALUES ($1, true), ($2, false)",
@@ -161,6 +163,10 @@ test("PostgreSQL enforces account provisioning and security event verification p
     assert.equal(createdResident.membership_role, "resident");
     const assigned = await adminPool.query("SELECT resident_user_id FROM public.resident_units WHERE unit_id = $1 AND end_date IS NULL", [unit]);
     assert.equal(assigned.rows[0]?.resident_user_id, residentUser);
+    await assert.rejects(
+      adminPool.query("INSERT INTO public.resident_units (estate_id, unit_id, resident_user_id) VALUES ($1, $2, $3)", [estate, unit, staffUser]),
+      (error: unknown) => (error as { code?: string }).code === "23505",
+    );
     const occupied = await adminPool.query("SELECT status FROM public.units WHERE id = $1", [unit]);
     assert.equal(occupied.rows[0]?.status, "occupied");
 

@@ -125,7 +125,7 @@ export async function assignResidentToEstateUnit(
   input: { estateId: string; unitId: string; residentUserId: string; startDate?: string },
 ): Promise<ResidentUnitAssignmentResult> {
   const unitResult = await client.query<{ id: string; status: string }>(
-    "SELECT id, status FROM public.units WHERE id = $1 AND estate_id = $2 LIMIT 1",
+    "SELECT id, status FROM public.units WHERE id = $1 AND estate_id = $2 LIMIT 1 FOR UPDATE",
     [input.unitId, input.estateId],
   );
   const unit = unitResult.rows[0];
