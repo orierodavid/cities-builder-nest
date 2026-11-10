@@ -14,7 +14,7 @@ function mockClient(rows: unknown[]) {
   return { client, calls };
 }
 
-test("estate events repository scopes by estate and creator with ascending paginated results", async () => {
+test("estate events repository scopes by estate and creator with deterministic paginated results", async () => {
   const rows = [
     { id: "event-1", estate_id: "estate-1", created_by: "user-1" },
     { id: "event-2", estate_id: "estate-1", created_by: "user-1" },
@@ -26,7 +26,7 @@ test("estate events repository scopes by estate and creator with ascending pagin
   assert.match(calls[0].sql, /FROM public\.estate_events/);
   assert.match(calls[0].sql, /WHERE estate_id = \$1/);
   assert.match(calls[0].sql, /AND created_by = \$2/);
-  assert.match(calls[0].sql, /ORDER BY starts_at ASC/);
+  assert.match(calls[0].sql, /ORDER BY starts_at ASC, id ASC/);
   assert.match(calls[0].sql, /LIMIT \$3 OFFSET \$4/);
   assert.deepEqual(calls[0].values, ["estate-1", "user-1", 3, 4]);
 });

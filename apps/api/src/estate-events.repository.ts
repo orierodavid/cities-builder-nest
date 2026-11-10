@@ -23,8 +23,8 @@ export interface EstateEventPage {
 
 /**
  * RLS enforces active estate membership or platform-admin visibility.
- * The API's existing created_by filter is preserved so users only receive
- * events they created, with stable ascending start-time pagination.
+ * The API's existing created_by filter is preserved. The id tie-breaker makes
+ * offset pagination deterministic when multiple events share a start time.
  */
 export async function getEstateEventsForCreator(
   client: PoolClient,
@@ -40,7 +40,7 @@ export async function getEstateEventsForCreator(
      FROM public.estate_events
      WHERE estate_id = $1
        AND created_by = $2
-     ORDER BY starts_at ASC
+     ORDER BY starts_at ASC, id ASC
      LIMIT $3 OFFSET $4`,
     [estateId, creatorUserId, pageSize + 1, offset],
   );

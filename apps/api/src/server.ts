@@ -1985,7 +1985,7 @@ app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
     .select("id, estate_id, title, description, venue, venue_id, venue_approval_status, starts_at, ends_at, status, created_by, created_at, updated_at")
     .eq("estate_id", estateId)
     .eq("created_by", authenticated.authUser.id)
-    .order("starts_at", { ascending: true }).range(page.from, page.to);
+    .order("starts_at", { ascending: true }).order("id", { ascending: true }).range(page.from, page.to);
   if (error) { res.status(403).json({ error: "estate_events_load_failed" }); return; }
   const result = pageResult(data, page);
   res.status(200).json({ events: result.items, pagination: result.pagination });
@@ -2009,7 +2009,7 @@ app.get("/v1/estates/:estateId/events/attendance-summaries", requireAuth, async 
   }
   const { data: events, error: eventsError } = await authenticated.userSupabase
     .from("estate_events").select("id").eq("estate_id", estateId)
-    .eq("created_by", authenticated.authUser.id).order("starts_at", { ascending: true }).range(page.from, page.to);
+    .eq("created_by", authenticated.authUser.id).order("starts_at", { ascending: true }).order("id", { ascending: true }).range(page.from, page.to);
   if (eventsError) { res.status(503).json({ error: "event_summaries_load_failed" }); return; }
   const eventIds = (events ?? []).map((event) => event.id);
   if (!eventIds.length) { res.status(200).json({ summaries: [] }); return; }
