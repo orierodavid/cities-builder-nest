@@ -74,7 +74,7 @@ BEGIN
 
   INSERT INTO public.users (id, full_name, phone_e164, is_active)
   VALUES (target_user_id, btrim(target_full_name), NULL, true)
-  ON CONFLICT (id) DO UPDATE
+  ON CONFLICT ON CONSTRAINT users_pkey DO UPDATE
     SET full_name = EXCLUDED.full_name, is_active = true;
 
   INSERT INTO public.estate_memberships (estate_id, user_id, membership_role, status)
