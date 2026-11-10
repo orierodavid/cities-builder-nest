@@ -7,6 +7,8 @@ import { createClient } from "@supabase/supabase-js";
 import cors from "cors";
 import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "./auth.js";
 import { checkDatabase } from "./storage.js";
+import { withAuthenticatedTransaction } from "./database.js";
+import { getMeData } from "./me.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -1716,6 +1718,31 @@ app.post("/v1/estates/:estateId/events/:eventId/security-verify", requireAuth, a
 
 app.get("/v1/me", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
+
+  // Enable the native PostgreSQL read path only after DATABASE_URL and the
+  // authenticated-role grants have been verified against the target database.
+  // Supabase PostgREST remains the default path during the staged migration.
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(
+        authenticated.authUser.id,
+        (client) => getMeData(client, authenticated.authUser.id),
+      );
+      res.status(200).json({
+        user: {
+          id: authenticated.authUser.id,
+          email: authenticated.authUser.email ?? null,
+          emailConfirmed: Boolean(authenticated.authUser.email_confirmed_at),
+        },
+        ...data,
+        profilePending: data.profile === null,
+      });
+    } catch {
+      res.status(503).json({ error: "profile_lookup_failed" });
+    }
+    return;
+  }
+
   try {
     const { data: profile, error } = await authenticated.userSupabase
       .from("users")
