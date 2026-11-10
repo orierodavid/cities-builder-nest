@@ -19,6 +19,7 @@ import { getSecurityIncidents } from "./security-incidents.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { getEstateEventsForCreator } from "./estate-events.repository.js";
+import { getEstateEventGuests } from "./estate-event-guests.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -1691,6 +1692,28 @@ app.get("/v1/estates/:estateId/events/:eventId/guests", requireAuth, async (req,
   const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const page = getPageWindow(req);
+
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(
+        authenticated.authUser.id,
+        (client) => getEstateEventGuests(client, estateId, eventId, page.pageSize, page.from),
+      );
+      res.status(200).json({
+        guests: result.guests,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch {
+      res.status(503).json({ error: "event_guest_list_load_failed" });
+    }
+    return;
+  }
+
   const { data, error } = await authenticated.userSupabase.from("estate_event_guests")
     .select("id, estate_id, event_id, guest_name, email, phone, notes, created_at, updated_at")
     .eq("estate_id", estateId).eq("event_id", eventId).order("created_at", { ascending: true }).range(page.from, page.to);
