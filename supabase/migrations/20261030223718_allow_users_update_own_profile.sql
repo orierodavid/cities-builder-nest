@@ -1,0 +1,1 @@
+create policy "users_update_own_profile" on public.users for update to authenticated using ((select auth.uid()) = id) with check ((select auth.uid()) = id);

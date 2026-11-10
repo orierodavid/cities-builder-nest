@@ -1,4 +1,3 @@
--- Copy the attributed audit actor onto alert records created by audit triggers.
 begin;
 create or replace function private.fill_admin_alert_actor()
 returns trigger language plpgsql set search_path='' as $$

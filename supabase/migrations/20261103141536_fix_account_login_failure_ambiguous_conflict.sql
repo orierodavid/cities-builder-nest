@@ -1,5 +1,3 @@
--- Resolve PL/pgSQL output-parameter ambiguity in the account lockout upsert.
--- The RETURNS TABLE output column user_id conflicts with ON CONFLICT (user_id).
 create or replace function public.record_account_login_failure(p_email text)
 returns table(user_id uuid, failed_attempts integer, lock_stage integer, locked_until timestamptz, lock_minutes integer)
 language plpgsql

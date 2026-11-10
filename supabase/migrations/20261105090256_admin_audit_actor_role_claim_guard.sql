@@ -1,4 +1,3 @@
--- Only trust actor attribution headers when the PostgREST JWT is service_role.
 create or replace function private.fill_audit_actor()
 returns trigger language plpgsql security definer set search_path='' as $$
 declare
