@@ -52,15 +52,16 @@ export default function WelcomeEmailPage() {
     setSuccess("");
     setSending(true);
     const finalMessage = message.replaceAll("{{name}}", recipient?.name || "there");
+    const requestId = crypto.randomUUID();
     const { data, error: invokeError } = await supabase.functions.invoke("send-welcome-email", {
-      body: { action: "send", userId, estateId, subject, message: finalMessage }
+      body: { action: "send", userId, estateId, subject, message: finalMessage, requestId }
     });
     if (invokeError || data?.error) {
       setError("The welcome email could not be sent. Please try again.");
-    } else if (data?.sent === true) {
-      setSuccess(`Welcome email sent successfully to ${recipient?.email}.`);
+    } else if (data?.queued === true) {
+      setSuccess(`Welcome email queued for ${recipient?.email}. It will be sent by the background worker when email delivery is enabled.`);
     } else {
-      setError("Delivery could not be confirmed. Please check the recipient address and try again.");
+      setError("The welcome email could not be queued. No email has been sent.");
     }
     setSending(false);
   }

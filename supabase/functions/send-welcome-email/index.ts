@@ -59,20 +59,31 @@ Deno.serve(async (req: Request) => {
   if (!apiKey || !from) {
     return json(503, {
       error: "email_delivery_not_configured",
-      message: "The welcome email composer is ready, but email delivery is not configured. Configure an email provider before sending. No email has been sent.",
+      message: "The welcome email composer is ready, but email delivery is not configured. Configure the email provider and worker before sending. No email has been sent.",
     });
   }
 
-  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><p>Hello ${escapeHtml(recipientName)},</p><div style="white-space:pre-wrap">${escapeHtml(message)}</div><p style="margin-top:32px;color:#777;font-size:12px">Cities Builder Nest</p></div>`;
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [target.user.email], subject, html, text: `Hello ${recipientName},\n\n${message}\n\nCities Builder Nest` }),
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    return json(502, { error: "email_provider_rejected", message: `Email provider rejected the message (HTTP ${response.status}).`, detail: detail.slice(0, 500) });
+  const requestId = typeof body.requestId === "string" && /^[0-9a-f-]{36}$/i.test(body.requestId)
+    ? body.requestId
+    : crypto.randomUUID();
+  const { data: queuedJob, error: queueError } = await admin
+    .from("background_jobs")
+    .insert({
+      job_type: "email.send",
+      payload: {
+        recipientEmail: target.user.email,
+        recipientName,
+        subject,
+        message,
+      },
+      idempotency_key: requestId,
+      max_attempts: 8,
+    })
+    .select("id")
+    .single();
+
+  if (queueError || !queuedJob) {
+    return json(503, { error: "email_queue_unavailable", message: "The welcome email could not be queued. No email has been sent." });
   }
-  const result = await response.json() as { id?: string };
-  return json(200, { success: true, sent: true, emailId: result.id ?? null, recipient: target.user.email });
+  return json(202, { success: true, queued: true, jobId: queuedJob.id, recipient: target.user.email });
 });
