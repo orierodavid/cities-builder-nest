@@ -21,6 +21,7 @@ import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { getEstateEventsForCreator } from "./estate-events.repository.js";
 import { getEstateEventGuests } from "./estate-event-guests.repository.js";
 import { getEstateEventInvitations } from "./estate-event-invitations.repository.js";
+import { getEstateEventCheckIns } from "./estate-event-checkins.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -1917,6 +1918,29 @@ app.get("/v1/estates/:estateId/events/:eventId/check-ins", requireAuth, async (r
   const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const page = getPageWindow(req);
+
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(
+        authenticated.authUser.id,
+        (client) => getEstateEventCheckIns(client, estateId, eventId, page.pageSize, page.from),
+      );
+      res.status(200).json({
+        checkIns: result.checkIns,
+        total: result.checkIns.length,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch {
+      res.status(503).json({ error: "event_checkins_load_failed" });
+    }
+    return;
+  }
+
   const { data, error } = await authenticated.userSupabase.from("estate_event_checkins")
     .select("id, guest_id, invitation_id, checked_in_at, estate_event_guests!inner(guest_name, email, phone)")
     .eq("estate_id", estateId).eq("event_id", eventId).order("checked_in_at", { ascending: false }).range(page.from, page.to);
