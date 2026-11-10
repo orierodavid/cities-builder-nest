@@ -122,11 +122,11 @@ test("PostgreSQL enforces account provisioning and security event verification p
       CREATE POLICY test_event_owner_read ON public.estate_events
         FOR SELECT TO authenticated USING (created_by = (SELECT auth.uid()));
       CREATE POLICY test_event_guest_owner_read ON public.estate_event_guests
-        FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.estate_events e WHERE e.id = event_id AND e.estate_id = estate_id AND e.created_by = (SELECT auth.uid())));
+        FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.estate_events e WHERE e.id = public.estate_event_guests.event_id AND e.estate_id = public.estate_event_guests.estate_id AND e.created_by = (SELECT auth.uid())));
       CREATE POLICY test_event_invitation_owner_read ON public.estate_event_invitations
-        FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.estate_events e WHERE e.id = event_id AND e.estate_id = estate_id AND e.created_by = (SELECT auth.uid())));
+        FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.estate_events e WHERE e.id = public.estate_event_invitations.event_id AND e.estate_id = public.estate_event_invitations.estate_id AND e.created_by = (SELECT auth.uid())));
       CREATE POLICY test_event_checkin_owner_read ON public.estate_event_checkins
-        FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.estate_events e WHERE e.id = event_id AND e.estate_id = estate_id AND e.created_by = (SELECT auth.uid())));
+        FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.estate_events e WHERE e.id = public.estate_event_checkins.event_id AND e.estate_id = public.estate_event_checkins.estate_id AND e.created_by = (SELECT auth.uid())));
       CREATE TABLE public.visitor_passes (
         id uuid PRIMARY KEY, estate_id uuid NOT NULL, host_user_id uuid NOT NULL,
         visitor_name text NOT NULL, visitor_phone text, access_code_hash text NOT NULL,
