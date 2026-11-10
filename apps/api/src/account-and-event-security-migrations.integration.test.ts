@@ -10,6 +10,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const accountMigration = resolve(here, "../../../supabase/migrations/20261110180000_atomic_estate_account_provisioning.sql");
 const eventMigration = resolve(here, "../../../supabase/migrations/20261110190000_security_event_invitation_verification.sql");
 const visitorSecurityMigration = resolve(here, "../../../supabase/migrations/20261110210000_security_visitor_pass_operations.sql");
+const visitorHostStatusMigration = resolve(here, "../../../supabase/migrations/20261110170000_visitor_pass_host_status_updates.sql");
 const activeAssignmentMigration = resolve(here, "../../../supabase/migrations/20261110220000_resident_unit_active_assignment_unique.sql");
 
 test("PostgreSQL enforces account provisioning and security event verification permissions", {
@@ -120,6 +121,10 @@ test("PostgreSQL enforces account provisioning and security event verification p
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
         visitor_pass_id uuid NOT NULL, denied_by uuid NOT NULL, reason text, denied_at timestamptz NOT NULL DEFAULT now()
       );
+      ALTER TABLE public.visitor_passes ENABLE ROW LEVEL SECURITY;
+      GRANT SELECT, UPDATE ON public.visitor_passes TO authenticated;
+      CREATE POLICY visitor_passes_select_host_test ON public.visitor_passes
+        FOR SELECT TO authenticated USING (host_user_id = (SELECT auth.uid()));
       GRANT USAGE ON SCHEMA public, auth, private TO authenticated;
       GRANT EXECUTE ON FUNCTION auth.uid(), public.current_user_has_required_legal_consent(),
         private.is_platform_admin(), private.is_active_estate_manager(uuid) TO authenticated;
@@ -127,6 +132,7 @@ test("PostgreSQL enforces account provisioning and security event verification p
 
     await adminPool.query(await readFile(accountMigration, "utf8"));
     await adminPool.query(await readFile(eventMigration, "utf8"));
+    await adminPool.query(await readFile(visitorHostStatusMigration, "utf8"));
     await adminPool.query(await readFile(visitorSecurityMigration, "utf8"));
     await adminPool.query(await readFile(activeAssignmentMigration, "utf8"));
 
@@ -142,6 +148,7 @@ test("PostgreSQL enforces account provisioning and security event verification p
     const hostUser = "90000000-0000-4000-8000-000000000001";
     await addAuthUser(hostUser);
     await adminPool.query("INSERT INTO public.users (id, full_name, phone_e164, is_active) VALUES ($1, 'Host Resident', NULL, true)", [hostUser]);
+    await adminPool.query("INSERT INTO public.estate_memberships (estate_id, user_id, membership_role, status) VALUES ($1, $2, 'resident', 'active')", [estate, hostUser]);
 
     const residentUser = "70000000-0000-4000-8000-000000000001";
     const staffUser = "70000000-0000-4000-8000-000000000002";
@@ -251,6 +258,26 @@ test("PostgreSQL enforces account provisioning and security event verification p
       [estate, "b".repeat(64)],
     ));
     assert.equal(gateLookup.rows[0]?.host_full_name, "Host Resident");
+
+    const hostStatusUpdate = await asUser(hostUser, (client) => client.query(
+      "UPDATE public.visitor_passes SET status = 'revoked' WHERE id = $1 RETURNING status",
+      [passId],
+    ));
+    assert.equal(hostStatusUpdate.rows[0]?.status, "revoked");
+    const hostStatusRestore = await asUser(hostUser, (client) => client.query(
+      "UPDATE public.visitor_passes SET status = 'active' WHERE id = $1 RETURNING status",
+      [passId],
+    ));
+    assert.equal(hostStatusRestore.rows[0]?.status, "active");
+    const securityCannotChangeHostPass = await asUser(security, (client) => client.query(
+      "UPDATE public.visitor_passes SET status = 'revoked' WHERE id = $1 RETURNING status",
+      [passId],
+    ));
+    assert.equal(securityCannotChangeHostPass.rowCount, 0);
+    await assert.rejects(asUser(hostUser, (client) => client.query(
+      "UPDATE public.visitor_passes SET host_user_id = $2 WHERE id = $1",
+      [passId, security],
+    )), (error: unknown) => (error as { code?: string }).code === "42501");
     const denied = await asUser(security, (client) => client.query(
       "SELECT * FROM public.deny_visitor_pass_for_security($1, $2, $3)",
       [estate, denialPassId, "Not authorised"],
