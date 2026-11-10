@@ -34,3 +34,40 @@ export async function createVisitorPass(
   );
   return result.rows[0] ?? null;
 }
+
+export type VisitorPassStatusUpdate =
+  | { kind: "not_found" }
+  | { kind: "not_reactivatable" }
+  | { kind: "expired" }
+  | { kind: "unchanged"; pass: { id: string; status: string; valid_until: string } }
+  | { kind: "updated"; pass: { id: string; status: string; valid_until: string } };
+
+export async function updateVisitorPassStatus(
+  client: PoolClient,
+  input: { estateId: string; passId: string; hostUserId: string; targetStatus: "active" | "revoked" },
+): Promise<VisitorPassStatusUpdate> {
+  const currentResult = await client.query<{ id: string; status: string; valid_until: string }>(
+    `SELECT id, status, valid_until
+     FROM public.visitor_passes
+     WHERE id = $1 AND estate_id = $2 AND host_user_id = $3
+     FOR UPDATE`,
+    [input.passId, input.estateId, input.hostUserId],
+  );
+  const current = currentResult.rows[0];
+  if (!current) return { kind: "not_found" };
+  if (current.status !== "active" && current.status !== "revoked") return { kind: "not_reactivatable" };
+  if (new Date(current.valid_until).getTime() <= Date.now()) return { kind: "expired" };
+  if (current.status === input.targetStatus) return { kind: "unchanged", pass: current };
+
+  const updatedResult = await client.query<{ id: string; status: string; valid_until: string }>(
+    `UPDATE public.visitor_passes
+     SET status = $4
+     WHERE id = $1 AND estate_id = $2 AND host_user_id = $3
+       AND status = $5 AND valid_until > now()
+     RETURNING id, status, valid_until`,
+    [input.passId, input.estateId, input.hostUserId, input.targetStatus, current.status],
+  );
+  const updated = updatedResult.rows[0];
+  if (!updated) return { kind: "expired" };
+  return { kind: "updated", pass: updated };
+}

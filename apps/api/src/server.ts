@@ -19,7 +19,7 @@ import { publishSecurityEmergencyAlert, resolveSecurityEmergencyAlert } from "./
 import { getSecurityIncidents } from "./security-incidents.repository.js";
 import { acknowledgeSecurityShiftHandover, createSecurityIncident, createSecurityShiftHandover } from "./security-workflows.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
-import { createVisitorPass } from "./visitor-pass-mutations.repository.js";
+import { createVisitorPass, updateVisitorPassStatus } from "./visitor-pass-mutations.repository.js";
 import { checkoutGateVisitorVisit, createGateVisitorVisit, getGateVisitorPass } from "./visitor-gate.repository.js";
 import { addExistingResidentMembership, assignExistingStaffMembership, assignResidentToEstateUnit, createEstate, createEstateBuilding, createEstateUnit, updateEstateSubscription } from "./estate-management-mutations.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
@@ -1197,6 +1197,31 @@ app.patch("/v1/estates/:estateId/visitor-passes/:passId/status", requireAuth, as
   if (targetStatus !== "active" && targetStatus !== "revoked") {
     res.status(400).json({ error: "invalid_visitor_pass_status" }); return;
   }
+
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const outcome = await withAuthenticatedTransaction(authenticated.authUser.id, async (client) => {
+        const membership = await getEstateMembershipAccess(client, authenticated.authUser.id, estateId);
+        if (!canCreateVisitorPass(membership, estateId)) return { kind: "forbidden" as const };
+        const enabled = await getEstateEnabledStatus(client, estateId);
+        if (enabled === null) return { kind: "not_found" as const };
+        if (!enabled) return { kind: "disabled" as const };
+        return updateVisitorPassStatus(client, {
+          estateId, passId, hostUserId: authenticated.authUser.id, targetStatus,
+        });
+      });
+      if (outcome.kind === "forbidden") { res.status(403).json({ error: "estate_membership_required" }); return; }
+      if (outcome.kind === "not_found") { res.status(404).json({ error: "visitor_pass_not_found" }); return; }
+      if (outcome.kind === "disabled") { rejectInactiveEstate(res); return; }
+      if (outcome.kind === "not_reactivatable") { res.status(409).json({ error: "visitor_pass_not_reactivatable" }); return; }
+      if (outcome.kind === "expired") { res.status(409).json({ error: "visitor_pass_expired" }); return; }
+      if (outcome.kind === "unchanged") { res.status(200).json({ pass: outcome.pass }); return; }
+      if (outcome.kind === "updated") { res.status(200).json({ pass: outcome.pass }); return; }
+      res.status(409).json({ error: "visitor_pass_status_update_failed" });
+    } catch { res.status(503).json({ error: "visitor_pass_status_update_failed" }); }
+    return;
+  }
+
   const { data: membership, error: membershipError } = await authenticated.userSupabase.from("estate_memberships")
     .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id).maybeSingle();
   if (membershipError || !canCreateVisitorPass(membership, estateId)) {
