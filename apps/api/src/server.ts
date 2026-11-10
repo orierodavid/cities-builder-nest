@@ -2479,7 +2479,7 @@ app.post("/v1/estates/:estateId/events/:eventId/security-verify", requireAuth, a
       const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
         verifyEstateEventInvitation(client, estateId, eventId, codeHash),
       );
-      if (!result) { res.status(403).json({ error: "security_membership_required" }); return; }
+      if (!result || result.status === "forbidden") { res.status(403).json({ error: "security_membership_required" }); return; }
       if (result.status === "event_not_found") { res.status(404).json({ error: "estate_event_not_found" }); return; }
       if (result.status === "venue_pending") { res.status(409).json({ error: "event_venue_approval_pending", message: "This event venue has not been approved." }); return; }
       if (result.status === "event_not_open") { res.status(409).json({ error: "event_not_open_for_guest_checkin" }); return; }
