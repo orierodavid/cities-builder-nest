@@ -57,7 +57,7 @@ jobs:
       - name: Build production API and worker container
         run: docker build --pull -f Dockerfile -t cbnest-api:ci .
       - name: Validate Docker Compose configuration
-        working-directory: ../..
+        working-directory: .
         run: |
           cp docker.env.example .env
           cp apps/api/.env.example apps/api/.env
