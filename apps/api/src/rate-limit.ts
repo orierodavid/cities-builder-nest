@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import type { RequestHandler } from "express";
-import { createClient, type RedisClientType } from "redis";
+import { createClient } from "redis";
 
 const WINDOW_SECONDS = 60;
 const READ_LIMIT = 120;
 const WRITE_LIMIT = 30;
 const localBuckets = new Map<string, { startedAt: number; count: number }>();
 
-type RedisRateLimitClient = Pick<RedisClientType, "eval">;
+type RedisClient = ReturnType<typeof createClient>;
+type RedisRateLimitClient = {
+  eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown>;
+};
 type RedisWindowResult = { count: number; retryAfterSeconds: number };
 
 const CONSUME_RATE_LIMIT_SCRIPT = `
@@ -19,10 +22,10 @@ local ttl = redis.call("TTL", KEYS[1])
 return { count, ttl }
 `;
 
-let redisClient: RedisClientType | null = null;
+let redisClient: RedisClient | null = null;
 let redisConnectPromise: Promise<void> | null = null;
 
-function getRedisClient(): RedisClientType | null {
+function getRedisClient(): RedisClient | null {
   if (redisClient) return redisClient;
   const url = process.env.REDIS_URL;
   if (!url) return null;
@@ -42,10 +45,10 @@ function getRedisClient(): RedisClientType | null {
   return client;
 }
 
-async function connectRedis(client: RedisClientType): Promise<void> {
+async function connectRedis(client: RedisClient): Promise<void> {
   if (!client.isOpen) {
     if (!redisConnectPromise) {
-      const connection = client.connect();
+      const connection = client.connect().then(() => undefined);
       const tracked = connection.finally(() => {
         if (redisConnectPromise === tracked) redisConnectPromise = null;
       });
@@ -113,7 +116,7 @@ export async function closeRateLimitStore(): Promise<void> {
   redisConnectPromise = null;
   if (!client) return;
   if (client.isReady) await client.quit();
-  else if (client.isOpen) client.destroy();
+  else if (client.isOpen) client.disconnect();
 }
 
 export const sharedRateLimit: RequestHandler = (req, res, next) => {
