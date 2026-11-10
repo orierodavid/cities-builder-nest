@@ -27,7 +27,7 @@ test("account provisioning passes a null unit for staff roles", async () => {
   const client = {
     query: async (_sql: string, values: unknown[] = []) => {
       calls.push(values);
-      return { rows: [], rowCount: 0 } as QueryResult;
+      return { rows: [], rowCount: 0 } as unknown as QueryResult;
     },
   } as unknown as PoolClient;
   assert.equal(await createEstateAccountMembership(client, {
