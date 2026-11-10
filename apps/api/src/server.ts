@@ -745,8 +745,13 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
         .not("status", "in", "(resolved,closed)"),
       authenticated.userSupabase
         .from("units")
-        .select("id, status")
+        .select("id", { count: "exact", head: true })
         .eq("estate_id", estateId),
+      authenticated.userSupabase
+        .from("units")
+        .select("id", { count: "exact", head: true })
+        .eq("estate_id", estateId)
+        .eq("status", "occupied"),
     ]);
 
     if (estateResult.error || !estateResult.data) {
@@ -757,18 +762,17 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
       res.status(423).json({ error: "estate_subscription_inactive", message: "This estate is temporarily unavailable because its subscription is inactive." });
       return;
     }
-    if (announcementsResult.error || announcementsCountResult.error || maintenanceResult.error || maintenanceCountResult.error || unitsResult.error) {
+    if (announcementsResult.error || announcementsCountResult.error || maintenanceResult.error || maintenanceCountResult.error || unitsResult.error || occupiedUnitsCountResult.error) {
       res.status(403).json({ error: "estate_dashboard_data_access_denied" });
       return;
     }
 
-    const units = unitsResult.data ?? [];
     const requests = maintenanceResult.data ?? [];
     res.status(200).json({
       estate: { ...estateResult.data, membershipRole: membership?.membership_role ?? (platformAdmin ? "platform_admin" : null) },
       summary: {
-        units: units.length,
-        occupiedUnits: units.filter((unit) => unit.status === "occupied").length,
+        units: unitsResult.count ?? 0,
+        occupiedUnits: occupiedUnitsCountResult.count ?? 0,
         openMaintenanceRequests: maintenanceCountResult.count ?? 0,
         publishedAnnouncements: announcementsCountResult.count ?? 0,
       },
