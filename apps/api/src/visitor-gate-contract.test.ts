@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const serverPath = resolve(here, "server.ts");
-const singleUseMigrationPath = resolve(here, "../../../supabase/migrations/20261028020000_visitor_pass_single_use.sql");
-const lifecycleMigrationPath = resolve(here, "../../../supabase/migrations/20261028020100_visitor_pass_lifecycle_guards.sql");
+const singleUseMigrationPath = resolve(here, "../../../supabase/migrations/20261028095151_visitor_pass_single_use.sql");
+const lifecycleMigrationPath = resolve(here, "../../../supabase/migrations/20261028095159_visitor_pass_lifecycle_guards.sql");
 
 test("visitor pass creation and gate endpoints keep role checks and estate scoping", async () => {
   const server = await readFile(serverPath, "utf8");

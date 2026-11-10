@@ -8,7 +8,7 @@ import pg from "pg";
 const { Pool } = pg;
 const here = dirname(fileURLToPath(import.meta.url));
 const roleIsolationMigration = resolve(here, "../../../supabase/migrations/20261028100107_phase1_role_isolation_hardening.sql");
-const assignmentMigration = resolve(here, "../../../supabase/migrations/20261028110000_resident_unit_assignment_rls.sql");
+const assignmentMigration = resolve(here, "../../../supabase/migrations/20261028101846_resident_unit_assignment_rls.sql");
 const databaseUrl = process.env.ROLE_ISOLATION_TEST_DATABASE_URL;
 
 test("PostgreSQL RLS prevents cross-estate reads and role escalation through direct table access", {
