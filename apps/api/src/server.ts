@@ -696,7 +696,8 @@ app.get("/v1/estates", requireAuth, async (req, res) => {
 
 app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
-  const estateId = req.params.estateId;
+  const estateIdParam = req.params.estateId;
+  const estateId = Array.isArray(estateIdParam) ? (estateIdParam[0] ?? "") : estateIdParam;
 
   if (process.env.NATIVE_POSTGRES_READS === "true") {
     try {
