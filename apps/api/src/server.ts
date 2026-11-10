@@ -15,6 +15,7 @@ import { getBuildingsForEstate, getUnitsForEstate } from "./property-directory.r
 import { getResidentsForEstate } from "./resident-directory.repository.js";
 import { getSecurityShiftHandovers } from "./security-shift-handovers.repository.js";
 import { getSecurityEmergencyAlerts } from "./security-emergency-alerts.repository.js";
+import { publishSecurityEmergencyAlert, resolveSecurityEmergencyAlert } from "./security-emergency-alert-mutations.repository.js";
 import { getSecurityIncidents } from "./security-incidents.repository.js";
 import { acknowledgeSecurityShiftHandover, createSecurityIncident, createSecurityShiftHandover } from "./security-workflows.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
@@ -1546,11 +1547,17 @@ app.post("/v1/estates/:estateId/security/shift-handovers/:handoverId/acknowledge
 app.get("/v1/estates/:estateId/emergency-alerts", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
   const authenticated = req as AuthenticatedRequest;
-  const { data: membership, error: membershipError } = await authenticated.userSupabase.from("estate_memberships")
-    .select("estate_id, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .eq("status", "active").maybeSingle();
+  let membership: { estate_id: string; membership_role: string; status: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => getEstateMembershipAccess(client, authenticated.authUser.id, estateId));
+  } else {
+    const result = await authenticated.userSupabase.from("estate_memberships")
+      .select("estate_id, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+      .eq("status", "active").maybeSingle();
+    membership = result.data ? { ...result.data, membership_role: "" } : null;
+  }
   const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
-  if (membershipError || (!membership && !platformAdmin)) { res.status(403).json({ error: "active_estate_membership_required" }); return; }
+  if (!membership && !platformAdmin) { res.status(403).json({ error: "active_estate_membership_required" }); return; }
   const enabled = await isEstateEnabled(authenticated.userSupabase, estateId, authenticated.authUser.id);
   if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!enabled) { rejectInactiveEstate(res); return; }
@@ -1597,6 +1604,20 @@ app.post("/v1/estates/:estateId/emergency-alerts", requireAuth, async (req, res)
       location.length > 240) {
     res.status(400).json({ error: "invalid_emergency_alert", message: "Provide a valid emergency type, high or critical severity, title and message." }); return;
   }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        publishSecurityEmergencyAlert(client, { estateId, alertType, severity, title, message, location: location || null }),
+      );
+      if (!data || !data.alert) { res.status(400).json({ error: "emergency_alert_create_failed" }); return; }
+      res.status(201).json(data);
+    } catch (error) {
+      const message = (error as { message?: string })?.message ?? "";
+      res.status(message.includes("security_membership_required") ? 403 : message.includes("estate_subscription_inactive") ? 423 : 400)
+        .json({ error: message.includes("security_membership_required") ? "security_membership_required" : message.includes("estate_subscription_inactive") ? "estate_subscription_inactive" : "emergency_alert_create_failed" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.rpc("publish_security_emergency_alert", {
     p_estate_id: estateId,
     p_alert_type: alertType,
@@ -1616,6 +1637,16 @@ app.post("/v1/estates/:estateId/emergency-alerts/:alertId/resolve", requireAuth,
   const alertId = Array.isArray(req.params.alertId) ? req.params.alertId[0] : req.params.alertId;
   const authenticated = await requireSecurityEventAccess(req, res, estateId);
   if (!authenticated) return;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        resolveSecurityEmergencyAlert(client, { estateId, alertId, userId: authenticated.authUser.id, resolvedAt: new Date().toISOString() }),
+      );
+      if (!data) { res.status(404).json({ error: "active_emergency_alert_not_found_or_resolve_failed" }); return; }
+      res.status(200).json({ alert: data });
+    } catch { res.status(503).json({ error: "emergency_alert_resolve_failed" }); }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("security_emergency_alerts")
     .update({ status: "resolved", resolved_by: authenticated.authUser.id, resolved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq("id", alertId).eq("estate_id", estateId).eq("status", "active")
