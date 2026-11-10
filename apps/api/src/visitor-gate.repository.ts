@@ -1,10 +1,23 @@
 import type { PoolClient } from "pg";
-export interface GateVisitorPass { id: string; host_user_id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string }
+export interface GateVisitorPass { id: string; host_user_id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string; host_full_name: string | null }
 export async function getGateVisitorPass(client: PoolClient, estateId: string, accessCodeHash: string): Promise<GateVisitorPass | null> {
   const result = await client.query<GateVisitorPass>(
-    `SELECT id, host_user_id, visitor_name, visitor_phone, valid_from, valid_until, status
-     FROM public.visitor_passes WHERE estate_id = $1 AND access_code_hash = $2 LIMIT 1`,
+    `SELECT id, host_user_id, visitor_name, visitor_phone, valid_from, valid_until, status, host_full_name
+     FROM public.get_gate_visitor_pass_for_security($1, $2)`,
     [estateId, accessCodeHash],
+  );
+  return result.rows[0] ?? null;
+}
+
+export interface VisitorPassDenialResult { result: "denied" | "not_active" | "forbidden"; pass_id: string | null; pass_status: string | null }
+export async function denyVisitorPass(
+  client: PoolClient,
+  input: { estateId: string; passId: string; reason: string | null },
+): Promise<VisitorPassDenialResult | null> {
+  const result = await client.query<VisitorPassDenialResult>(
+    `SELECT result, pass_id, pass_status
+     FROM public.deny_visitor_pass_for_security($1, $2, $3)`,
+    [input.estateId, input.passId, input.reason],
   );
   return result.rows[0] ?? null;
 }

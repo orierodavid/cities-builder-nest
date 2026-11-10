@@ -20,7 +20,7 @@ import { getSecurityIncidents } from "./security-incidents.repository.js";
 import { acknowledgeSecurityShiftHandover, createSecurityIncident, createSecurityShiftHandover } from "./security-workflows.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { createVisitorPass, updateVisitorPassStatus } from "./visitor-pass-mutations.repository.js";
-import { checkoutGateVisitorVisit, createGateVisitorVisit, getGateVisitorPass } from "./visitor-gate.repository.js";
+import { checkoutGateVisitorVisit, createGateVisitorVisit, denyVisitorPass, getGateVisitorPass } from "./visitor-gate.repository.js";
 import { addExistingResidentMembership, assignExistingStaffMembership, assignResidentToEstateUnit, createEstate, createEstateBuilding, createEstateUnit, updateEstateSubscription } from "./estate-management-mutations.repository.js";
 import { createEstateAccountMembership } from "./account-setup.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
@@ -1297,7 +1297,7 @@ app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, r
   const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
   if (!isValidVisitorAccessCode(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
   const hash = createHash("sha256").update(accessCode).digest("hex");
-  let pass: { id: string; host_user_id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string } | null = null;
+  let pass: { id: string; host_user_id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string; host_full_name?: string | null } | null = null;
   if (process.env.NATIVE_POSTGRES_READS === "true") {
     try { pass = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => getGateVisitorPass(client, estateId, hash)); }
     catch { res.status(503).json({ error: "visitor_pass_lookup_failed" }); return; }
@@ -1308,12 +1308,14 @@ app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, r
     pass = result.error ? null : result.data;
   }
   if (!pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
-  let hostName: string | null = null;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (serviceKey && process.env.SUPABASE_URL) {
-    const admin = createClient(process.env.SUPABASE_URL, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-    const { data: host } = await admin.from("users").select("full_name").eq("id", pass.host_user_id).maybeSingle();
-    hostName = host?.full_name ?? null;
+  let hostName: string | null = pass.host_full_name ?? null;
+  if (process.env.NATIVE_POSTGRES_READS !== "true") {
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (serviceKey && process.env.SUPABASE_URL) {
+      const admin = createClient(process.env.SUPABASE_URL, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { data: host } = await admin.from("users").select("full_name").eq("id", pass.host_user_id).maybeSingle();
+      hostName = host?.full_name ?? null;
+    }
   }
   res.status(200).json({ visitor: { name: pass.visitor_name, phone: pass.visitor_phone }, host: { name: hostName }, pass: { id: pass.id, validFrom: pass.valid_from, validUntil: pass.valid_until, status: pass.status }, availabilityError: visitorPassAvailabilityError(pass) });
 });
@@ -1336,6 +1338,18 @@ app.post("/v1/estates/:estateId/gate/visitor-passes/:passId/deny", requireAuth, 
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
   if (reason.length > 500) { res.status(400).json({ error: "invalid_denial_reason" }); return; }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const outcome = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        denyVisitorPass(client, { estateId, passId, reason: reason || null }),
+      );
+      if (!outcome || outcome.result === "forbidden") { res.status(403).json({ error: "security_membership_required" }); return; }
+      if (outcome.result === "not_active") { res.status(409).json({ error: "visitor_pass_not_active" }); return; }
+      res.status(200).json({ pass: { id: outcome.pass_id, status: outcome.pass_status } });
+    } catch { res.status(503).json({ error: "visitor_decision_failed" }); }
+    return;
+  }
+
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey || !process.env.SUPABASE_URL) { res.status(503).json({ error: "visitor_decision_service_not_configured" }); return; }
   const admin = createClient(process.env.SUPABASE_URL, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
