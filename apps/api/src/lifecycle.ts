@@ -1,8 +1,13 @@
 import { createServer, type Server } from "node:http";
 import type { Express } from "express";
+import { closeRateLimitStore } from "./rate-limit.js";
 import { closeDatabase } from "./storage.js";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+async function closeResources(): Promise<void> {
+  await Promise.all([closeDatabase(), closeRateLimitStore()]);
+}
 
 export function startApiServer(app: Express, port: number): Server {
   const server = createServer(app);
@@ -19,7 +24,7 @@ export function startApiServer(app: Express, port: number): Server {
     const forceExit = setTimeout(() => {
       console.error("API graceful shutdown timed out; closing active connections");
       server.closeAllConnections();
-      void closeDatabase().finally(() => process.exit(1));
+      void closeResources().finally(() => process.exit(1));
     }, SHUTDOWN_TIMEOUT_MS);
     forceExit.unref();
 
@@ -27,11 +32,11 @@ export function startApiServer(app: Express, port: number): Server {
       if (error) {
         console.error("HTTP server failed to close cleanly", { message: error.message });
         clearTimeout(forceExit);
-        void closeDatabase().finally(() => process.exit(1));
+        void closeResources().finally(() => process.exit(1));
         return;
       }
 
-      void closeDatabase()
+      void closeResources()
         .then(() => {
           clearTimeout(forceExit);
           console.info("API graceful shutdown completed", { signal });
@@ -39,7 +44,7 @@ export function startApiServer(app: Express, port: number): Server {
         })
         .catch((closeError: unknown) => {
           clearTimeout(forceExit);
-          console.error("Database pool failed to close cleanly", {
+          console.error("API dependencies failed to close cleanly", {
             message: closeError instanceof Error ? closeError.message : "unknown error",
           });
           process.exit(1);
