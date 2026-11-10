@@ -23,10 +23,10 @@ test("security incident repository scopes to estate and paginates newest first",
   const { client, calls } = mockClient(rows);
   const result = await getSecurityIncidents(client, "estate-1", 2, 4);
   assert.deepEqual(result, { incidents: rows.slice(0, 2), hasMore: true });
-  assert.match(calls[0].sql, /FROM public\\.security_incident_reports/);
-  assert.match(calls[0].sql, /WHERE estate_id = \\$1/);
+  assert.match(calls[0].sql, /FROM public\.security_incident_reports/);
+  assert.match(calls[0].sql, /WHERE estate_id = \$1/);
   assert.match(calls[0].sql, /ORDER BY created_at DESC/);
-  assert.match(calls[0].sql, /LIMIT \\$2 OFFSET \\$3/);
+  assert.match(calls[0].sql, /LIMIT \$2 OFFSET \$3/);
   assert.deepEqual(calls[0].values, ["estate-1", 3, 4]);
 });
 
