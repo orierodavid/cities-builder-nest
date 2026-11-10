@@ -18,6 +18,7 @@ import { getSecurityEmergencyAlerts } from "./security-emergency-alerts.reposito
 import { getSecurityIncidents } from "./security-incidents.repository.js";
 import { acknowledgeSecurityShiftHandover, createSecurityIncident, createSecurityShiftHandover } from "./security-workflows.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
+import { createVisitorPass } from "./visitor-pass-mutations.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { getEstateEventsForCreator } from "./estate-events.repository.js";
 import { getEstateEventGuests } from "./estate-event-guests.repository.js";
@@ -950,10 +951,19 @@ app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
 app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const { data: membership, error: membershipError } = await authenticated.userSupabase.from("estate_memberships")
-    .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
-    .maybeSingle();
-  if (membershipError || !canCreateVisitorPass(membership, estateId)) {
+  let membership: { estate_id: string; membership_role: string; status: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+      getEstateMembershipAccess(client, authenticated.authUser.id, estateId),
+    );
+  } else {
+    const result = await authenticated.userSupabase.from("estate_memberships")
+      .select("estate_id, membership_role, status").eq("estate_id", estateId).eq("user_id", authenticated.authUser.id)
+      .maybeSingle();
+    if (result.error) { res.status(403).json({ error: "estate_membership_required" }); return; }
+    membership = result.data;
+  }
+  if (!canCreateVisitorPass(membership, estateId)) {
     res.status(403).json({ error: "estate_membership_required" });
     return;
   }
@@ -970,6 +980,21 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
   const accessCode = String(randomInt(100000, 1000000));
   const accessCodeHash = createHash("sha256").update(accessCode).digest("hex");
   const accessCodeCiphertext = encryptVisitorAccessCode(accessCode, encryptionSecret);
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        createVisitorPass(client, {
+          estateId, hostUserId: authenticated.authUser.id, visitorName, visitorPhone,
+          accessCodeHash, accessCodeCiphertext, validFrom: validFrom.toISOString(), validUntil: validUntil.toISOString(),
+        }),
+      );
+      if (!data) { res.status(400).json({ error: "visitor_pass_create_failed" }); return; }
+      res.status(201).json({ visitorPass: data, accessCode });
+    } catch {
+      res.status(503).json({ error: "visitor_pass_create_failed" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("visitor_passes").insert({
     estate_id: estateId, host_user_id: authenticated.authUser.id, visitor_name: visitorName,
     visitor_phone: visitorPhone, access_code_hash: accessCodeHash, access_code_ciphertext: accessCodeCiphertext,
