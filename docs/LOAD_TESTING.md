@@ -20,7 +20,7 @@ The synthetic database includes role and estate membership records, 1,000 units,
 
 The local auth stub accepts only fixed test tokens and serves the test user's profile/legal-consent checks. It does not measure real Supabase Auth or production network latency. No production Supabase, resident data, email provider, Squad API, or payment workflow is contacted.
 
-The realistic workload is read-only. It does not create/revoke visitor passes, check visitors in, mutate events, or issue payments. Its full profile progressively ramps through 250, 500, and 1,000 virtual users. Each virtual user waits one second between requests. The k6 workload supplies distinct synthetic client IPs through the one-hop trusted test ingress so the per-IP limiter is not accidentally measured as a single-client burst. This is a distributed-client simulation, not a rate-limit stress test.
+The realistic workload is read-only. It does not create/revoke visitor passes, check visitors in, mutate events, or issue payments. Its full profile progressively ramps through 250, 500, and 1,000 virtual users. Each virtual user waits one second between requests. The k6 workload supplies distinct synthetic client IPs through the one-hop trusted test ingress so the per-IP limiter is not accidentally measured as a single-client burst. This is a distributed-client simulation, not a rate-limit stress test. The workflow fails if more than 1% of requests return an error or an invalid endpoint payload; this is an initial test-integrity gate, not a production latency or availability SLA.
 
 The workflow uploads the k6 summary and API/auth logs as a 14-day artifact.
 
