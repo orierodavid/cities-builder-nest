@@ -16,6 +16,7 @@ import { getResidentsForEstate } from "./resident-directory.repository.js";
 import { getSecurityShiftHandovers } from "./security-shift-handovers.repository.js";
 import { getSecurityEmergencyAlerts } from "./security-emergency-alerts.repository.js";
 import { getSecurityIncidents } from "./security-incidents.repository.js";
+import { acknowledgeSecurityShiftHandover, createSecurityIncident, createSecurityShiftHandover } from "./security-workflows.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { getEstateEventsForCreator } from "./estate-events.repository.js";
@@ -1313,6 +1314,22 @@ app.post("/v1/estates/:estateId/security/shift-handovers", requireAuth, async (r
       pendingActions.length > 3000) {
     res.status(400).json({ error: "invalid_security_shift_handover", message: "Provide a shift label, valid start and end times, and handover notes." }); return;
   }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        createSecurityShiftHandover(client, {
+          estateId, userId: authenticated.authUser.id, shiftLabel,
+          shiftStartedAt: startedAt.toISOString(), shiftEndedAt: endedAt.toISOString(),
+          handoverNotes: notes, pendingActions: pendingActions || null,
+        }),
+      );
+      if (!data) { res.status(400).json({ error: "security_shift_handover_create_failed" }); return; }
+      res.status(201).json({ handover: data });
+    } catch {
+      res.status(503).json({ error: "security_shift_handover_create_failed" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("security_shift_handovers")
     .insert({
       estate_id: estateId, outgoing_officer: authenticated.authUser.id, shift_label: shiftLabel,
@@ -1330,6 +1347,18 @@ app.post("/v1/estates/:estateId/security/shift-handovers/:handoverId/acknowledge
   const handoverId = Array.isArray(req.params.handoverId) ? req.params.handoverId[0] : req.params.handoverId;
   const authenticated = await requireSecurityEventAccess(req, res, estateId);
   if (!authenticated) return;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        acknowledgeSecurityShiftHandover(client, { estateId, handoverId, userId: authenticated.authUser.id, acknowledgedAt: new Date().toISOString() }),
+      );
+      if (!data) { res.status(409).json({ error: "pending_shift_handover_not_found_or_self_acknowledgement" }); return; }
+      res.status(200).json({ handover: data });
+    } catch {
+      res.status(503).json({ error: "shift_handover_acknowledgement_failed" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("security_shift_handovers")
     .update({ status: "acknowledged", acknowledged_by: authenticated.authUser.id, acknowledged_at: new Date().toISOString() })
     .eq("id", handoverId).eq("estate_id", estateId).eq("status", "pending")
@@ -1470,6 +1499,21 @@ app.post("/v1/estates/:estateId/security/incidents", requireAuth, async (req, re
       !severities.includes(severity) || description.length < 10 || description.length > 5000 ||
       location.length > 240 || Number.isNaN(occurredDate.getTime()) || occurredDate.getTime() > Date.now() + 5 * 60 * 1000) {
     res.status(400).json({ error: "invalid_security_incident", message: "Provide a valid title, category, severity, description and occurrence time." }); return;
+  }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        createSecurityIncident(client, {
+          estateId, userId: authenticated.authUser.id, title, category, severity,
+          description, location: location || null, occurredAt: occurredDate.toISOString(),
+        }),
+      );
+      if (!data) { res.status(400).json({ error: "security_incident_create_failed" }); return; }
+      res.status(201).json({ incident: data });
+    } catch {
+      res.status(503).json({ error: "security_incident_create_failed" });
+    }
+    return;
   }
   const { data, error } = await authenticated.userSupabase.from("security_incident_reports")
     .insert({
