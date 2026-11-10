@@ -1,3 +1,0 @@
--- Historical migration version retained for exact parity with the live migration ledger.
--- The consolidated 20261108161606 migration already links maintenance notifications
--- to resident_notifications and updates recipient read state.
