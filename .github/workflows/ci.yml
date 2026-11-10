@@ -54,6 +54,8 @@ jobs:
           PGPASSWORD=postgres createdb -h localhost -U postgres database_migration_test
       - run: npm run typecheck
       - run: npm test
+      - name: Build production API and worker container
+        run: docker build --pull -f Dockerfile -t cbnest-api:ci .
 
   mobile:
     runs-on: ubuntu-latest
