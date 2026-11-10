@@ -32,7 +32,7 @@ function getRedisClient(): RedisClientType | null {
     disableOfflineQueue: true,
     socket: {
       connectTimeout: 5_000,
-      reconnectStrategy: (retries) => Math.min(100 * (2 ** Math.min(retries, 4)), 2_000),
+      reconnectStrategy: (retries: number) => Math.min(100 * (2 ** Math.min(retries, 4)), 2_000),
     },
   });
   client.on("error", (error: Error) => {
