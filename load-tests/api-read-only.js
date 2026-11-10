@@ -13,10 +13,14 @@ if (!["isolated-staging", "github-actions-ephemeral"].includes(environment) || _
   throw new Error("Explicit isolated-staging or GitHub Actions ephemeral confirmation required.");
 }
 if (!base || !allowed) throw new Error("Set base URL and exact allowed host.");
-const targetMatch = base.match(/^(https?):\\/\\/([^/?#]+)$/);
-if (!targetMatch) throw new Error("Base URL must be an absolute HTTP(S) origin without a path, query, or fragment.");
-const protocol = targetMatch[1] + ":";
-const host = targetMatch[2];
+const separator = base.indexOf("://");
+if (separator < 1) throw new Error("Base URL must be an absolute HTTP(S) origin.");
+const scheme = base.slice(0, separator);
+const host = base.slice(separator + 3);
+if (!["http", "https"].includes(scheme) || !host || host.includes("/") || host.includes("?") || host.includes("#")) {
+  throw new Error("Base URL must be an absolute HTTP(S) origin without a path, query, or fragment.");
+}
+const protocol = scheme + ":";
 const hostname = host.split(":")[0].toLowerCase();
 if (host !== allowed || host.includes("@")) throw new Error("URL must match the exact allowed host and contain no credentials.");
 const local = __ENV.LOAD_TEST_ALLOW_LOCAL_HTTP === "true" && ["localhost", "127.0.0.1"].includes(hostname);
