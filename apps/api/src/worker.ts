@@ -124,7 +124,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   log("fatal", { errorName: error instanceof Error ? error.name : "UnknownError" });
   await closeWorkerDatabase?.().catch(() => undefined);
   process.exitCode = 1;
