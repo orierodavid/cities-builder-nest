@@ -72,7 +72,7 @@ export async function enqueueBackgroundJob(input: EnqueueBackgroundJobInput): Pr
 }
 
 export async function claimBackgroundJobs(
-  workerId = randomUUID(),
+  workerId: string = randomUUID(),
   limit = 10,
   jobTypes?: readonly BackgroundJobType[],
 ): Promise<BackgroundJob[]> {
