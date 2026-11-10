@@ -84,8 +84,9 @@ BEGIN
   IF target_role = 'resident' THEN
     INSERT INTO public.resident_units (estate_id, unit_id, resident_user_id)
     VALUES (target_estate_id, target_unit_id, target_user_id);
-    UPDATE public.units SET status = 'occupied'
-    WHERE id = target_unit_id AND estate_id = target_estate_id;
+    UPDATE public.units AS target
+    SET status = 'occupied'
+    WHERE target.id = target_unit_id AND target.estate_id = target_estate_id;
   END IF;
 
   RETURN QUERY SELECT membership_row.id, membership_row.estate_id, membership_row.user_id,
