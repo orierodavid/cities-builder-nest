@@ -30,12 +30,12 @@ export async function getActiveGateVisitsForEstate(
        v.id,
        v.visitor_pass_id,
        v.checked_in_at,
-       jsonb_build_object(
+       CASE WHEN p.id IS NULL THEN NULL ELSE jsonb_build_object(
          'visitor_name', p.visitor_name,
          'visitor_phone', p.visitor_phone
-       ) AS visitor_passes
+       ) END AS visitor_passes
      FROM public.visitor_visits v
-     INNER JOIN public.visitor_passes p
+     LEFT JOIN public.visitor_passes p
        ON p.id = v.visitor_pass_id
       AND p.estate_id = v.estate_id
      WHERE v.estate_id = $1
