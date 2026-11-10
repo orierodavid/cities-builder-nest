@@ -95,14 +95,14 @@ test("resident pass creation and listing require active membership and return on
   const listRoute = server.slice(listStart, gateStart);
   assert.match(createRoute, /\.eq\("user_id", authenticated\.authUser\.id\)/);
   assert.match(createRoute, /canCreateVisitorPass\(membership, estateId\)/);
-  assert.match(createRoute, /isEstateEnabled\(authenticated\.userSupabase, estateId\)/);
+  assert.match(createRoute, /isEstateEnabled\(authenticated\.userSupabase, estateId, authenticated\.authUser\.id\)/);
   assert.match(createRoute, /host_user_id: authenticated\.authUser\.id/);
 
   assert.match(listRoute, /\.eq\("user_id", authenticated\.authUser\.id\)/);
   assert.match(listRoute, /canCreateVisitorPass\(membership, estateId\)/);
   assert.match(listRoute, /\.eq\("host_user_id", authenticated\.authUser\.id\)/);
   assert.match(listRoute, /\.eq\("estate_id", estateId\)/);
-  assert.match(listRoute, /isEstateEnabled\(authenticated\.userSupabase, estateId\)/);
+  assert.match(listRoute, /isEstateEnabled\(authenticated\.userSupabase, estateId, authenticated\.authUser\.id\)/);
 });
 
 test("all gate routes fail closed for non-security memberships and disabled estates", async () => {
@@ -119,7 +119,7 @@ test("all gate routes fail closed for non-security memberships and disabled esta
     const nextRoute = server.indexOf('\napp.', start + 5);
     const route = server.slice(start, nextRoute === -1 ? undefined : nextRoute);
     assert.match(route, /canUseGateWorkflow\(membership, estateId\)/);
-    assert.match(route, /isEstateEnabled\(authenticated\.userSupabase, estateId\)/);
+    assert.match(route, /isEstateEnabled\(authenticated\.userSupabase, estateId, authenticated\.authUser\.id\)/);
     assert.match(route, /rejectInactiveEstate\(res\)/);
   }
 });
