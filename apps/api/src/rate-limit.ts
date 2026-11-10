@@ -1,24 +1,59 @@
 import { createHash } from "node:crypto";
 import type { RequestHandler } from "express";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type RedisClientType } from "redis";
 
 const WINDOW_SECONDS = 60;
 const READ_LIMIT = 120;
 const WRITE_LIMIT = 30;
 const localBuckets = new Map<string, { startedAt: number; count: number }>();
 
-let adminClient: ReturnType<typeof createClient> | null | undefined;
+type RedisRateLimitClient = Pick<RedisClientType, "eval">;
+type RedisWindowResult = { count: number; retryAfterSeconds: number };
 
-function getAdminClient(): ReturnType<typeof createClient> | null {
-  if (adminClient !== undefined) return adminClient;
-  const url = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  adminClient = url && serviceKey
-    ? createClient(url, serviceKey, {
-        auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-      })
-    : null;
-  return adminClient;
+const CONSUME_RATE_LIMIT_SCRIPT = `
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+  redis.call("EXPIRE", KEYS[1], ARGV[1])
+end
+local ttl = redis.call("TTL", KEYS[1])
+return { count, ttl }
+`;
+
+let redisClient: RedisClientType | null = null;
+let redisConnectPromise: Promise<void> | null = null;
+
+function getRedisClient(): RedisClientType | null {
+  if (redisClient) return redisClient;
+  const url = process.env.REDIS_URL;
+  if (!url) return null;
+
+  const client = createClient({
+    url,
+    disableOfflineQueue: true,
+    socket: {
+      connectTimeout: 5_000,
+      reconnectStrategy: (retries) => Math.min(100 * (2 ** Math.min(retries, 4)), 2_000),
+    },
+  });
+  client.on("error", (error: Error) => {
+    console.error("Shared API rate limiter Redis error", { name: error.name });
+  });
+  redisClient = client;
+  return client;
+}
+
+async function connectRedis(client: RedisClientType): Promise<void> {
+  if (!client.isOpen) {
+    if (!redisConnectPromise) {
+      const connection = client.connect();
+      const tracked = connection.finally(() => {
+        if (redisConnectPromise === tracked) redisConnectPromise = null;
+      });
+      redisConnectPromise = tracked;
+    }
+  }
+  if (redisConnectPromise) await redisConnectPromise;
+  if (!client.isReady) throw new Error("Redis rate limiter is not ready");
 }
 
 export function rateLimitForMethod(method: string): number | null {
@@ -29,6 +64,26 @@ export function rateLimitForMethod(method: string): number | null {
 
 export function createRateLimitBucketKey(ip: string, tier: "read" | "write"): string {
   return createHash("sha256").update(`cbnest:${tier}:${ip}`).digest("hex");
+}
+
+export async function consumeRedisBucket(
+  client: RedisRateLimitClient,
+  key: string,
+  windowSeconds: number,
+): Promise<RedisWindowResult> {
+  const result: unknown = await client.eval(CONSUME_RATE_LIMIT_SCRIPT, {
+    keys: [key],
+    arguments: [String(windowSeconds)],
+  });
+  if (!Array.isArray(result) || result.length !== 2) {
+    throw new Error("Redis returned an invalid rate-limit result");
+  }
+  const count = Number(result[0]);
+  const retryAfterSeconds = Number(result[1]);
+  if (!Number.isSafeInteger(count) || count < 1 || !Number.isFinite(retryAfterSeconds)) {
+    throw new Error("Redis returned an invalid rate-limit counter");
+  }
+  return { count, retryAfterSeconds: Math.max(1, retryAfterSeconds) };
 }
 
 function consumeLocalBucket(key: string, maxRequests: number): boolean {
@@ -42,6 +97,25 @@ function consumeLocalBucket(key: string, maxRequests: number): boolean {
   return existing.count <= maxRequests;
 }
 
+function rejectUnavailable(res: Parameters<RequestHandler>[1]): void {
+  res.setHeader("Retry-After", "5");
+  res.status(503).json({
+    error: "rate_limit_unavailable",
+    message: "Request protection is temporarily unavailable. Please retry shortly.",
+  });
+}
+
+export async function closeRateLimitStore(): Promise<void> {
+  const client = redisClient;
+  redisClient = null;
+  const pendingConnection = redisConnectPromise;
+  if (pendingConnection) await pendingConnection.catch(() => undefined);
+  redisConnectPromise = null;
+  if (!client) return;
+  if (client.isReady) await client.quit();
+  else if (client.isOpen) client.destroy();
+}
+
 export const sharedRateLimit: RequestHandler = (req, res, next) => {
   const maxRequests = rateLimitForMethod(req.method);
   if (maxRequests === null) {
@@ -51,8 +125,8 @@ export const sharedRateLimit: RequestHandler = (req, res, next) => {
 
   const tier = req.method === "GET" || req.method === "HEAD" ? "read" : "write";
   const bucketKey = createRateLimitBucketKey(req.ip || req.socket.remoteAddress || "unknown", tier);
-  // Integration/unit tests use mocked Supabase REST endpoints. Keep their rate
-  // limiting deterministic and local; production always uses the shared RPC.
+  // Keep local development and CI deterministic. Production uses one Redis
+  // counter shared by every API instance.
   if (process.env.NODE_ENV !== "production" || process.env.CI === "true") {
     if (!consumeLocalBucket(bucketKey, maxRequests)) {
       res.setHeader("Retry-After", String(WINDOW_SECONDS));
@@ -63,48 +137,26 @@ export const sharedRateLimit: RequestHandler = (req, res, next) => {
     return;
   }
 
-  const client = getAdminClient();
+  const client = getRedisClient();
   if (!client) {
-    res.setHeader("Retry-After", "5");
-    res.status(503).json({
-      error: "rate_limit_unavailable",
-      message: "Request protection is temporarily unavailable. Please retry shortly.",
-    });
+    rejectUnavailable(res);
     return;
   }
 
-  const rpc = client.rpc.bind(client) as unknown as (
-    functionName: string,
-    args: { p_bucket_key: string; p_window_seconds: number; p_max_requests: number },
-  ) => PromiseLike<{ data: boolean | null; error: { code?: string } | null }>;
-  void Promise.resolve(rpc("consume_api_rate_limit", {
-    p_bucket_key: bucketKey,
-    p_window_seconds: WINDOW_SECONDS,
-    p_max_requests: maxRequests,
-  })).then(({ data, error }) => {
-    if (error) {
-      console.error("Shared API rate limiter unavailable", { code: error.code ?? "unknown" });
-      res.setHeader("Retry-After", "5");
-      res.status(503).json({
-        error: "temporarily_unavailable",
-        message: "Request protection is temporarily unavailable. Please retry shortly.",
+  void connectRedis(client)
+    .then(() => consumeRedisBucket(client, `cbnest:rate-limit:v1:${tier}:${bucketKey}`, WINDOW_SECONDS))
+    .then(({ count, retryAfterSeconds }) => {
+      if (count > maxRequests) {
+        res.setHeader("Retry-After", String(retryAfterSeconds));
+        res.status(429).json({ error: "rate_limit_exceeded", message: "Too many requests. Please retry shortly." });
+        return;
+      }
+      next();
+    })
+    .catch((error: unknown) => {
+      console.error("Shared API rate limiter unavailable", {
+        name: error instanceof Error ? error.name : "unknown",
       });
-      return;
-    }
-    if (data !== true) {
-      res.setHeader("Retry-After", String(WINDOW_SECONDS));
-      res.status(429).json({ error: "rate_limit_exceeded", message: "Too many requests. Please retry shortly." });
-      return;
-    }
-    next();
-  }).catch((error: unknown) => {
-    console.error("Shared API rate limiter failed", {
-      name: error instanceof Error ? error.name : "unknown",
+      rejectUnavailable(res);
     });
-    res.setHeader("Retry-After", "5");
-    res.status(503).json({
-      error: "temporarily_unavailable",
-      message: "Request protection is temporarily unavailable. Please retry shortly.",
-    });
-  });
 };
