@@ -6,7 +6,7 @@ import test from "node:test";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../");
 const read = (path: string) => readFileSync(resolve(root, path), "utf8");
-const dedup = read("supabase/migrations/20261108200000_squad_service_charge_payment_dedup.sql");
+const dedup = read("supabase/migrations/20261108201859_squad_service_charge_payment_dedup.sql");
 const initiate = read("supabase/functions/initiate-squad-payment/index.ts");
 const webhook = read("supabase/functions/squad-payment-webhook/index.ts");
 const verify = read("supabase/functions/verify-squad-payment/index.ts");
