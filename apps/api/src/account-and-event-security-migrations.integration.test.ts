@@ -123,6 +123,7 @@ test("PostgreSQL enforces account provisioning and security event verification p
       );
       ALTER TABLE public.visitor_passes ENABLE ROW LEVEL SECURITY;
       GRANT SELECT, UPDATE ON public.visitor_passes TO authenticated;
+      GRANT SELECT ON public.estate_memberships TO authenticated;
       CREATE POLICY visitor_passes_select_host_test ON public.visitor_passes
         FOR SELECT TO authenticated USING (host_user_id = (SELECT auth.uid()));
       GRANT USAGE ON SCHEMA public, auth, private TO authenticated;
