@@ -48,13 +48,13 @@ The table inventory above is the set of API PostgREST targets found in the curre
 
 ## Initial implementation boundary
 
-The first native access primitive is intentionally limited to user-scoped, RLS-enforced transactions. It does not expose a service-role bypass and does not migrate any route by itself. Its PostgreSQL integration test uses a disposable CI database and proves that the transaction-local identity is honored by RLS. This test does not establish that the user's actual Supabase `DATABASE_URL` has the required role membership; that must be verified against the configured database before a route is switched.
+The first native access primitive is intentionally limited to user-scoped, RLS-enforced transactions. It does not expose a service-role bypass. The `/v1/me` route now has an opt-in native PostgreSQL path backed by `me.repository.ts`; `NATIVE_POSTGRES_READS` defaults to `false`, so the existing PostgREST path remains active unless the operator deliberately enables it. The repository preserves the current profile, role, membership, and nested resident-unit response shape. Repository mapping tests and a PostgreSQL integration test cover the code path and RLS context. These CI tests do not establish that the user's actual Supabase `DATABASE_URL` has the required role membership; that must be verified against the configured database before enabling the flag.
 
 ## Outstanding Stage 1 work
 
 - Verify the actual local `DATABASE_URL` configuration and its database role; no secret value should be shared in chat or committed.
 - Verify transaction-local role switching and all required RLS grants against the actual Supabase project, not only CI's PostgreSQL fixture.
-- Build typed repositories and migrate one low-risk read route at a time.
+- Expand typed repositories and migrate one low-risk route at a time; `/v1/me` is the first opt-in canary, not yet enabled by default.
 - Inventory each RPC's SQL body and preserve its authorization and transaction semantics.
 - Inventory all privileged service-role operations and design an explicit privileged repository boundary.
 - Establish migration ownership/order and detect drift between `database/migrations/` and `supabase/migrations/`.
