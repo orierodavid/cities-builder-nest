@@ -2,14 +2,7 @@ import dotenv from "dotenv";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import {
-  claimBackgroundJobs,
-  processClaimedBackgroundJob,
-  type BackgroundJob,
-  type BackgroundJobHandlers,
-  type BackgroundJobType,
-} from "./background-jobs.js";
-import { closeDatabase, pool } from "./storage.js";
+import type { BackgroundJob, BackgroundJobHandlers, BackgroundJobType } from "./background-jobs.js";
 
 const apiDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 dotenv.config({ path: resolve(apiDirectory, ".env") });
@@ -68,6 +61,9 @@ async function sendWelcomeEmail(job: BackgroundJob): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Load runtime modules only after dotenv so the shared PostgreSQL pool sees DATABASE_URL.
+  const { claimBackgroundJobs, processClaimedBackgroundJob } = await import("./background-jobs.js");
+  const { closeDatabase, pool } = await import("./storage.js");
   if (!pool) throw new Error("DATABASE_URL is required to start the background worker.");
   await pool.query("SELECT 1");
   const handlers: BackgroundJobHandlers = {};
@@ -125,8 +121,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 
-main().catch(async (error) => {
+main().catch((error) => {
   log("fatal", { errorName: error instanceof Error ? error.name : "UnknownError" });
-  await closeDatabase().catch(() => undefined);
   process.exitCode = 1;
 });
