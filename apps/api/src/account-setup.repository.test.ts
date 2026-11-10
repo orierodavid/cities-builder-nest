@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PoolClient, QueryResult } from "pg";
-import { createEstateAccountMembership } from "./account-setup.repository.js";
+import { createEstateAccountMembership, validateAccountUnit } from "./account-setup.repository.js";
 
 test("account provisioning delegates profile, membership and resident-unit writes to the guarded database function", async () => {
   const calls: Array<{ sql: string; values: unknown[] }> = [];
@@ -34,4 +34,18 @@ test("account provisioning passes a null unit for staff roles", async () => {
     estateId: "estate-1", userId: "user-2", fullName: "Security Officer", role: "security", unitId: null,
   }), null);
   assert.deepEqual(calls[0], ["estate-1", "user-2", "Security Officer", "security", null]);
+});
+
+test("account unit validation is estate-scoped and detects active assignments", async () => {
+  const calls: Array<{ sql: string; values: unknown[] }> = [];
+  const client = {
+    query: async (sql: string, values: unknown[] = []) => {
+      calls.push({ sql, values });
+      return { rows: [{ already_assigned: true }], rowCount: 1 } as unknown as QueryResult;
+    },
+  } as unknown as PoolClient;
+  assert.equal(await validateAccountUnit(client, "estate-1", "unit-1"), "already_assigned");
+  assert.match(calls[0].sql, /u\.id = \$1 AND u\.estate_id = \$2/);
+  assert.match(calls[0].sql, /ru\.end_date IS NULL/);
+  assert.deepEqual(calls[0].values, ["unit-1", "estate-1"]);
 });

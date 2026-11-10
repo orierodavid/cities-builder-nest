@@ -22,7 +22,7 @@ import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { createVisitorPass, updateVisitorPassStatus } from "./visitor-pass-mutations.repository.js";
 import { checkoutGateVisitorVisit, createGateVisitorVisit, denyVisitorPass, getGateVisitorPass } from "./visitor-gate.repository.js";
 import { addExistingResidentMembership, assignExistingStaffMembership, assignResidentToEstateUnit, createEstate, createEstateBuilding, createEstateUnit, updateEstateSubscription } from "./estate-management-mutations.repository.js";
-import { createEstateAccountMembership } from "./account-setup.repository.js";
+import { createEstateAccountMembership, validateAccountUnit } from "./account-setup.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { getEstateEventsForCreator } from "./estate-events.repository.js";
 import { getEstateEventGuests } from "./estate-event-guests.repository.js";
@@ -375,28 +375,46 @@ app.post("/v1/estates/:estateId/accounts", requireAuth, async (req, res) => {
   });
 
   if (role === "resident") {
-    const { data: unit, error: unitError } = await adminSupabase
-      .from("units")
-      .select("id, building_id, buildings!inner(estate_id)")
-      .eq("id", unitId)
-      .maybeSingle();
-    const building = unit?.buildings as unknown as { estate_id?: string } | null;
-    if (unitError || !unit || building?.estate_id !== estateId) {
-      res.status(400).json({ error: "unit_not_in_selected_estate", message: "Select an apartment or unit belonging to this estate." });
-      return;
-    }
-    const { data: activeAssignment } = await adminSupabase
-      .from("resident_units")
-      .select("id")
-      .eq("unit_id", unitId)
-      .is("end_date", null)
-      .maybeSingle();
-    if (activeAssignment) {
-      res.status(409).json({ error: "unit_already_assigned", message: "This unit already has an active resident assignment." });
-      return;
+    if (process.env.NATIVE_POSTGRES_READS === "true") {
+      try {
+        const validation = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+          validateAccountUnit(client, estateId, unitId),
+        );
+        if (validation === "not_found") {
+          res.status(400).json({ error: "unit_not_in_selected_estate", message: "Select an apartment or unit belonging to this estate." });
+          return;
+        }
+        if (validation === "already_assigned") {
+          res.status(409).json({ error: "unit_already_assigned", message: "This unit already has an active resident assignment." });
+          return;
+        }
+      } catch {
+        res.status(503).json({ error: "resident_unit_validation_failed" });
+        return;
+      }
+    } else {
+      const { data: unit, error: unitError } = await adminSupabase
+        .from("units")
+        .select("id, building_id, buildings!inner(estate_id)")
+        .eq("id", unitId)
+        .maybeSingle();
+      const building = unit?.buildings as unknown as { estate_id?: string } | null;
+      if (unitError || !unit || building?.estate_id !== estateId) {
+        res.status(400).json({ error: "unit_not_in_selected_estate", message: "Select an apartment or unit belonging to this estate." });
+        return;
+      }
+      const { data: activeAssignment } = await adminSupabase
+        .from("resident_units")
+        .select("id")
+        .eq("unit_id", unitId)
+        .is("end_date", null)
+        .maybeSingle();
+      if (activeAssignment) {
+        res.status(409).json({ error: "unit_already_assigned", message: "This unit already has an active resident assignment." });
+        return;
+      }
     }
   }
-
   const redirectTo = process.env.AUTH_INVITE_REDIRECT_URL;
   const { data: invited, error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
