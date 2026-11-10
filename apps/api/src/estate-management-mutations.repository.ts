@@ -145,12 +145,20 @@ export async function assignResidentToEstateUnit(
   const startDateClause = input.startDate ? ", start_date" : "";
   const startDateValue = input.startDate ? ", $4" : "";
   if (input.startDate) values.push(input.startDate);
-  const result = await client.query<ResidentUnitAssignment>(
-    `INSERT INTO public.resident_units (estate_id, unit_id, resident_user_id${startDateClause})
-     VALUES ($1, $2, $3${startDateValue})
-     RETURNING id, estate_id, unit_id, resident_user_id, start_date, end_date, created_at`,
-    values,
-  );
-  const assignment = result.rows[0];
-  return assignment ? { kind: "assigned", assignment } : { kind: "unit_not_found" };
+  try {
+    const result = await client.query<ResidentUnitAssignment>(
+      `INSERT INTO public.resident_units (estate_id, unit_id, resident_user_id${startDateClause})
+       VALUES ($1, $2, $3${startDateValue})
+       RETURNING id, estate_id, unit_id, resident_user_id, start_date, end_date, created_at`,
+      values,
+    );
+    const assignment = result.rows[0];
+    return assignment ? { kind: "assigned", assignment } : { kind: "unit_not_found" };
+  } catch (error) {
+    const databaseError = error as { code?: string; constraint?: string };
+    if (databaseError.code === "23505" && databaseError.constraint === "resident_units_one_active_assignment_per_unit_idx") {
+      return { kind: "unit_not_available" };
+    }
+    throw error;
+  }
 }
