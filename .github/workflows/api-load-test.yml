@@ -89,10 +89,16 @@ jobs:
       - name: Pull pinned k6 runner
         run: docker pull grafana/k6:0.54.0
 
+      - name: Prepare writable k6 output directory
+        run: |
+          mkdir -p "$RUNNER_TEMP/k6-output"
+          chmod 777 "$RUNNER_TEMP/k6-output"
+
       - name: Run progressive 250, 500 and 1,000 VU profile
         run: |
           docker run --rm --network host \
             -v "$GITHUB_WORKSPACE:/work" -w /work \
+            -v "$RUNNER_TEMP/k6-output:/out" \
             -e LOAD_TEST_ENVIRONMENT=github-actions-ephemeral \
             -e LOAD_TEST_CONFIRM=YES \
             -e LOAD_TEST_BASE_URL=http://127.0.0.1:4000 \
@@ -101,7 +107,7 @@ jobs:
             -e LOAD_TEST_PATH=/__loadtest/database-read \
             -e LOAD_TEST_PROFILE=full \
             grafana/k6:0.54.0 run \
-            --summary-export=/work/load-test-summary.json \
+            --summary-export=/out/load-test-summary.json \
             load-tests/api-read-only.js
 
       - name: Stop isolated API
@@ -117,7 +123,7 @@ jobs:
         with:
           name: cbnest-api-load-test-${{ github.run_number }}
           path: |
-            load-test-summary.json
+            ${{ runner.temp }}/k6-output/load-test-summary.json
             ${{ runner.temp }}/cbnest-api.log
           if-no-files-found: warn
           retention-days: 14
