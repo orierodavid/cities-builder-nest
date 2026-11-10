@@ -22,6 +22,7 @@ import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { createVisitorPass, updateVisitorPassStatus } from "./visitor-pass-mutations.repository.js";
 import { checkoutGateVisitorVisit, createGateVisitorVisit, getGateVisitorPass } from "./visitor-gate.repository.js";
 import { addExistingResidentMembership, assignExistingStaffMembership, assignResidentToEstateUnit, createEstate, createEstateBuilding, createEstateUnit, updateEstateSubscription } from "./estate-management-mutations.repository.js";
+import { createEstateAccountMembership } from "./account-setup.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { getEstateEventsForCreator } from "./estate-events.repository.js";
 import { getEstateEventGuests } from "./estate-event-guests.repository.js";
@@ -409,6 +410,28 @@ app.post("/v1/estates/:estateId/accounts", requireAuth, async (req, res) => {
   }
 
   const userId = invited.user.id;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        createEstateAccountMembership(client, {
+          estateId, userId, fullName, role,
+          unitId: role === "resident" ? unitId : null,
+        }),
+      );
+      if (!membership) throw new Error("Account membership was not created.");
+      res.status(201).json({
+        account: { id: userId, fullName, email, role, estateId, unitId: role === "resident" ? unitId : null, invitationSent: true },
+        membership,
+      });
+    } catch {
+      // Auth identity creation and PostgreSQL membership setup are separate
+      // systems. Compensate the identity if the database transaction fails.
+      await adminSupabase.auth.admin.deleteUser(userId).catch(() => undefined);
+      res.status(500).json({ error: "account_database_setup_failed", message: "The invitation could not be fully provisioned. The incomplete account was rolled back; check the estate configuration before retrying." });
+    }
+    return;
+  }
+
   const { error: profileError } = await adminSupabase.from("users")
     .upsert({ id: userId, full_name: fullName, phone_e164: null, is_active: true }, { onConflict: "id" });
   if (profileError) {
