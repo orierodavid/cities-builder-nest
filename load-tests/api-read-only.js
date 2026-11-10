@@ -4,18 +4,27 @@ import { Rate, Trend } from "k6/metrics";
 
 const base = (__ENV.LOAD_TEST_BASE_URL || "").replace(/\/$/, "");
 const allowed = (__ENV.LOAD_TEST_ALLOWED_HOST || "").trim();
-const path = (__ENV.LOAD_TEST_PATH || "/health").trim();
+const path = (__ENV.LOAD_TEST_PATH || "/v1/me").trim();
 const profile = (__ENV.LOAD_TEST_PROFILE || "250").trim();
 const token = (__ENV.LOAD_TEST_BEARER_TOKEN || "").trim();
-if (__ENV.LOAD_TEST_ENVIRONMENT !== "isolated-staging" || __ENV.LOAD_TEST_CONFIRM !== "YES") throw new Error("Explicit isolated-staging confirmation required.");
+const environment = (__ENV.LOAD_TEST_ENVIRONMENT || "").trim();
+const ciEphemeral = environment === "github-actions-ephemeral";
+if (!["isolated-staging", "github-actions-ephemeral"].includes(environment) || __ENV.LOAD_TEST_CONFIRM !== "YES") {
+  throw new Error("Explicit isolated-staging or GitHub Actions ephemeral confirmation required.");
+}
 if (!base || !allowed) throw new Error("Set base URL and exact allowed host.");
 let target;
 try { target = new URL(base); } catch { throw new Error("Invalid absolute base URL."); }
 if (target.host !== allowed || target.username || target.password || target.search || target.hash) throw new Error("URL must match exact allowed host and contain no credentials/query/fragment.");
 const local = __ENV.LOAD_TEST_ALLOW_LOCAL_HTTP === "true" && ["localhost", "127.0.0.1"].includes(target.hostname);
+if (ciEphemeral && (target.hostname !== "127.0.0.1" || path !== "/__loadtest/database-read")) {
+  throw new Error("GitHub Actions ephemeral mode is restricted to 127.0.0.1 and the CI-only database read endpoint.");
+}
 if (target.protocol !== "https:" && !(local && target.protocol === "http:")) throw new Error("HTTPS required except explicitly allowed localhost.");
 if (target.hostname.endsWith(".supabase.co")) throw new Error("Do not target Supabase directly.");
-if (!["/health", "/v1/me"].includes(path)) throw new Error("Only read-only /health or /v1/me permitted.");
+if (ciEphemeral ? path !== "/__loadtest/database-read" : path !== "/v1/me") {
+  throw new Error("Only the isolated CI database read route or authenticated staging /v1/me route is permitted.");
+}
 if (path === "/v1/me" && !token) throw new Error("Dedicated staging bearer token required.");
 const stages = {
   "250": [{target:250,duration:"1m"},{target:250,duration:"2m"},{target:0,duration:"1m"}],
