@@ -68,3 +68,7 @@ Save for Rent amounts must use integer minor units (NGN kobo). Payment confirmat
 ## Docker API and worker deployment
 
 The API and background worker share a multi-stage production image. Docker Compose runs the API, worker, and a private Redis instance; Supabase PostgreSQL and Auth remain managed externally. See [Docker deployment](docs/DOCKER_DEPLOYMENT.md) for secure environment setup, build, health checks, and host reverse-proxy guidance. Docker files package the services but do not deploy them to a VPS.
+
+## Controlled load testing
+
+The guarded k6 harness and isolated-staging procedure for 250, 500, and 1,000 virtual users are documented in [Load testing](docs/LOAD_TESTING.md). The test is read-only and must not target production.
