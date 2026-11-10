@@ -713,7 +713,7 @@ app.get("/v1/estates/:estateId/dashboard", requireAuth, async (req, res) => {
   }
 
   try {
-    const [estateResult, announcementsResult, announcementsCountResult, maintenanceResult, maintenanceCountResult, unitsResult] = await Promise.all([
+    const [estateResult, announcementsResult, announcementsCountResult, maintenanceResult, maintenanceCountResult, unitsResult, occupiedUnitsCountResult] = await Promise.all([
       authenticated.userSupabase
         .from("estates")
         .select("id, name, address, city, state, timezone, is_enabled, disabled_at, disabled_reason")
