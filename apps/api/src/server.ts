@@ -1930,11 +1930,25 @@ async function requireEventOwner(
 app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const { data: membership, error: membershipError } = await authenticated.userSupabase
-    .from("estate_memberships").select("membership_role").eq("estate_id", estateId)
-    .eq("user_id", authenticated.authUser.id).eq("status", "active").maybeSingle();
+  let membership: { membership_role: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getEstateMembershipAccess(client, authenticated.authUser.id, estateId),
+      );
+    } catch {
+      res.status(503).json({ error: "estate_membership_lookup_failed" });
+      return;
+    }
+  } else {
+    const result = await authenticated.userSupabase.from("estate_memberships")
+      .select("membership_role").eq("estate_id", estateId)
+      .eq("user_id", authenticated.authUser.id).eq("status", "active").maybeSingle();
+    if (result.error) { res.status(503).json({ error: "estate_membership_lookup_failed" }); return; }
+    membership = result.data;
+  }
   const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
-  if (membershipError || (!membership && !platformAdmin)) { res.status(403).json({ error: "active_estate_membership_required" }); return; }
+  if (!membership && !platformAdmin) { res.status(403).json({ error: "active_estate_membership_required" }); return; }
   const enabled = await isEstateEnabled(authenticated.userSupabase, estateId, authenticated.authUser.id);
   if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!enabled) { rejectInactiveEstate(res); return; }
