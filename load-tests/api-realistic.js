@@ -35,6 +35,7 @@ export const options = {
   scenarios: { cb_nest_realistic_reads: {
     executor: "ramping-vus", startVUs: 0, stages: stages[profile], gracefulRampDown: "30s",
   } },
+  thresholds: { api_failed_requests: ["rate<0.01"] },
 };
 const failures = new Rate("api_failed_requests");
 const latency = new Trend("api_latency_ms", true);
