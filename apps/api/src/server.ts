@@ -104,6 +104,23 @@ app.use((req, res, next) => {
   });
   next();
 });
+// This database-backed read-only route is registered only in the isolated CI
+// load-test process. It is absent from normal development and production.
+if (process.env.CI === "true" && process.env.NODE_ENV === "test" && process.env.LOAD_TEST_MODE === "true") {
+  app.get("/__loadtest/database-read", async (_req, res) => {
+    if (!pool) {
+      res.status(503).json({ error: "load_test_database_unavailable" });
+      return;
+    }
+    try {
+      const result = await pool.query("SELECT 1 AS ok");
+      res.status(200).json({ database: result.rows[0]?.ok === 1 ? "ok" : "unexpected_result" });
+    } catch {
+      res.status(503).json({ error: "load_test_database_unavailable" });
+    }
+  });
+}
+
 app.use("/v1", sharedRateLimit);
 
 app.get("/health", async (_req, res) => {
