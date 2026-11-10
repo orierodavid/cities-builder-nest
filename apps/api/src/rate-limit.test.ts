@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { createClient } from "redis";
 import test from "node:test";
 import { consumeRedisBucket, createRateLimitBucketKey, rateLimitForMethod } from "./rate-limit.js";
 
@@ -52,7 +54,33 @@ test("uses one atomic Redis increment with a first-request expiry", async () => 
   assert.match(receivedScript, /if count == 1 then[\s\S]*redis\.call\("EXPIRE", KEYS\[1\], ARGV\[1\]\)/);
 });
 
-test("rejects malformed Redis responses rather than allowing a request", async () => {
+test("Redis atomically shares one counter across concurrent requests", async (context) => {
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    context.skip("REDIS_URL is not configured outside the Redis integration-test job");
+    return;
+  }
+
+  const client = createClient({ url: redisUrl });
+  client.on("error", () => undefined);
+  await client.connect();
+  const key = `cbnest:rate-limit:test:${randomUUID()}`;
+  try {
+    const results = await Promise.all(
+      Array.from({ length: 40 }, () => consumeRedisBucket(client, key, 60)),
+    );
+    assert.deepEqual(
+      results.map((result) => result.count).sort((left, right) => left - right),
+      Array.from({ length: 40 }, (_, index) => index + 1),
+    );
+    assert.ok((await client.ttl(key)) > 0);
+  } finally {
+    await client.del(key);
+    await client.quit();
+  }
+});
+
+test("rejects malformed Redis responses rather than allowing a request", async () =>
   const fakeRedis = { async eval() { return null; } };
   await assert.rejects(
     consumeRedisBucket(fakeRedis, "key", 60),
