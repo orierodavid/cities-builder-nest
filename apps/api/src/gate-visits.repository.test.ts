@@ -55,3 +55,16 @@ test("active gate visits return an empty page safely", async () => {
   });
   assert.equal(calls.length, 1);
 });
+
+test("active gate visits remain visible when RLS hides the host-only visitor pass details", async () => {
+  const visitWithoutPassDetails = {
+    ...visit("hidden"),
+    visitor_passes: null,
+  };
+  const { client } = mockClient([visitWithoutPassDetails]);
+  const result = await getActiveGateVisitsForEstate(client, "estate-a", 10, 0);
+  assert.deepEqual(result, {
+    visits: [visitWithoutPassDetails],
+    hasMore: false,
+  });
+});
