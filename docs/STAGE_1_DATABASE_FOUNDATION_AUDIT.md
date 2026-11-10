@@ -73,3 +73,15 @@ The first native access primitive is intentionally limited to user-scoped, RLS-e
 - Establish migration ownership/order and detect drift between `database/migrations/` and `supabase/migrations/`.
 - Add route-level parity tests for every migrated route, including cross-estate denial and response-contract checks.
 - Only mark Stage 1 complete after the API's primary data access has been migrated and verified, not merely because the pool and transaction helper exist.
+
+
+## Stage 1 progress update — estate dashboard canary (2026-11-10)
+
+- Added `apps/api/src/dashboard.repository.ts` for the estate dashboard read path.
+- Added an opt-in native PostgreSQL branch to `GET /v1/estates/:estateId/dashboard`. It uses the same authenticated transaction helper, reads the caller's platform role and active estate membership under RLS, and returns the existing dashboard response fields and counts.
+- The existing Supabase PostgREST implementation remains the default unless `NATIVE_POSTGRES_READS=true`.
+- Added repository tests for an estate manager, a platform administrator without membership, and an unrelated user.
+- CI run #982 passed all four jobs (API typecheck and tests, web, mobile, onboarding function): https://github.com/orierodavid/cities-builder-nest/actions/runs/42830366178
+- The native dashboard repository is a canary, not evidence that all dashboard and API routes have been migrated. The route still requires real-database parity testing before enabling native reads.
+
+**Current measured code inventory:** `server.ts` still contains approximately 104 PostgREST `.from(...)` call sites and 3 RPC call sites. The three RPCs and privileged Supabase Admin/service-role operations still require explicit treatment. Do not enable the global native-read flag yet.
