@@ -20,6 +20,7 @@ import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { getEstateEventsForCreator } from "./estate-events.repository.js";
 import { getEstateEventGuests } from "./estate-event-guests.repository.js";
+import { getEstateEventInvitations } from "./estate-event-invitations.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -1765,6 +1766,28 @@ app.get("/v1/estates/:estateId/events/:eventId/invitations", requireAuth, async 
   const authenticated = await requireEventOwner(req, res, estateId, eventId);
   if (!authenticated) return;
   const page = getPageWindow(req);
+
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(
+        authenticated.authUser.id,
+        (client) => getEstateEventInvitations(client, estateId, eventId, page.pageSize, page.from),
+      );
+      res.status(200).json({
+        invitations: result.invitations,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch {
+      res.status(503).json({ error: "event_invitations_load_failed" });
+    }
+    return;
+  }
+
   const { data, error } = await authenticated.userSupabase.from("estate_event_invitations")
     .select("id, guest_id, status, created_at, estate_event_guests!inner(guest_name, email, phone)")
     .eq("estate_id", estateId).eq("event_id", eventId).order("created_at", { ascending: false }).range(page.from, page.to);
