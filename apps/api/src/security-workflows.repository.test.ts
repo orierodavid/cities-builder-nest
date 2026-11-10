@@ -33,7 +33,7 @@ test("handover acknowledgement is estate-scoped, pending-only and prevents self-
   assert.deepEqual(await acknowledgeSecurityShiftHandover(client, { estateId: "e1", handoverId: "h1", userId: "u2", acknowledgedAt: "now" }), row);
   assert.deepEqual(calls[0].values, ["h1", "e1", "u2", "now"]);
   assert.match(calls[0].sql, /status = 'pending'/);
-  assert.match(calls[0].sql, /outgoing_officer <> \\$3/);
+  assert.match(calls[0].sql, /outgoing_officer <> \$3/);
 });
 
 test("incident creation records the authenticated reporter and open state", async () => {
