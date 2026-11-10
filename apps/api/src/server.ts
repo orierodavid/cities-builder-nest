@@ -34,6 +34,7 @@ import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
 import { submitMaintenanceRequest } from "./maintenance-service.js";
+import { createMaintenanceRequest } from "./maintenance-mutations.repository.js";
 import { canCreateVisitorPass } from "./visitor-pass-policy.js";
 import { parseVisitorPassInput } from "./visitor-pass-input-policy.js";
 import { canUseGateWorkflow } from "./gate-workflow-policy.js";
@@ -1000,6 +1001,30 @@ app.post("/v1/estates/:estateId/maintenance", requireAuth, async (req, res) => {
     return;
   }
 
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const outcome = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        submitMaintenanceRequest(estateId, authenticated.authUser.id, req.body, {
+          async hasActiveMembership(targetEstateId, userId) {
+            const membership = await getEstateMembershipAccess(client, userId, targetEstateId);
+            return { active: Boolean(membership) };
+          },
+          async insertRequest(targetEstateId, userId, input) {
+            try {
+              const data = await createMaintenanceRequest(client, targetEstateId, userId, input);
+              return { data, error: !data };
+            } catch {
+              return { data: null, error: true };
+            }
+          },
+        }),
+      );
+      res.status(outcome.status).json(outcome.body);
+    } catch {
+      res.status(503).json({ error: "maintenance_request_create_unavailable" });
+    }
+    return;
+  }
   const outcome = await submitMaintenanceRequest(
     estateId,
     authenticated.authUser.id,
