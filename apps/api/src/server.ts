@@ -16,6 +16,7 @@ import { getResidentsForEstate } from "./resident-directory.repository.js";
 import { getSecurityShiftHandovers } from "./security-shift-handovers.repository.js";
 import { getSecurityEmergencyAlerts } from "./security-emergency-alerts.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
+import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -1173,6 +1174,26 @@ app.get("/v1/estates/:estateId/gate/visits", requireAuth, async (req, res) => {
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const page = getPageWindow(req);
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getActiveGateVisitsForEstate(client, estateId, page.pageSize, page.from),
+      );
+      res.status(200).json({
+        visits: result.visits,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch {
+      res.status(503).json({ error: "active_visits_load_failed" });
+    }
+    return;
+  }
+
   const { data, error } = await authenticated.userSupabase.from("visitor_visits")
     .select("id, visitor_pass_id, checked_in_at, visitor_passes(visitor_name, visitor_phone)")
     .eq("estate_id", estateId).is("checked_out_at", null).order("checked_in_at", { ascending: false })
