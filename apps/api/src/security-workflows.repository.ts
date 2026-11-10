@@ -40,11 +40,11 @@ export async function acknowledgeSecurityShiftHandover(
 ): Promise<{ id: string; estate_id: string; status: string; acknowledged_by: string; acknowledged_at: string } | null> {
   const result = await client.query(
     `UPDATE public.security_shift_handovers
-     SET status = 'acknowledged', acknowledged_by = $4, acknowledged_at = $5
+     SET status = 'acknowledged', acknowledged_by = $3, acknowledged_at = $4
      WHERE id = $1 AND estate_id = $2 AND status = 'pending'
-       AND outgoing_officer <> $4
+       AND outgoing_officer <> $3
      RETURNING id, estate_id, status, acknowledged_by, acknowledged_at`,
-    [input.handoverId, input.estateId, input.userId, input.userId, input.acknowledgedAt],
+    [input.handoverId, input.estateId, input.userId, input.acknowledgedAt],
   );
   return result.rows[0] ?? null;
 }
