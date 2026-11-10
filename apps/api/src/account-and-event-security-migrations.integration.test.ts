@@ -12,6 +12,7 @@ const eventMigration = resolve(here, "../../../supabase/migrations/2026111019000
 const visitorSecurityMigration = resolve(here, "../../../supabase/migrations/20261110210000_security_visitor_pass_operations.sql");
 const visitorHostStatusMigration = resolve(here, "../../../supabase/migrations/20261110170000_visitor_pass_host_status_updates.sql");
 const activeAssignmentMigration = resolve(here, "../../../supabase/migrations/20261110220000_resident_unit_active_assignment_unique.sql");
+const attendanceSummaryMigration = resolve(here, "../../../supabase/migrations/20261110150000_event_attendance_summary_rpc.sql");
 
 test("PostgreSQL enforces account provisioning and security event verification permissions", {
   skip: !databaseUrl ? "Set DATABASE_MIGRATION_TEST_DATABASE_URL to an isolated disposable PostgreSQL database." : false,
@@ -24,6 +25,7 @@ test("PostgreSQL enforces account provisioning and security event verification p
   const platformAdmin = "10000000-0000-4000-8000-000000000002";
   const outsider = "10000000-0000-4000-8000-000000000003";
   const security = "10000000-0000-4000-8000-000000000004";
+  const eventOwner = "10000000-0000-4000-8000-000000000005";
   const estate = "20000000-0000-4000-8000-000000000001";
   const disabledEstate = "20000000-0000-4000-8000-000000000002";
   const unit = "30000000-0000-4000-8000-000000000001";
@@ -96,7 +98,7 @@ test("PostgreSQL enforces account provisioning and security event verification p
         AS $$ SELECT coalesce(nullif(current_setting('test.legal_consent', true), '')::boolean, false) $$;
 
       CREATE TABLE public.estate_events (
-        id uuid PRIMARY KEY, estate_id uuid NOT NULL, title text NOT NULL, venue text NOT NULL,
+        id uuid PRIMARY KEY, estate_id uuid NOT NULL, created_by uuid NOT NULL, title text NOT NULL, venue text NOT NULL,
         starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL, status text NOT NULL,
         venue_approval_status text NOT NULL DEFAULT 'approved'
       );
@@ -112,6 +114,19 @@ test("PostgreSQL enforces account provisioning and security event verification p
         id uuid PRIMARY KEY, estate_id uuid NOT NULL, event_id uuid NOT NULL, guest_id uuid NOT NULL,
         checked_in_at timestamptz NOT NULL DEFAULT now()
       );
+      ALTER TABLE public.estate_events ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE public.estate_event_guests ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE public.estate_event_invitations ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE public.estate_event_checkins ENABLE ROW LEVEL SECURITY;
+      GRANT SELECT ON public.estate_events, public.estate_event_guests, public.estate_event_invitations, public.estate_event_checkins TO authenticated;
+      CREATE POLICY test_event_owner_read ON public.estate_events
+        FOR SELECT TO authenticated USING (created_by = (SELECT auth.uid()));
+      CREATE POLICY test_event_guest_owner_read ON public.estate_event_guests
+        FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.estate_events e WHERE e.id = event_id AND e.estate_id = estate_id AND e.created_by = (SELECT auth.uid())));
+      CREATE POLICY test_event_invitation_owner_read ON public.estate_event_invitations
+        FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.estate_events e WHERE e.id = event_id AND e.estate_id = estate_id AND e.created_by = (SELECT auth.uid())));
+      CREATE POLICY test_event_checkin_owner_read ON public.estate_event_checkins
+        FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.estate_events e WHERE e.id = event_id AND e.estate_id = estate_id AND e.created_by = (SELECT auth.uid())));
       CREATE TABLE public.visitor_passes (
         id uuid PRIMARY KEY, estate_id uuid NOT NULL, host_user_id uuid NOT NULL,
         visitor_name text NOT NULL, visitor_phone text, access_code_hash text NOT NULL,
@@ -136,6 +151,7 @@ test("PostgreSQL enforces account provisioning and security event verification p
     await adminPool.query(await readFile(visitorHostStatusMigration, "utf8"));
     await adminPool.query(await readFile(visitorSecurityMigration, "utf8"));
     await adminPool.query(await readFile(activeAssignmentMigration, "utf8"));
+    await adminPool.query(await readFile(attendanceSummaryMigration, "utf8"));
 
     await adminPool.query(
       "INSERT INTO public.estates (id, is_enabled) VALUES ($1, true), ($2, false)",
@@ -143,8 +159,9 @@ test("PostgreSQL enforces account provisioning and security event verification p
     );
     await adminPool.query("INSERT INTO public.units (id, estate_id, status) VALUES ($1, $2, 'available'), ($3, $2, 'available')",
       [unit, estate, assignedUnit]);
-    await adminPool.query("INSERT INTO public.estate_memberships (estate_id, user_id, membership_role, status) VALUES ($1, $2, 'facility_manager', 'active'), ($1, $3, 'security', 'active')",
-      [estate, manager, security]);
+    await adminPool.query("INSERT INTO public.estate_memberships (estate_id, user_id, membership_role, status) VALUES ($1, $2, 'facility_manager', 'active'), ($1, $3, 'security', 'active'), ($1, $4, 'resident', 'active')",
+      [estate, manager, security, eventOwner]);
+    await addAuthUser(eventOwner);
     await adminPool.query("INSERT INTO public.user_roles (user_id, role) VALUES ($1, 'platform_admin')", [platformAdmin]);
     const hostUser = "90000000-0000-4000-8000-000000000001";
     await addAuthUser(hostUser);
@@ -217,7 +234,7 @@ test("PostgreSQL enforces account provisioning and security event verification p
     ));
     assert.equal(createdEstateAdmin.rows[0]?.membership_role, "estate_admin");
 
-    await adminPool.query("INSERT INTO public.estate_events (id, estate_id, title, venue, starts_at, ends_at, status, venue_approval_status) VALUES ($1, $2, 'Event', 'Hall', now(), now() + interval '2 hours', 'published', 'approved')", [event, estate]);
+    await adminPool.query("INSERT INTO public.estate_events (id, estate_id, created_by, title, venue, starts_at, ends_at, status, venue_approval_status) VALUES ($1, $2, $3, 'Event', 'Hall', now(), now() + interval '2 hours', 'published', 'approved')", [event, estate, eventOwner]);
     await adminPool.query("INSERT INTO public.estate_event_guests (id, estate_id, event_id, guest_name, email, phone) VALUES ($1, $2, $3, 'Guest One', NULL, NULL)", [guest, estate, event]);
     await adminPool.query("INSERT INTO public.estate_event_invitations (id, estate_id, event_id, guest_id, code_hash, status) VALUES ($1, $2, $3, $4, $5, 'active')", [invitation, estate, event, guest, codeHash]);
 
@@ -228,8 +245,21 @@ test("PostgreSQL enforces account provisioning and security event verification p
     assert.equal(verified.rows[0]?.status, "verified");
     assert.equal((verified.rows[0]?.guest_data as { guest_name: string }).guest_name, "Guest One");
 
+    const summaryBefore = await asUser(eventOwner, (client) => client.query(
+      "SELECT * FROM public.get_event_attendance_summaries($1, $2::uuid[])",
+      [estate, [event]],
+    ));
+    assert.equal(Number(summaryBefore.rows[0]?.total_guests), 1);
+    assert.equal(Number(summaryBefore.rows[0]?.checked_in), 0);
+    assert.equal(Number(summaryBefore.rows[0]?.active_invitations), 1);
+
     await adminPool.query("INSERT INTO public.estate_event_checkins (id, estate_id, event_id, guest_id) VALUES ($1, $2, $3, $4)",
       ["80000000-0000-4000-8000-000000000001", estate, event, guest]);
+    const summaryAfter = await asUser(eventOwner, (client) => client.query(
+      "SELECT * FROM public.get_event_attendance_summaries($1, $2::uuid[])",
+      [estate, [event]],
+    ));
+    assert.equal(Number(summaryAfter.rows[0]?.checked_in), 1);
     const checkedIn = await asUser(security, (client) => client.query(
       "SELECT * FROM public.verify_estate_event_invitation_for_security($1, $2, $3)",
       [estate, event, codeHash],
