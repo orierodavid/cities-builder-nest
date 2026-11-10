@@ -61,19 +61,21 @@ export async function addExistingResidentMembership(
 export async function assignExistingStaffMembership(
   client: PoolClient,
   input: { estateId: string; userId: string; role: string },
-): Promise<EstateMembershipRecord | null> {
-  const active = await client.query<{ is_active: boolean }>(
-    "SELECT private.is_active_user($1) AS is_active",
+): Promise<{ staff: { id: string; full_name: string }; membership: EstateMembershipRecord } | null> {
+  const staffResult = await client.query<{ id: string; full_name: string; is_active: boolean }>(
+    "SELECT id, full_name, is_active FROM public.users WHERE id = $1 LIMIT 1",
     [input.userId],
   );
-  if (active.rows[0]?.is_active !== true) return null;
+  const staff = staffResult.rows[0];
+  if (!staff?.is_active) return null;
   const result = await client.query<EstateMembershipRecord>(
     `INSERT INTO public.estate_memberships (estate_id, user_id, membership_role, status)
      VALUES ($1, $2, $3, 'active')
      RETURNING id, estate_id, user_id, membership_role, status, created_at`,
     [input.estateId, input.userId, input.role],
   );
-  return result.rows[0] ?? null;
+  const membership = result.rows[0];
+  return membership ? { staff: { id: staff.id, full_name: staff.full_name }, membership } : null;
 }
 
 export async function createEstateBuilding(
@@ -108,11 +110,15 @@ export async function createEstateUnit(
   return result.rows[0] ?? null;
 }
 
+export interface ResidentUnitAssignment {
+  id: string; estate_id: string; unit_id: string; resident_user_id: string;
+  start_date: string; end_date: string | null; created_at: string;
+}
 export type ResidentUnitAssignmentResult =
   | { kind: "unit_not_found" }
   | { kind: "unit_not_available" }
   | { kind: "resident_not_found" }
-  | { kind: "assigned"; assignment: { id: string; estate_id: string; unit_id: string; resident_user_id: string; start_date: string; end_date: string | null; created_at: string } };
+  | { kind: "assigned"; assignment: ResidentUnitAssignment };
 
 export async function assignResidentToEstateUnit(
   client: PoolClient,
@@ -139,7 +145,7 @@ export async function assignResidentToEstateUnit(
   const startDateClause = input.startDate ? ", start_date" : "";
   const startDateValue = input.startDate ? ", $4" : "";
   if (input.startDate) values.push(input.startDate);
-  const result = await client.query<ResidentUnitAssignmentResult extends { kind: "assigned"; assignment: infer T } ? T : never>(
+  const result = await client.query<ResidentUnitAssignment>(
     `INSERT INTO public.resident_units (estate_id, unit_id, resident_user_id${startDateClause})
      VALUES ($1, $2, $3${startDateValue})
      RETURNING id, estate_id, unit_id, resident_user_id, start_date, end_date, created_at`,
