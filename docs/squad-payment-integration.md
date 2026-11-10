@@ -45,3 +45,17 @@ The authenticated `verify-squad-payment` Edge Function also lets the signed-in r
 The resident app now embeds Squad checkout in the `payment-checkout` Expo Router screen using `react-native-webview` (Expo SDK 57 recommended version `13.16.1`). Both service charges and Save for Rent open this screen; the initiation function supplies the `citiesbuildernest://payment-return` callback URL. The screen polls the resident-readable ledger by the server-issued transaction reference and displays success only after the webhook has independently verified the transaction and updated the ledger. Redirects and checkout-page messages are never treated as proof of payment. The checkout URL is validated as HTTPS on a Squad-owned domain before it is loaded. The service-charge amount is fetched by the server from the active charge record; residents cannot override it.
 
 After pulling the mobile changes, run `npm install` from `apps/mobile` to refresh the package lock, then test in Expo Go or the development build. Before residents use this in production, complete sandbox device tests for successful, failed, abandoned, duplicate, wrong-amount, wrong-currency, wrong-email, wrong-reference, and invalid-signature events. Register the webhook URL in Squad's sandbox dashboard. Dedicated Virtual Accounts remain a separate Squad product and are not enabled by this checkout integration.
+
+
+## Pending-payment reconciliation
+
+The Edge Function `reconcile-squad-payments` provides a bounded recovery sweep for Squad transactions whose ledger rows remain pending after checkout. It only scans Squad rows at least five minutes old, processes at most 50 per ledger table per invocation, verifies each transaction directly with Squad, and checks the exact reference, NGN amount, and resident email before changing a ledger status. Updates are conditional on the row still being pending, so a webhook and a reconciliation run cannot both apply a terminal transition.
+
+Before invoking it:
+
+1. Apply migration `20261110190000_squad_payment_reconciliation.sql`.
+2. Set the Supabase Edge Function secret `PAYMENT_RECONCILIATION_SECRET` to a long random value. Keep it separate from the Squad secret key.
+3. Invoke `POST /functions/v1/reconcile-squad-payments` with the header `x-reconciliation-secret: <secret>`. Do not put the secret in a URL or client application.
+4. Schedule this invocation from a trusted server-side scheduler. A run retries unresolved rows no more than once every 15 minutes; it does not mark a transaction successful unless Squad's verification response matches the ledger.
+
+The function is deployed by the payment-functions GitHub Actions workflow. The migration and Edge Function secret are separate prerequisites; deployment alone does not activate reconciliation.

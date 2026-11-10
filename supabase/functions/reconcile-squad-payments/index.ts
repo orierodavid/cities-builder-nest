@@ -68,6 +68,8 @@ Deno.serve(async (req: Request) => {
       .from(table)
       .select("id,amount_kobo,currency,status,resident_user_id,provider_reference,created_at,last_reconciled_at")
       .eq("status", "pending")
+      .eq("provider", "squad")
+      .not("provider_reference", "is", null)
       .lt("created_at", staleBefore)
       .or(`last_reconciled_at.is.null,last_reconciled_at.lt.${retryBefore}`)
       .order("created_at", { ascending: true })
@@ -82,7 +84,8 @@ Deno.serve(async (req: Request) => {
         verified = await verifyPayment(base, squadSecret, row.provider_reference);
       } catch {
         totals.unavailable += 1;
-        await admin.from(table).update({ last_reconciled_at: attemptedAt }).eq("id", row.id).eq("status", "pending");
+        const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt }).eq("id", row.id).eq("status", "pending");
+        if (markError) return reply(500, { error: "payment_reconciliation_update_failed" });
         continue;
       }
 
@@ -93,7 +96,13 @@ Deno.serve(async (req: Request) => {
       const ledgerAmount = Number(row.amount_kobo);
 
       const { data: authUser, error: userError } = await admin.auth.admin.getUserById(row.resident_user_id);
-      const emailMatches = !userError && Boolean(authUser.user?.email) &&
+      if (userError) {
+        totals.unavailable += 1;
+        const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt }).eq("id", row.id).eq("status", "pending");
+        if (markError) return reply(500, { error: "payment_reconciliation_update_failed" });
+        continue;
+      }
+      const emailMatches = Boolean(authUser.user?.email) &&
         String(verified.email ?? "").toLowerCase() === authUser.user!.email!.toLowerCase();
 
       if (!Number.isSafeInteger(amount) || amount <= 0 ||
@@ -102,7 +111,8 @@ Deno.serve(async (req: Request) => {
           reference !== row.provider_reference || !emailMatches ||
           !["success", "failed", "abandoned", "pending"].includes(status)) {
         totals.mismatched += 1;
-        await admin.from(table).update({ last_reconciled_at: attemptedAt }).eq("id", row.id).eq("status", "pending");
+        const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt }).eq("id", row.id).eq("status", "pending");
+        if (markError) return reply(500, { error: "payment_reconciliation_update_failed" });
         continue;
       }
 
