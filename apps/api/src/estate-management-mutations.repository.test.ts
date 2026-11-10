@@ -50,8 +50,10 @@ test("resident membership creation uses the scoped database candidate function",
 
 test("staff membership creation checks active user status before inserting role", async () => {
   const membership = { id: "m1", estate_id: "e1", user_id: "u1", membership_role: "security", status: "active", created_at: "now" };
-  const { client, calls } = mockClient([[{ is_active: true }], [membership]]);
-  assert.deepEqual(await assignExistingStaffMembership(client, { estateId: "e1", userId: "u1", role: "security" }), membership);
+  const { client, calls } = mockClient([[{ id: "u1", full_name: "Officer", is_active: true }], [membership]]);
+  assert.deepEqual(await assignExistingStaffMembership(client, { estateId: "e1", userId: "u1", role: "security" }), {
+    staff: { id: "u1", full_name: "Officer" }, membership,
+  });
   assert.deepEqual(calls[0].values, ["u1"]);
   assert.deepEqual(calls[1].values, ["e1", "u1", "security"]);
 });
