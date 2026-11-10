@@ -15,6 +15,7 @@ import { getBuildingsForEstate, getUnitsForEstate } from "./property-directory.r
 import { getResidentsForEstate } from "./resident-directory.repository.js";
 import { getSecurityShiftHandovers } from "./security-shift-handovers.repository.js";
 import { getSecurityEmergencyAlerts } from "./security-emergency-alerts.repository.js";
+import { getSecurityIncidents } from "./security-incidents.repository.js";
 import { getVisitorPassesForHost } from "./visitor-passes.repository.js";
 import { getActiveGateVisitsForEstate } from "./gate-visits.repository.js";
 import { startApiServer } from "./lifecycle.js";
@@ -1400,6 +1401,25 @@ app.get("/v1/estates/:estateId/security/incidents", requireAuth, async (req, res
   const authenticated = await requireSecurityEventAccess(req, res, estateId);
   if (!authenticated) return;
   const page = getPageWindow(req);
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getSecurityIncidents(client, estateId, page.pageSize, page.from),
+      );
+      res.status(200).json({
+        incidents: result.incidents,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch {
+      res.status(503).json({ error: "security_incidents_load_failed" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("security_incident_reports")
     .select("id, estate_id, reported_by, title, category, severity, description, location, occurred_at, status, reviewed_by, reviewed_at, resolution_note, created_at, updated_at")
     .eq("estate_id", estateId).order("created_at", { ascending: false }).range(page.from, page.to);
