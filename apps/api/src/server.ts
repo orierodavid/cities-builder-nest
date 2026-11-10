@@ -23,6 +23,7 @@ import { getEstateEventGuests } from "./estate-event-guests.repository.js";
 import { getEstateEventInvitations } from "./estate-event-invitations.repository.js";
 import { getEstateEventCheckIns } from "./estate-event-checkins.repository.js";
 import { getEstateEventAttendanceReport } from "./estate-event-attendance.repository.js";
+import { getEstateEnabledStatus, getEstateMembershipAccess, getEventCreator, hasEstateManagerRole, hasPlatformAdminRole } from "./authorization.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -127,6 +128,9 @@ app.get("/", (_req, res) => {
 });
 
 async function hasPlatformAdmin(userSupabase: AuthenticatedRequest["userSupabase"], userId: string): Promise<boolean> {
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    return withAuthenticatedTransaction(userId, (client) => hasPlatformAdminRole(client, userId));
+  }
   const { data, error } = await userSupabase
     .from("user_roles")
     .select("role")
@@ -137,6 +141,9 @@ async function hasPlatformAdmin(userSupabase: AuthenticatedRequest["userSupabase
 }
 
 async function hasEstateManager(userSupabase: AuthenticatedRequest["userSupabase"], userId: string, estateId: string): Promise<boolean> {
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    return withAuthenticatedTransaction(userId, (client) => hasEstateManagerRole(client, userId, estateId));
+  }
   const { data, error } = await userSupabase
     .from("estate_memberships")
     .select("membership_role")
@@ -148,7 +155,10 @@ async function hasEstateManager(userSupabase: AuthenticatedRequest["userSupabase
   return !error && Boolean(data);
 }
 
-async function isEstateEnabled(userSupabase: AuthenticatedRequest["userSupabase"], estateId: string): Promise<boolean | null> {
+async function isEstateEnabled(userSupabase: AuthenticatedRequest["userSupabase"], estateId: string, userId?: string): Promise<boolean | null> {
+  if (process.env.NATIVE_POSTGRES_READS === "true" && userId) {
+    return withAuthenticatedTransaction(userId, (client) => getEstateEnabledStatus(client, estateId));
+  }
   const { data, error } = await userSupabase
     .from("estates")
     .select("is_enabled")
@@ -1230,14 +1240,22 @@ app.post("/v1/estates/:estateId/gate/visits/:visitId/check-out", requireAuth, as
 
 async function requireSecurityEventAccess(req: import("express").Request, res: import("express").Response, estateId: string): Promise<AuthenticatedRequest | null> {
   const authenticated = req as AuthenticatedRequest;
-  const { data: membership, error } = await authenticated.userSupabase
-    .from("estate_memberships")
-    .select("estate_id, membership_role, status")
-    .eq("estate_id", estateId)
-    .eq("user_id", authenticated.authUser.id)
-    .eq("status", "active")
-    .maybeSingle();
-  if (error) { res.status(403).json({ error: "security_membership_check_failed" }); return null; }
+  let membership: { estate_id: string; membership_role: string; status: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+      getEstateMembershipAccess(client, authenticated.authUser.id, estateId),
+    );
+  } else {
+    const result = await authenticated.userSupabase
+      .from("estate_memberships")
+      .select("estate_id, membership_role, status")
+      .eq("estate_id", estateId)
+      .eq("user_id", authenticated.authUser.id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (result.error) { res.status(403).json({ error: "security_membership_check_failed" }); return null; }
+    membership = result.data;
+  }
   if (!canUseGateWorkflow(membership, estateId)) {
     res.status(403).json({ error: "security_membership_required" }); return null;
   }
@@ -1472,14 +1490,22 @@ app.post("/v1/estates/:estateId/security/incidents", requireAuth, async (req, re
 
 async function requireEventOrganiser(req: import("express").Request, res: import("express").Response, estateId: string): Promise<AuthenticatedRequest | null> {
   const authenticated = req as AuthenticatedRequest;
-  const { data: membership, error } = await authenticated.userSupabase
-    .from("estate_memberships")
-    .select("membership_role")
-    .eq("estate_id", estateId)
-    .eq("user_id", authenticated.authUser.id)
-    .eq("status", "active")
-    .maybeSingle();
-  if (error) { res.status(403).json({ error: "event_organiser_access_check_failed" }); return null; }
+  let membership: { membership_role: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+      getEstateMembershipAccess(client, authenticated.authUser.id, estateId),
+    );
+  } else {
+    const result = await authenticated.userSupabase
+      .from("estate_memberships")
+      .select("membership_role")
+      .eq("estate_id", estateId)
+      .eq("user_id", authenticated.authUser.id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (result.error) { res.status(403).json({ error: "event_organiser_access_check_failed" }); return null; }
+    membership = result.data;
+  }
   if (!["resident", "event_organiser"].includes(membership?.membership_role ?? "")) {
     res.status(403).json({ error: "event_organiser_membership_required" }); return null;
   }
@@ -1498,14 +1524,22 @@ async function requireEventOwner(
   const authenticated = await requireEventOrganiser(req, res, estateId);
   if (!authenticated) return null;
 
-  const { data: membership, error: membershipError } = await authenticated.userSupabase
-    .from("estate_memberships")
-    .select("membership_role")
-    .eq("estate_id", estateId)
-    .eq("user_id", authenticated.authUser.id)
-    .eq("status", "active")
-    .maybeSingle();
-  if (membershipError || !membership) {
+  let membership: { membership_role: string } | null = null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    membership = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+      getEstateMembershipAccess(client, authenticated.authUser.id, estateId),
+    );
+  } else {
+    const result = await authenticated.userSupabase
+      .from("estate_memberships")
+      .select("membership_role")
+      .eq("estate_id", estateId)
+      .eq("user_id", authenticated.authUser.id)
+      .eq("status", "active")
+      .maybeSingle();
+    membership = result.error ? null : result.data;
+  }
+  if (!membership) {
     res.status(403).json({ error: "event_organiser_membership_required" });
     return null;
   }
@@ -1514,13 +1548,21 @@ async function requireEventOwner(
   // manage only events they personally created.
   if (membership.membership_role === "event_organiser") return authenticated;
 
-  const { data: event, error: eventError } = await authenticated.userSupabase
-    .from("estate_events")
-    .select("id, created_by")
-    .eq("estate_id", estateId)
-    .eq("id", eventId)
-    .maybeSingle();
-  if (eventError || !event || event.created_by !== authenticated.authUser.id) {
+  let eventCreator: string | null;
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    eventCreator = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+      getEventCreator(client, estateId, eventId),
+    );
+  } else {
+    const result = await authenticated.userSupabase
+      .from("estate_events")
+      .select("id, created_by")
+      .eq("estate_id", estateId)
+      .eq("id", eventId)
+      .maybeSingle();
+    eventCreator = result.error ? null : result.data?.created_by ?? null;
+  }
+  if (eventCreator !== authenticated.authUser.id) {
     res.status(403).json({ error: "event_owner_required" });
     return null;
   }
