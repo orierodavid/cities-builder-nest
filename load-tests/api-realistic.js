@@ -41,7 +41,8 @@ const latency = new Trend("api_latency_ms", true);
 
 export default function () {
   const workload = expanded[(__VU + __ITER) % expanded.length];
-  const headers = { Accept: "application/json", Authorization: `Bearer ${workload.token}` };
+  const simulatedClientIp = `10.20.${Math.floor(__VU / 250)}.${(__VU % 250) + 1}`;
+  const headers = { Accept: "application/json", Authorization: `Bearer ${workload.token}`, "X-Forwarded-For": simulatedClientIp };
   const response = http.get(base + workload.path, { headers, timeout: "20s", tags: { endpoint: workload.path } });
   latency.add(response.timings.duration, { endpoint: workload.path });
   let parsed = null;
