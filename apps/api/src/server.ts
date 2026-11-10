@@ -11,6 +11,7 @@ import { withAuthenticatedTransaction } from "./database.js";
 import { getMeData } from "./me.repository.js";
 import { getEstatesForUser } from "./estates.repository.js";
 import { getEstateDashboard } from "./dashboard.repository.js";
+import { getBuildingsForEstate, getUnitsForEstate } from "./property-directory.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -437,6 +438,26 @@ app.get("/v1/estates/:estateId/buildings", requireAuth, async (req, res) => {
     return;
   }
   const page = getPageWindow(req);
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getBuildingsForEstate(client, estateId, page.pageSize, page.from),
+      );
+      res.status(200).json({
+        buildings: result.items,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch (error) {
+      console.error("native_postgres_building_list_failed", error);
+      res.status(503).json({ error: "building_list_unavailable" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("buildings")
     .select("id, estate_id, name, created_at").eq("estate_id", estateId).order("name")
     .range(page.from, page.to);
@@ -457,6 +478,26 @@ app.get("/v1/estates/:estateId/units", requireAuth, async (req, res) => {
     return;
   }
   const page = getPageWindow(req);
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getUnitsForEstate(client, estateId, page.pageSize, page.from),
+      );
+      res.status(200).json({
+        units: result.items,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch (error) {
+      console.error("native_postgres_unit_list_failed", error);
+      res.status(503).json({ error: "unit_list_unavailable" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("units")
     .select("id, estate_id, building_id, unit_code, unit_type, status").eq("estate_id", estateId).order("unit_code")
     .range(page.from, page.to);
