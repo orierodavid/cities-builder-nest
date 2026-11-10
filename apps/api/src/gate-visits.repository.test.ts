@@ -30,7 +30,8 @@ test("active gate visits are estate-scoped, exclude checked-out visits, and use 
     hasMore: true,
   });
   assert.match(calls[0].sql, /FROM public\.visitor_visits v/);
-  assert.match(calls[0].sql, /INNER JOIN public\.visitor_passes p/);
+  assert.match(calls[0].sql, /LEFT JOIN public\.visitor_passes p/);
+  assert.match(calls[0].sql, /CASE WHEN p\.id IS NULL THEN NULL/);
   assert.match(calls[0].sql, /p\.estate_id = v\.estate_id/);
   assert.match(calls[0].sql, /WHERE v\.estate_id = \$1/);
   assert.match(calls[0].sql, /v\.checked_out_at IS NULL/);
