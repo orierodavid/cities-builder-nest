@@ -1,48 +1,31 @@
 # Controlled API load testing
 
-The repository supports two separate test modes:
+CB Nest has two separate GitHub Actions load tests.
 
-1. **GitHub Actions ephemeral test (available now):** builds and starts the API against a disposable PostgreSQL service, then sends read-only load to a CI-only database query route. It never connects to the live Supabase project or payment provider.
-2. **Isolated staging deployment (optional later):** uses the authenticated `GET /v1/me` endpoint with a dedicated staging account and token. Never point it at production.
+## 1. Database canary
 
-## GitHub Actions ephemeral test
+`.github/workflows/api-load-test.yml` sends read-only requests to a CI-only route that executes `SELECT 1` through the API PostgreSQL pool. This is a basic HTTP/pool baseline only. It does not represent the cost of real application endpoints.
 
-The workflow `.github/workflows/api-load-test.yml` runs when its load-test files change on `main`, and can also be started manually from the Actions tab.
+## 2. Realistic endpoint workload
 
-It starts:
-- a temporary PostgreSQL 16 service with an empty disposable database
-- the API compiled from the checked-out commit
-- a CI-only `GET /__loadtest/database-read` route that executes `SELECT 1` through the API's configured PostgreSQL connection pool
-- k6 in a pinned container image
+`.github/workflows/api-realistic-load-test.yml` starts the actual Express API with `NATIVE_POSTGRES_READS=true`, an ephemeral PostgreSQL 16 database, synthetic fixture records, and a local Supabase-compatible Auth/PostgREST stub.
 
-The test route is registered only when all three conditions are true: `CI=true`, `NODE_ENV=test`, and `LOAD_TEST_MODE=true`. The separate load-test server entry point refuses to start unless those conditions are present. It is not part of the production bootstrap and is not registered in normal development or production mode.
+It exercises the real read routes:
+- Facility Manager dashboard
+- Resident visitor-pass history
+- Event attendance summaries
+- Event attendance report
 
-The k6 script requires explicit confirmation and restricts this mode to `http://127.0.0.1` and the exact CI-only route. It does not call `/health`, Supabase, authenticated user data, payments, email, visitor/event mutations, or background-job writes.
+The synthetic database includes role and estate membership records, 1,000 units, 250 maintenance requests, 50 announcements, 500 visitor passes, 50 events, 10,000 event guests, invitations and check-ins. Actual API authentication middleware, native PostgreSQL transaction handling, RLS fixture policies, repository SQL, and connection-pool behavior are exercised.
 
-## Profiles
+The local auth stub accepts only fixed test tokens and serves the test user's profile/legal-consent checks. It does not measure real Supabase Auth or production network latency. No production Supabase, resident data, email provider, Squad API, or payment workflow is contacted.
 
-The progressive `full` profile runs:
-- 250 virtual users: 1-minute ramp, 2-minute hold
-- 500 virtual users: 1-minute ramp, 2-minute hold
-- 1,000 virtual users: 1-minute ramp, 2-minute hold
-- 1-minute ramp down
-
-Each virtual user waits one second between requests. Virtual users are not a fixed requests-per-second guarantee. GitHub-hosted runner capacity may itself become the bottleneck at 1,000 VUs; the result must therefore be treated as a CI baseline, not a production capacity certification.
-
-The workflow uploads the k6 JSON summary and API log as a run artifact. Review request count, request rate, latency percentiles, failed checks, HTTP errors, and runner/database constraints before drawing conclusions.
-
-## Isolated staging API (not run by this workflow)
-
-For a future isolated staging deployment, use only `GET /v1/me` with a dedicated staging account and short-lived token. Set `LOAD_TEST_ENVIRONMENT=isolated-staging`, `LOAD_TEST_CONFIRM=YES`, an exact HTTPS target host, and the token through a protected secret. Do not use production credentials or production data.
+The realistic workload is read-only. It does not create/revoke visitor passes, check visitors in, mutate events, or issue payments. Its full profile progressively ramps through 250, 500, and 1,000 virtual users. Each virtual user waits one second between requests. The workflow uploads the k6 summary and API/auth logs as a 14-day artifact.
 
 ## Safety and interpretation
 
-- Never load-test the live production API or live Supabase project with this harness.
-- No write endpoints or payment provider calls are included.
-- The CI database is temporary and contains no production data.
-- The CI-only `SELECT 1` route measures Express request handling and PostgreSQL pool/query throughput. It does not represent dashboard query complexity, Supabase Auth latency, or end-to-end production behavior.
-- Do not invent an acceptance SLA. Record the observed latency and error rates, then set explicit targets before any production readiness decision.
+Both workflows are restricted to a local GitHub Actions ephemeral API/database. The realistic workflow's fixture SQL also refuses to run unless the current database is named `cbnest_load_test`.
 
-## Current status
+These runs are repeatable CI benchmarks, not production capacity certification. The realistic test covers real Express routes and database query shapes but uses a reduced synthetic schema and local auth stub rather than the complete production Supabase environment. GitHub runner CPU, PostgreSQL resources, pool size and test data volume affect results. Review per-endpoint latency percentiles, throughput, HTTP failures, pool saturation and database constraints before setting acceptance targets or estimating VPS capacity.
 
-The GitHub Actions workflow is configured to run the ephemeral profile after its commit lands on `main`. The resulting run and artifact must be inspected before reporting measurements.
+For the exact fixture and workload details, see [REALISTIC_API_LOAD_TEST.md](./REALISTIC_API_LOAD_TEST.md).
