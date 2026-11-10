@@ -123,3 +123,16 @@ test("all gate routes fail closed for non-security memberships and disabled esta
     assert.match(route, /rejectInactiveEstate\(res\)/);
   }
 });
+
+test("native PostgreSQL visitor-pass listing checks membership through the authenticated transaction", async () => {
+  const server = await readFile(serverPath, "utf8");
+  const start = server.indexOf('app.get("/v1/estates/:estateId/visitor-passes"');
+  const end = server.indexOf('app.patch("/v1/estates/:estateId/visitor-passes/:passId/status"', start);
+  assert.ok(start >= 0 && end > start);
+  const route = server.slice(start, end);
+  assert.match(route, /if \(process\.env\.NATIVE_POSTGRES_READS === "true"\)/);
+  assert.match(route, /getEstateMembershipAccess\(client, authenticated\.authUser\.id, estateId\)/);
+  assert.match(route, /withAuthenticatedTransaction\(authenticated\.authUser\.id/);
+  assert.match(route, /getVisitorPassesForHost\(client, estateId, authenticated\.authUser\.id/);
+  assert.match(route, /canCreateVisitorPass\(membership, estateId\)/);
+});
