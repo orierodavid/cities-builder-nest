@@ -177,7 +177,8 @@ const mockSupabase = createServer(async (req, res) => {
     const body = await readBody(req);
     const updated = shiftHandoverRecords.filter(matches);
     for (const row of updated) Object.assign(row, body);
-    return sendJson(res, 200, updated, objectResponse);  }
+    return sendJson(res, 200, updated, objectResponse);
+  }
   if (req.method === "GET" && table === "security_emergency_alerts") {
     return sendJson(res, 200, emergencyAlertRecords.filter(matches).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, Number(url.searchParams.get("limit") ?? 100)), objectResponse);
   }
@@ -362,7 +363,8 @@ async function request(path: string, token: string, method = "GET", body?: unkno
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });  return { status: response.status, body: await response.json() as Record<string, any> };
+  });
+  return { status: response.status, body: await response.json() as Record<string, any> };
 }
 
 test("event guest lists are restricted to the event creator or a legacy organiser in the same estate", async () => {
@@ -541,6 +543,7 @@ test("security officers can create, view and acknowledge shift handovers only wi
   assert.equal(acknowledged.status, 200);
   assert.equal(acknowledged.body.handover.status, "acknowledged");
   assert.equal(acknowledged.body.handover.acknowledged_by, "security-incoming");
+
   const invalid = await request(`/v1/estates/${estateA}/security/shift-handovers`, "security-token", "POST", {
     shiftLabel: "Night", shiftStartedAt: ended, shiftEndedAt: started,
     handoverNotes: "Invalid time order should be rejected.",
@@ -760,3 +763,40 @@ test("maintenance submission requires active membership in the same enabled esta
     priority: "high",
   });
   assert.equal(noMembership.status, 403);
+
+  const disabled = await request("/v1/estates/disabled-estate/maintenance", "resident-token", "POST", {
+    title: "Leaking kitchen tap",
+    description: "Water is leaking under the kitchen sink.",
+    priority: "high",
+  });
+  assert.equal(disabled.status, 423);
+});
+
+
+test("unit assignment endpoint allows only estate managers for active residents in their own estate", async () => {
+  const assigned = await request(`/v1/estates/${estateA}/units/unit-a/assignments`, "manager-token", "POST", {
+    residentUserId: residentId,
+    startDate: "2026-10-28",
+  });
+  assert.equal(assigned.status, 201);
+  assert.equal(assigned.body.assignment.estate_id, estateA);
+  assert.equal(assigned.body.assignment.resident_user_id, residentId);
+
+  const crossEstate = await request(`/v1/estates/${estateB}/units/unit-b/assignments`, "manager-token", "POST", {
+    residentUserId: "security-b",
+  });
+  assert.equal(crossEstate.status, 403);
+  assert.equal(crossEstate.body.error, "estate_manager_access_required");
+
+  const resident = await request(`/v1/estates/${estateA}/units/unit-a/assignments`, "resident-token", "POST", {
+    residentUserId: residentId,
+  });
+  assert.equal(resident.status, 403);
+  assert.equal(resident.body.error, "estate_manager_access_required");
+
+  const disabled = await request("/v1/estates/disabled-estate/units/unit-a/assignments", "manager-token", "POST", {
+    residentUserId: residentId,
+  });
+  assert.equal(disabled.status, 423);
+  assert.equal(disabled.body.error, "estate_subscription_inactive");
+});
