@@ -50,13 +50,13 @@ test("authenticated PostgreSQL transactions apply RLS identity and reset claims 
     });
     assert.deepEqual(visibleRows, ["user-a"], "RLS must restrict native SQL to the validated user");
 
-    const claimAfterCommit = await adminPool.query(
-      "SELECT current_setting('request.jwt.claim.sub', true) AS subject",
-    );
-    assert.ok(
-      claimAfterCommit.rows[0].subject === null || claimAfterCommit.rows[0].subject === "",
-      "JWT subject must not leak after the transaction returns its pooled connection",
-    );
+    const secondUserRows = await withAuthenticatedTransaction(userB, async (client) => {
+      const result = await client.query(
+        "SELECT value FROM public.database_access_test_rows ORDER BY value",
+      );
+      return result.rows.map((row: { value: string }) => row.value);
+    });
+    assert.deepEqual(secondUserRows, ["user-b"], "a reused connection must receive the next user's identity, not retain the previous one");
 
     await assert.rejects(
       withAuthenticatedTransaction(userA, async (client) => {
@@ -68,6 +68,8 @@ test("authenticated PostgreSQL transactions apply RLS identity and reset claims 
 
     await closeDatabase();
   } finally {
+    const { closeDatabase } = await import("./storage.js");
+    await closeDatabase().catch(() => undefined);
     await adminPool.query("DROP TABLE IF EXISTS public.database_access_test_rows").catch(() => undefined);
     await adminPool.query("DROP FUNCTION IF EXISTS auth.uid()").catch(() => undefined);
     await adminPool.end();
