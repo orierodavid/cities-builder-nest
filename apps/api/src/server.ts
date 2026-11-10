@@ -28,7 +28,7 @@ import { getEstateEventGuests } from "./estate-event-guests.repository.js";
 import { getEstateEventInvitations } from "./estate-event-invitations.repository.js";
 import { getEstateEventCheckIns } from "./estate-event-checkins.repository.js";
 import { getEstateEventAttendanceReport } from "./estate-event-attendance.repository.js";
-import { createEstateEventCheckIn, createEstateEventGuest, deleteEstateEventGuest, issueEstateEventInvitation, revokeEstateEventInvitation } from "./estate-event-mutations.repository.js";
+import { createEstateEvent, createEstateEventCheckIn, createEstateEventGuest, deleteEstateEventGuest, issueEstateEventInvitation, revokeEstateEventInvitation, updateEstateEvent } from "./estate-event-mutations.repository.js";
 import { getEstateEnabledStatus, getEstateMembershipAccess, getEventCreator, hasEstateManagerRole, hasPlatformAdminRole } from "./authorization.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
@@ -1947,6 +1947,18 @@ app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
       endDate.getTime() <= startDate.getTime()) {
     res.status(400).json({ error: "invalid_event_details", message: "Enter an event title, select an available venue, provide valid start and end date/time, and ensure the end is after the start." }); return;
   }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => createEstateEvent(client, {
+        estateId, creatorUserId: authenticated.authUser.id, title, description, venueId,
+        venueLabel: venueId === "home" ? "Home" : venue, startsAt: startDate.toISOString(), endsAt: endDate.toISOString(),
+        status, requestedAt: new Date().toISOString(),
+      }));
+      if (result.kind === "venue_unavailable") { res.status(400).json({ error: "event_venue_unavailable", message: "That venue is no longer available. Refresh the venue list and choose another." }); return; }
+      res.status(201).json({ event: result.event });
+    } catch { res.status(503).json({ error: "estate_event_create_failed" }); }
+    return;
+  }
   let selectedVenue: { id: string; name: string; location: string | null; status: string } | null = null;
   if (venueId !== "home") {
     const { data, error: venueError } = await authenticated.userSupabase
@@ -1992,6 +2004,18 @@ app.patch("/v1/estates/:estateId/events/:eventId", requireAuth, async (req, res)
       venue.length < 2 || venue.length > 240 || Number.isNaN(startDate.getTime()) ||
       Number.isNaN(endDate.getTime()) || endDate.getTime() <= startDate.getTime()) {
     res.status(400).json({ error: "invalid_event_details" }); return;
+  }
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => updateEstateEvent(client, {
+        estateId, eventId, title, description, venue, startsAt: startDate.toISOString(), endsAt: endDate.toISOString(),
+        status, updatedAt: new Date().toISOString(),
+      }));
+      if (result.kind === "not_found") { res.status(404).json({ error: "estate_event_not_found_or_update_failed" }); return; }
+      if (result.kind === "venue_pending") { res.status(409).json({ error: "event_venue_approval_pending", message: "This event cannot be published until its selected estate facility is approved." }); return; }
+      res.status(200).json({ event: result.event });
+    } catch { res.status(503).json({ error: "estate_event_update_failed" }); }
+    return;
   }
   const { data: currentEvent, error: currentEventError } = await authenticated.userSupabase
     .from("estate_events").select("venue_approval_status").eq("estate_id", estateId).eq("id", eventId).maybeSingle();
