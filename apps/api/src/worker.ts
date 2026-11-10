@@ -11,6 +11,7 @@ const workerId = `cbnest-worker-${process.pid}-${randomUUID()}`;
 const pollIntervalMs = readIntegerEnv("WORKER_POLL_INTERVAL_MS", 3000, 250, 60000);
 const batchSize = readIntegerEnv("WORKER_BATCH_SIZE", 5, 1, 50);
 let stopping = false;
+let closeWorkerDatabase: (() => Promise<void>) | undefined;
 
 function readIntegerEnv(name: string, fallback: number, min: number, max: number): number {
   const raw = process.env[name];
@@ -64,6 +65,7 @@ async function main(): Promise<void> {
   // Load runtime modules only after dotenv so the shared PostgreSQL pool sees DATABASE_URL.
   const { claimBackgroundJobs, processClaimedBackgroundJob } = await import("./background-jobs.js");
   const { closeDatabase, pool } = await import("./storage.js");
+  closeWorkerDatabase = closeDatabase;
   if (!pool) throw new Error("DATABASE_URL is required to start the background worker.");
   await pool.query("SELECT 1");
   const handlers: BackgroundJobHandlers = {};
@@ -105,6 +107,7 @@ async function main(): Promise<void> {
   }
   log("stopping");
   await closeDatabase();
+  closeWorkerDatabase = undefined;
   log("stopped");
 }
 
@@ -123,5 +126,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 main().catch((error) => {
   log("fatal", { errorName: error instanceof Error ? error.name : "UnknownError" });
+  await closeWorkerDatabase?.().catch(() => undefined);
   process.exitCode = 1;
 });
