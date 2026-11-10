@@ -8,7 +8,9 @@
     "start": "node dist/bootstrap.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test src/*.test.ts"
+    "test": "tsx --test src/*.test.ts",
+    "worker:dev": "tsx src/worker.ts",
+    "worker": "node dist/worker.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
