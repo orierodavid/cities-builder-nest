@@ -14,7 +14,7 @@ test("maintenance request creation is estate/user scoped and optionally binds a 
 test("maintenance request creation omits the unit column when no unit is selected", async () => {
   const calls: Array<{ sql: string; values: unknown[] }> = [];
   const client = { query: async (sql: string, values: unknown[] = []) => { calls.push({ sql, values }); return { rows: [{ id: "m1" }], rowCount: 1 } as QueryResult; } } as unknown as PoolClient;
-  await createMaintenanceRequest(client, "e1", "u1", { title: "Leak", description: "Water leak", priority: "normal" });
+  await createMaintenanceRequest(client, "e1", "u1", { title: "Leak", description: "Water leak", priority: "normal", unitId: null });
   assert.deepEqual(calls[0].values, ["e1", "u1", "Leak", "Water leak", "normal"]);
   assert.doesNotMatch(calls[0].sql, /unit_id/);
 });
