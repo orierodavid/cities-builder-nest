@@ -20,7 +20,7 @@ test("attendance summaries aggregate only the caller's paginated estate events",
     outstanding: 3, attendancePercentage: 25,
   }]);
   assert.equal(calls.length, 1);
-  assert.match(calls[0].sql, /WHERE e\\.estate_id = \\$1 AND e\\.created_by = \\$2/);
+  assert.match(calls[0].sql, /WHERE e\.estate_id = \$1 AND e\.created_by = \$2/);
   assert.match(calls[0].sql, /ORDER BY e.starts_at ASC, e.id ASC/);
   assert.match(calls[0].sql, /WITH event_page AS/);
   assert.match(calls[0].sql, /JOIN event_page e ON e.id = g.event_id AND e.estate_id = g.estate_id/);
