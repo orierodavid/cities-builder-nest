@@ -1879,10 +1879,10 @@ app.post("/v1/estates/:estateId/events/:eventId/guests/:guestId/invitations", re
         issueEstateEventInvitation(client, { estateId, eventId, guestId, codeHash, userId: authenticated.authUser.id, revokedAt: new Date().toISOString() }),
       );
       if (!result) { res.status(404).json({ error: "event_guest_not_found" }); return; }
-      const { guest, event } = result.context;
-      if (event.venue_approval_status && event.venue_approval_status !== "approved") {
+      if (result.kind === "venue_pending") {
         res.status(409).json({ error: "event_venue_approval_pending", message: "Invitations can be sent after the estate venue has been approved." }); return;
       }
+      const { guest, event } = result.context;
       res.status(201).json({ invitation: result.invitation, code, guest, event });
     } catch {
       res.status(503).json({ error: "event_invitation_create_failed" });
