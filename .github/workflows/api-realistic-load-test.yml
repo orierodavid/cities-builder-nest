@@ -53,6 +53,7 @@ jobs:
       SUPABASE_ANON_KEY: isolated-load-test-anon-key
       VISITOR_PASS_ENCRYPTION_KEY: isolated-load-test-encryption-secret
       PORT: "4000"
+      TRUST_PROXY_HOPS: "1"
     steps:
       - name: Check out main commit
         uses: actions/checkout@v4
