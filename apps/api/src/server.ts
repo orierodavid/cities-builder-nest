@@ -13,6 +13,7 @@ import { getEstatesForUser } from "./estates.repository.js";
 import { getEstateDashboard } from "./dashboard.repository.js";
 import { getBuildingsForEstate, getUnitsForEstate } from "./property-directory.repository.js";
 import { getResidentsForEstate } from "./resident-directory.repository.js";
+import { getSecurityShiftHandovers } from "./security-shift-handovers.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -1194,6 +1195,25 @@ app.get("/v1/estates/:estateId/security/shift-handovers", requireAuth, async (re
   const authenticated = await requireSecurityEventAccess(req, res, estateId);
   if (!authenticated) return;
   const page = getPageWindow(req);
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
+        getSecurityShiftHandovers(client, estateId, page.pageSize, page.from),
+      );
+      res.status(200).json({
+        handovers: result.handovers,
+        pagination: {
+          page: page.page,
+          pageSize: page.pageSize,
+          hasMore: result.hasMore,
+          nextPage: result.hasMore ? page.page + 1 : null,
+        },
+      });
+    } catch {
+      res.status(503).json({ error: "security_shift_handovers_load_failed" });
+    }
+    return;
+  }
   const { data, error } = await authenticated.userSupabase.from("security_shift_handovers")
     .select("id, estate_id, outgoing_officer, shift_label, shift_started_at, shift_ended_at, handover_notes, pending_actions, status, acknowledged_by, acknowledged_at, created_at")
     .eq("estate_id", estateId).order("created_at", { ascending: false }).range(page.from, page.to);
