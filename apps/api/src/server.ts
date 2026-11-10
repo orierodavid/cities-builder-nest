@@ -9,6 +9,7 @@ import { requireAuth, authConfigurationReady, type AuthenticatedRequest } from "
 import { checkDatabase } from "./storage.js";
 import { withAuthenticatedTransaction } from "./database.js";
 import { getMeData } from "./me.repository.js";
+import { getEstatesForUser } from "./estates.repository.js";
 import { startApiServer } from "./lifecycle.js";
 import { sharedRateLimit } from "./rate-limit.js";
 import { getPageWindow, pageResult } from "./pagination.js";
@@ -640,6 +641,22 @@ app.post("/v1/estates/:estateId/units/:unitId/assignments", requireAuth, async (
 
 app.get("/v1/estates", requireAuth, async (req, res) => {
   const authenticated = req as AuthenticatedRequest;
+
+  // Native PostgreSQL read canary. RLS grants platform administrators access
+  // to all estates and other users access only to their active memberships.
+  if (process.env.NATIVE_POSTGRES_READS === "true") {
+    try {
+      const result = await withAuthenticatedTransaction(
+        authenticated.authUser.id,
+        (client) => getEstatesForUser(client, authenticated.authUser.id),
+      );
+      res.status(200).json(result);
+    } catch {
+      res.status(503).json({ error: "estate_lookup_failed" });
+    }
+    return;
+  }
+
   const platformAdmin = await hasPlatformAdmin(authenticated.userSupabase, authenticated.authUser.id);
   if (platformAdmin) {
     const { data: allEstates, error: estatesError } = await authenticated.userSupabase
