@@ -14,7 +14,7 @@ test("event creation checks venue availability and records pending approval", as
  const result=await createEstateEvent(client,{estateId:"e1",creatorUserId:"u1",title:"Town Hall",description:"Details",venueId:"v1",venueLabel:"Main Hall",startsAt:event.starts_at,endsAt:event.ends_at,status:"published",requestedAt:"now"});
  assert.deepEqual(result,{kind:"created",event});
  assert.deepEqual(calls[0].values,["v1","e1"]);
- assert.match(calls[1].sql,/INSERT INTO public\\.estate_events/);
+ assert.match(calls[1].sql,/INSERT INTO public\.estate_events/);
  assert.deepEqual(calls[1].values,["e1","Town Hall","Details","Main Hall · Block A","v1","pending","now",true,event.starts_at,event.ends_at,"draft","u1"]);
 });
 test("event creation rejects a venue that is unavailable",async()=>{
@@ -38,7 +38,7 @@ test("event update writes only within the estate and returns the updated event",
  const updated={...event,title:"Updated"};
  const {client,calls}=mockClient([[{venue_approval_status:"approved"}],[updated]]);
  const result=await updateEstateEvent(client,{estateId:"e1",eventId:"ev1",title:"Updated",description:"",venue:"Hall",startsAt:event.starts_at,endsAt:event.ends_at,status:"published",updatedAt:"later"});
- assert.deepEqual(result,{kind:"updated",event:updated}); assert.equal(calls.length,2); assert.match(calls[1].sql,/WHERE estate_id = \\$1 AND id = \\$2/);
+ assert.deepEqual(result,{kind:"updated",event:updated}); assert.equal(calls.length,2); assert.match(calls[1].sql,/WHERE estate_id = \$1 AND id = \$2/);
 });
 test("event update returns not_found when RLS or estate scope hides the event",async()=>{
  const {client,calls}=mockClient([[]]);
