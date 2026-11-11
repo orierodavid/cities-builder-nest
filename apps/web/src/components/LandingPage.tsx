@@ -38,7 +38,7 @@ export default function LandingPage() {
   return <main className="cb-landing">
     <header className={"site-header" + (menuOpen ? " menu-open" : "")}>
       <div className="container header-inner">
-        <a href="/" className="logo" aria-label="CB Nest home" onClick={closeMenu}><Icon name="home" /><span className="logo-text">CB <span>Nest</span></span></a>
+        <a href="/" className="logo" aria-label="CB Nest home" onClick={closeMenu}><img src="/cb-nest-logo.svg" alt="CB Nest Ltd — Building Your Future" /></a>
         <button className="nav-toggle" type="button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} aria-controls="mainNav" onClick={() => setMenuOpen(!menuOpen)}><span /><span /><span /></button>
         <nav className="main-nav" id="mainNav" aria-label="Main navigation"><ul>
           <li><a href="#home" onClick={closeMenu}>Home</a></li><li><a href="#about" onClick={closeMenu}>About</a></li><li><a href="#features" onClick={closeMenu}>Features</a></li><li><a href="#mobile-apps" onClick={closeMenu}>Mobile Apps</a></li>
@@ -97,6 +97,6 @@ export default function LandingPage() {
       <div className="feature-grid">{features.map(([title, description, icon]) => <article className="feature" key={title}><span className="f-icon">{icon}</span><h3>{title}</h3><p>{description}</p></article>)}</div>
     </div></section>
     <section className="cta" id="contact"><div className="container cta-inner"><div><h2>Ready to build a better-connected estate?</h2><p>Talk to us and see how CB Nest can work for your community.</p></div><a className="btn-solid" href="mailto:info@cbnestltd.com">Get in Touch ↗</a></div></section>
-    <footer className="site-footer"><div className="container footer-inner"><a href="/" className="logo"><Icon name="home" /><span className="logo-text">CB <span>Nest</span></span></a><p className="tagline">Building your future. One platform, many estates.</p><a className="footer-email" href="mailto:info@cbnestltd.com">info@cbnestltd.com</a><p className="copy">© {new Date().getFullYear()} CB Nest. All rights reserved.</p></div></footer>
+    <footer className="site-footer"><div className="container footer-inner"><a href="/" className="logo"><img src="/cb-nest-logo.svg" alt="CB Nest Ltd — Building Your Future" /></a><p className="tagline">Building your future. One platform, many estates.</p><a className="footer-email" href="mailto:info@cbnestltd.com">info@cbnestltd.com</a><p className="copy">© {new Date().getFullYear()} CB Nest. All rights reserved.</p></div></footer>
   </main>;
 }
