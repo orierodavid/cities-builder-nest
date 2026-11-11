@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { theme } from '../src/theme/theme';
@@ -19,7 +19,7 @@ export default function SplashScreen() {
     <View style={s.root}>
       <View style={s.glowTop} />
       <Animated.View style={[s.brand, { opacity: fade, transform: [{ scale: pulse }] }]}>
-        <View style={s.mark}><MaterialCommunityIcons name="home-city-outline" size={43} color={theme.gold} /></View>
+        <Image source={require('../IMG_9873.png')} style={s.logo} resizeMode="contain" accessibilityLabel="CB Nest Ltd logo" />
         <Text style={s.name}>CB NEST LTD</Text>
         <Text style={s.tag}>...BUILDING YOUR FUTURE</Text>
         <View style={s.rule} />
@@ -33,7 +33,7 @@ const s = StyleSheet.create({
   root:{flex:1,backgroundColor:theme.bg,alignItems:'center',justifyContent:'center',padding:28,overflow:'hidden'},
   glowTop:{position:'absolute',width:310,height:310,borderRadius:155,borderWidth:1,borderColor:theme.border,top:-190,alignSelf:'center'},
   brand:{alignItems:'center'},
-  mark:{width:100,height:100,borderRadius:30,borderWidth:1.5,borderColor:theme.gold,backgroundColor:'#000000',alignItems:'center',justifyContent:'center',shadowColor:theme.gold,shadowOpacity:.18,shadowRadius:24,elevation:8},
+  logo:{width:260,height:130,maxWidth:'100%'},
   name:{color:theme.text,fontSize:31,fontWeight:'900',letterSpacing:5,marginTop:22},
   tag:{color:theme.darkBrown,fontSize:10,fontWeight:'900',letterSpacing:4,marginTop:7},
   rule:{width:54,height:2,backgroundColor:theme.gold,marginTop:24,marginBottom:17},
