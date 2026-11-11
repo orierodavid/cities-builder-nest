@@ -14,6 +14,16 @@ on:
       - "docs/LOAD_TESTING.md"
       - "docs/REALISTIC_API_LOAD_TEST.md"
   workflow_dispatch:
+    inputs:
+      profile:
+        description: "Concurrency profile; review each result before selecting the next level"
+        required: true
+        type: choice
+        default: "250"
+        options:
+          - "250"
+          - "500"
+          - "1000"
 
 permissions:
   contents: read
@@ -54,6 +64,7 @@ jobs:
       VISITOR_PASS_ENCRYPTION_KEY: isolated-load-test-encryption-secret
       PORT: "4000"
       TRUST_PROXY_HOPS: "1"
+      LOAD_TEST_PROFILE: ${{ inputs.profile || '250' }}
     steps:
       - name: Check out main commit
         uses: actions/checkout@v4
@@ -135,7 +146,7 @@ jobs:
             -e LOAD_TEST_BASE_URL=http://127.0.0.1:4000 \
             -e LOAD_TEST_ALLOWED_HOST=127.0.0.1:4000 \
             -e LOAD_TEST_ALLOW_LOCAL_HTTP=true \
-            -e LOAD_TEST_PROFILE=full \
+            -e LOAD_TEST_PROFILE="$LOAD_TEST_PROFILE" \
             grafana/k6:0.54.0 run \
             --summary-export=/out/realistic-load-test-summary.json \
             load-tests/api-realistic.js
