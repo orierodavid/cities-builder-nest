@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { theme } from '../src/theme/theme';
 
 export default function SplashScreen() {
