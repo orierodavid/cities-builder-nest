@@ -1,6 +1,6 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { Rate, Trend } from "k6/metrics";
+import { Trend } from "k6/metrics";
 
 const base = (__ENV.LOAD_TEST_BASE_URL || "").replace(/\/$/, "");
 const allowed = (__ENV.LOAD_TEST_ALLOWED_HOST || "").trim();
@@ -35,9 +35,11 @@ export const options = {
   scenarios: { cb_nest_realistic_reads: {
     executor: "ramping-vus", startVUs: 0, stages: stages[profile], gracefulRampDown: "30s",
   } },
-  thresholds: { api_failed_requests: ["rate<0.01"] },
+  thresholds: {
+    http_req_failed: ["rate<0.01"],
+    checks: ["rate>0.99"],
+  },
 };
-const failures = new Rate("api_failed_requests");
 const latency = new Trend("api_latency_ms", true);
 
 export default function () {
@@ -52,6 +54,5 @@ export default function () {
     "HTTP 200": r => r.status === 200,
     "expected endpoint payload": () => parsed !== null && workload.valid(parsed),
   });
-  failures.add(!ok);
   sleep(1);
 }
