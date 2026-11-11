@@ -34,6 +34,7 @@ export default function PlatformGrowthCharts({ data, loading, error }: {
         <span className="growth-period">12 MONTHS</span>
       </div>
       {loading ? <div className="growth-state">Loading verified payment history…</div> : error ? <div className="growth-state growth-error">{error}</div> : !data ? <div className="growth-state"><strong>Analytics unavailable</strong><span>Refresh the dashboard to try loading platform growth data again.</span></div> : <>
+        <div className="growth-stats"><div><span>Verified payments</span><strong>{compact(data.summary.verified_payments)}</strong></div><div><span>Active service charges</span><strong>{compact(data.summary.active_charges)}</strong></div><div><span>Outstanding balance</span><strong>{money(data.summary.outstanding_kobo)}</strong></div></div>
         <div className="growth-chart-summary"><strong>{money(data.summary.collected_kobo)}</strong><span>Total verified collections</span></div>{points.every(point => Number(point.collected_kobo) === 0) && <div className="growth-zero-note">No successful collections have been recorded in this period. The chart will update automatically as verified payments arrive.</div>}
         <div className="growth-chart-wrap">
           <svg className="growth-chart" viewBox="0 0 720 238" role="img" aria-label="Monthly verified service charge collections over the last 12 months">
