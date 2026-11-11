@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 150" role="img" aria-labelledby="title desc">
+<title id="title">CB Nest Ltd</title><desc id="desc">CB Nest Ltd building mark and Building Your Future tagline</desc>
+<circle cx="75" cy="75" r="66" fill="#000" stroke="#FBCC0D" stroke-width="4"/>
+<g fill="none" stroke="#FBCC0D" stroke-width="4" stroke-linejoin="round">
+<path d="M35 89V54l17-10v45M57 89V30l18-11v70M79 89V12l20 12v65M101 89V42l15 9v38"/>
+<path d="M44 59l8-5M44 69l8-5M44 79l8-5M65 40l7-4M65 51l7-4M65 62l7-4M65 73l7-4M87 33l8 5M87 45l8 5M87 57l8 5M87 69l8 5M108 60l7 4M108 72l7 4"/>
+<path d="M22 103l53-31 53 31"/>
+</g>
+<text x="75" y="119" fill="#FBCC0D" font-family="Georgia,serif" font-size="15" font-weight="bold" text-anchor="middle">CB NEST LTD</text>
+<text x="164" y="75" fill="#000" font-family="Arial,sans-serif" font-size="46" font-weight="800" letter-spacing="1">CB NEST LTD</text>
+<text x="166" y="105" fill="#302100" font-family="Georgia,serif" font-size="21" font-style="italic">...Building Your Future</text>
+</svg>
