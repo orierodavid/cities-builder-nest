@@ -32,7 +32,7 @@ const s = StyleSheet.create({
   root:{flex:1,backgroundColor:theme.bg,alignItems:'center',justifyContent:'center',padding:28,overflow:'hidden'},
   glowTop:{position:'absolute',width:310,height:310,borderRadius:155,borderWidth:1,borderColor:theme.border,top:-190,alignSelf:'center'},
   brand:{alignItems:'center'},
-  logo:{width:260,height:130,maxWidth:'100%'},
+  logo:{width:132,height:132,maxWidth:'100%',alignSelf:'center',marginBottom:4},
   name:{color:theme.text,fontSize:31,fontWeight:'900',letterSpacing:5,marginTop:22},
   tag:{color:theme.darkBrown,fontSize:10,fontWeight:'900',letterSpacing:4,marginTop:7},
   rule:{width:54,height:2,backgroundColor:theme.gold,marginTop:24,marginBottom:17},
