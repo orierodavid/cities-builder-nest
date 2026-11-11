@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView,
+  ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,7 +35,7 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Pro
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <View style={s.brand}>
-            <View style={s.logo}><MaterialCommunityIcons name="home-city-outline" size={37} color={C.gold} /></View>
+            <Image source={require('../../../IMG_9873.png')} style={s.logoImage} resizeMode="contain" accessibilityLabel="CB Nest Ltd logo" />
             <Text style={s.wordmark}>CB NEST</Text>
             <Text style={s.kicker}>CITIES BUILDER</Text>
           </View>
@@ -79,7 +79,7 @@ const s = StyleSheet.create({
   safe:{flex:1,backgroundColor:C.bg},
   scroll:{flexGrow:1,justifyContent:'center',paddingHorizontal:22,paddingVertical:32},
   brand:{alignItems:'center',marginBottom:27},
-  logo:{width:76,height:76,borderRadius:24,borderWidth:1,borderColor:'#6A542B',backgroundColor:'#17130B',alignItems:'center',justifyContent:'center'},
+  logoImage:{width:84,height:84,alignSelf:'center',marginBottom:0},
   wordmark:{color:C.text,fontSize:27,fontWeight:'900',letterSpacing:4,marginTop:13},
   kicker:{color:C.gold,fontSize:9,fontWeight:'900',letterSpacing:3.3,marginTop:5},
   card:{width:'100%',maxWidth:450,alignSelf:'center',backgroundColor:C.panel,borderWidth:1,borderColor:C.border,borderRadius:22,padding:22},
