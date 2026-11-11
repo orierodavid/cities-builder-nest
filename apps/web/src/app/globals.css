@@ -35,3 +35,42 @@
 .loading-spinner{display:block;width:34px;height:34px;border:3px solid #e8e2d5;border-top-color:#b58a38;border-radius:50%;animation:cbnest-spin .75s linear infinite}
 @keyframes cbnest-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.loading-spinner{animation-duration:2s}}
+
+
+/* Platform growth analytics — responsive, data-driven dashboard charts. */
+.dashboard-grid:has(.growth-panel){display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,1fr);gap:14px;align-items:stretch}
+.growth-panel{min-width:0;background:#fff;border:1px solid #ececec;border-radius:12px;padding:20px;box-shadow:0 5px 22px rgba(25,20,8,.035)}
+.growth-panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.growth-eyebrow{display:block;color:#a27b20;font-size:9px;font-weight:850;letter-spacing:1.5px;margin-bottom:7px}
+.growth-panel-head h3{font-size:16px;letter-spacing:-.25px;margin:0 0 6px;color:#171717}
+.growth-panel-head p{font-size:11px;line-height:1.5;color:#8a8a8a;margin:0}
+.growth-period{flex:none;border:1px solid #eee4c8;background:#fffaf0;color:#8a6923;border-radius:20px;padding:7px 10px;font-size:8px;font-weight:850;letter-spacing:1px}
+.growth-chart-summary{display:flex;align-items:baseline;gap:9px;margin:22px 0 3px}
+.growth-chart-summary strong{font-size:clamp(22px,3vw,30px);letter-spacing:-1px;color:#171717}
+.growth-chart-summary span{font-size:10px;color:#999}
+.growth-chart-wrap{width:100%;overflow:hidden}
+.growth-chart{display:block;width:100%;height:auto;overflow:visible}
+.growth-gridline{stroke:#efefef;stroke-width:1;stroke-dasharray:3 5}
+.growth-area{fill:rgba(251,204,13,.17)}
+.growth-line{fill:none;stroke:#bd8e13;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.growth-point{fill:#fff;stroke:#b98b13;stroke-width:2.5;cursor:help}
+.growth-axis-label{font-size:10px;fill:#999}
+.growth-chart-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid #f1f1f1;padding-top:12px;color:#999;font-size:9px}
+.growth-chart-foot>span:first-child{display:flex;align-items:center;gap:6px}
+.growth-legend-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#bd8e13}
+.growth-state{min-height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:22px;color:#999;font-size:11px;line-height:1.6}
+.growth-state strong{font-size:13px;color:#555}
+.growth-state span{max-width:300px}
+.growth-error{color:#a62c2c}
+.estate-ranking{display:grid;gap:17px;margin-top:20px}
+.estate-rank{min-width:0}
+.estate-rank-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.estate-rank-name{display:flex;align-items:center;gap:9px;min-width:0;font-size:11px;font-weight:700;color:#333}
+.estate-rank-name b{display:grid;place-items:center;flex:none;width:25px;height:25px;border-radius:8px;background:#fff7dc;color:#9a741d;font-size:9px}
+.estate-rank-top>strong{font-size:11px;white-space:nowrap;color:#222}
+.estate-bar-track{height:7px;border-radius:20px;background:#f2f2f2;overflow:hidden}
+.estate-bar-track>span{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,#f5d45a,#c3951d);min-width:2px}
+.estate-rank-meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:7px;color:#999;font-size:9px}
+.estate-rank-meta strong{color:#555;font-weight:700}
+@media(max-width:900px){.dashboard-grid:has(.growth-panel){grid-template-columns:1fr}}
+@media(max-width:520px){.growth-panel{padding:15px;border-radius:10px}.growth-panel-head h3{font-size:14px}.growth-panel-head p{font-size:10px}.growth-chart-summary{margin-top:18px}.growth-axis-label{font-size:9px}.estate-rank-meta{font-size:8px}}
