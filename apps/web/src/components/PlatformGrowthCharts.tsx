@@ -33,8 +33,8 @@ export default function PlatformGrowthCharts({ data, loading, error }: {
         <div><span className="growth-eyebrow">PLATFORM OVERVIEW</span><h3>Estate Growth</h3><p>Verified service-charge collections across the last 12 months</p></div>
         <span className="growth-period">12 MONTHS</span>
       </div>
-      {loading ? <div className="growth-state">Loading verified payment history…</div> : error ? <div className="growth-state growth-error">{error}</div> : !data || points.every(point => Number(point.collected_kobo) === 0) ? <div className="growth-state"><strong>No verified collections yet</strong><span>Monthly collection trends will appear here when successful service-charge payments are recorded.</span></div> : <>
-        <div className="growth-chart-summary"><strong>{money(data.summary.collected_kobo)}</strong><span>Total verified collections</span></div>
+      {loading ? <div className="growth-state">Loading verified payment history…</div> : error ? <div className="growth-state growth-error">{error}</div> : !data ? <div className="growth-state"><strong>Analytics unavailable</strong><span>Refresh the dashboard to try loading platform growth data again.</span></div> : <>
+        <div className="growth-chart-summary"><strong>{money(data.summary.collected_kobo)}</strong><span>Total verified collections</span></div>{points.every(point => Number(point.collected_kobo) === 0) && <div className="growth-zero-note">No successful collections have been recorded in this period. The chart will update automatically as verified payments arrive.</div>}
         <div className="growth-chart-wrap">
           <svg className="growth-chart" viewBox="0 0 720 238" role="img" aria-label="Monthly verified service charge collections over the last 12 months">
             {[40, 90, 140, 190].map(y => <line key={y} x1="42" x2="678" y1={y} y2={y} className="growth-gridline" />)}
