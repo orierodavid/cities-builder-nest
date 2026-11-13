@@ -70,7 +70,7 @@ const passes: Record<string, unknown>[] = [
 const visits: Record<string, any>[] = [];
 const denials: Record<string, any>[] = [];
 const eventRecords: Record<string, any>[] = [
-  { id: "event-a", estate_id: estateA, title: "Estate A Gathering", venue: "Clubhouse", status: "published", created_by: "event-organiser-a", starts_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(), ends_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() },
+  { id: "event-a", estate_id: estateA, title: "Estate A Gathering", venue: "Clubhouse", status: "published", created_by: residentId, starts_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(), ends_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() },
 ];
 const eventGuestRecords: Record<string, any>[] = [
   { id: "event-guest-a", estate_id: estateA, event_id: "event-a", guest_name: "Event Test Guest", email: "guest@example.test", phone: "08000000000" },
@@ -367,35 +367,23 @@ async function request(path: string, token: string, method = "GET", body?: unkno
   return { status: response.status, body: await response.json() as Record<string, any> };
 }
 
-test("event guest lists are restricted to the event creator or a legacy organiser in the same estate", async () => {
-  const organiser = await request(
-    `/v1/estates/${estateA}/events/event-a/guests`,
-    "event-organiser-token",
-  );
-  assert.equal(organiser.status, 200);
-  assert.equal(organiser.body.guests.length, 1);
-  assert.equal(organiser.body.guests[0].id, "event-guest-a");
-
-  const otherEstateOrganiser = await request(
-    `/v1/estates/${estateA}/events/event-a/guests`,
-    "event-organiser-b-token",
-  );
-  assert.equal(otherEstateOrganiser.status, 403);
-  assert.equal(otherEstateOrganiser.body.error, "event_organiser_membership_required");
-
+test("event guest lists are managed by the resident who created the event; retired organiser memberships are denied", async () => {
   const resident = await request(
     `/v1/estates/${estateA}/events/event-a/guests`,
     "resident-token",
   );
-  assert.equal(resident.status, 403);
-  assert.equal(resident.body.error, "event_owner_required");
+  assert.equal(resident.status, 200);
+  assert.equal(resident.body.guests.length, 1);
+  assert.equal(resident.body.guests[0].id, "event-guest-a");
 
-  const security = await request(
-    `/v1/estates/${estateA}/events/event-a/guests`,
-    "security-token",
-  );
-  assert.equal(security.status, 403);
-  assert.equal(security.body.error, "event_organiser_membership_required");
+  for (const token of ["event-organiser-token", "event-organiser-b-token", "security-token"]) {
+    const denied = await request(
+      `/v1/estates/${estateA}/events/event-a/guests`,
+      token,
+    );
+    assert.equal(denied.status, 403);
+    assert.equal(denied.body.error, "resident_membership_required_for_events");
+  }
 });
 
 test("authenticated resident can create a pass and list only passes hosted by that resident", async () => {
