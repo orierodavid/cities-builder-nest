@@ -12,7 +12,7 @@ const str = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const asObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const statusOf = (value: unknown) => str(value).toLowerCase();
-const validPhone = (value: string) => /^\+?[0-9]{8,15}$/.test(value);
+const normalizeNigeriaPhone = (value: string) => { const digits = value.replace(/\D/g, ""); if (digits.startsWith("234") && digits.length === 13) return "+" + digits; if (digits.startsWith("0") && digits.length === 11) return "+234" + digits.slice(1); if (digits.length === 10) return "+234" + digits; return ""; };
 const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 Deno.serve(async (req: Request) => {
@@ -100,35 +100,27 @@ Deno.serve(async (req: Request) => {
 
   if (action === "lookup") {
     const provider = str(input.discoCode).toUpperCase();
-    const meterNumber = str(input.meterNumber);
+    const meterNumber = str(input.meterNumber).trim();
     const meterType = str(input.meterType).toLowerCase();
     const estateId = str(input.estateId);
-    if (!/^[A-Z0-9]{2,20}$/.test(provider) || !/^\d{6,20}$/.test(meterNumber) ||
-        !Number.isSafeInteger(Number(meterNumber)) ||
+    if (!["IE", "AEDC", "YEDC", "BEDC", "EKEDC", "IBEDC", "KEDCO", "KAEDC", "PHED", "EEDC", "APLE", "JED"].includes(provider) || !/^\d{8,13}$/.test(meterNumber) ||
         !["prepaid", "postpaid"].includes(meterType) || !estateIds.includes(estateId)) {
       return reply(400, { error: "invalid_meter_details" });
     }
-    const { response, data } = await squad("/vending/utilities/electricity/lookup", "POST", {
-      meter_type: meterType, meter_no: meterNumber, provider, // Squad sandbox currently validates meter_no as a string despite the docs declaring Integer.
-    });
+    const lookupBody = { meter_type: meterType, meter_no: meterNumber, provider };
+    const { response, data, rawBody } = await squad("/vending/utilities/electricity/lookup", "POST", lookupBody);
     const details = detailsOf(data);
     const providerReference = str(details.reference);
     if (!response.ok || data.success !== true || !providerReference) {
       const message = upstreamError(data, "The meter could not be verified. Check the provider and meter number.");
       console.error("[squad-electricity] meter lookup rejected", JSON.stringify({
+        requestBody: lookupBody,
         upstreamStatus: response.status,
-        provider,
-        meterSuffix: meterNumber.slice(-4),
-        success: data.success ?? null,
-        message,
-        error: typeof data.error === "string" ? data.error : null,
-        errors: data.errors ?? null,
-        responseKeys: Object.keys(data),
-        dataKeys: Object.keys(details),
+        upstreamResponseBody: rawBody,
       }));
       return reply(422, {
         error: "meter_validation_failed",
-        message,
+        message: "Meter not found or account details could not be retrieved. Check the meter number, meter type and electricity provider.",
         upstreamStatus: response.status,
       });
     }
@@ -152,10 +144,10 @@ Deno.serve(async (req: Request) => {
 
   if (action === "vend") {
     const validationId = str(input.validationId);
-    const phone = str(input.phone);
+    const phone = normalizeNigeriaPhone(str(input.phone));
     const email = str(input.email);
     const amount = Number(input.amount);
-    if (!validationId || !validPhone(phone) || !validEmail(email) ||
+    if (!validationId || !phone || !validEmail(email) ||
         !Number.isFinite(amount) || amount < 100 || Math.round(amount * 100) !== amount * 100) {
       return reply(400, { error: "invalid_purchase_details", message: "Enter a valid amount, phone number and email address." });
     }
@@ -189,15 +181,16 @@ Deno.serve(async (req: Request) => {
       return reply(503, { error: "transaction_record_failed", message: "We could not safely record this purchase. Please verify the meter again." });
     }
 
-    const { response, data, rawBody } = await squad("/vending/utilities/electricity", "POST", {
-      phone_number: phone, amount: String(amount), email, reference: str(validation.validation_token),
-    });
+    const purchaseBody = { phone_number: phone, amount, email, reference: str(validation.validation_token) };
+    const { response, data, rawBody } = await squad("/vending/utilities/electricity", "POST", purchaseBody);
     const result = detailsOf(data);
     const meta = typeof result.meta_json === "object" ? asObject(result.meta_json) :
       (() => { try { return asObject(JSON.parse(str(result.meta))); } catch { return {}; } })();
     const providerStatus = statusOf(result.status ?? data.status);
+    const unclearResult = response.status >= 500 || !rawBody || data.message === "Squad returned an unreadable response." ||
+      (response.ok && data.success === true && !["success", "pending", "failed", "failure"].includes(providerStatus));
     const finalStatus = response.ok && data.success === true && providerStatus === "success"
-      ? "successful" : response.ok && data.success === true && providerStatus === "pending" ? "pending" : "failed";
+      ? "successful" : response.ok && data.success === true && providerStatus === "pending" || unclearResult ? "pending" : "failed";
     const token = str(meta.token) || str(result.value_reference) || null;
     const receipt = {
       token, units: str(meta.total_units) || null, receiptNumber: str(meta.receipt_number) || null,
@@ -216,7 +209,10 @@ Deno.serve(async (req: Request) => {
       return reply(202, { transaction: { merchantReference: reference, status: "pending" }, message: "The provider responded, but the final status is being reconciled. Do not submit again." });
     }
     if (!response.ok || data.success !== true || finalStatus === "failed") {
-      return reply(422, { error: "electricity_vend_failed", message: upstreamError(data, "The electricity purchase was not successful."), upstreamStatus: response.status, upstreamBody: rawBody, transaction: { merchantReference: reference, status: "failed" } });
+      if (finalStatus === "pending") {
+        return reply(202, { transaction: { merchantReference: reference, status: "pending" }, message: "The purchase result is unclear. Do not submit again; check the transaction status." });
+      }
+      return reply(422, { error: "electricity_vend_failed", message: upstreamError(data, "The electricity purchase was not successful."), upstreamStatus: response.status, transaction: { merchantReference: reference, status: "failed" } });
     }
     return reply(finalStatus === "pending" ? 202 : 200, {
       transaction: { merchantReference: reference, status: finalStatus, amountKobo, receipt },
