@@ -51,7 +51,13 @@ const config:Record<string,{title:string;description:string;columns:string[];int
 };
 
 
-type EstateRecord = { id:string; name:string; address:string; city:string; state:string; country_code:string; is_enabled:boolean; created_at:string };
+type EstateRecord = { id:string; name:string; address:string; city:string; lga:string; state:string; country_code:string; is_enabled:boolean; created_at:string };
+type EstateLocationOptions = { states:string[]; lgas:Record<string,string[]> };
+function parseEstateCsv(source:string):string[][] {
+ const rows:string[][]=[]; let row:string[]=[]; let cell=""; let quoted=false;
+ for(let i=0;i<source.length;i++){const ch=source[i]; if(ch==='"'){if(quoted&&source[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===","&&!quoted){row.push(cell.trim());cell="";}else if((ch==="\\n"||ch==="\\r")&&!quoted){if(ch==="\\r"&&source[i+1]==="\\n")i++;row.push(cell.trim());if(row.some(v=>v.length))rows.push(row);row=[];cell="";}else cell+=ch;}
+ row.push(cell.trim());if(row.some(v=>v.length))rows.push(row);return rows;
+}
 
 function EstatesPage() {
  const [rows,setRows]=useState<EstateRecord[]>([]);
@@ -65,16 +71,21 @@ function EstatesPage() {
  const [city,setCity]=useState("");
  const [state,setState]=useState("");
  const [country,setCountry]=useState("NG");
+ const [locationOptions,setLocationOptions]=useState<EstateLocationOptions>({states:[],lgas:{}});
+ const [bulkBusy,setBulkBusy]=useState(false);
+ const [bulkResult,setBulkResult]=useState("");
 
  const load=useCallback(async()=>{
   setLoading(true);setError("");
   const {data:{user}}=await supabase.auth.getUser();
   if(!user){setError("Your session has expired. Sign in again.");setLoading(false);return;}
+  const {data:locationData,error:locationError}=await supabase.functions.invoke("resident-registration",{body:{action:"options"}});
+  if(!locationError&&locationData?.states&&locationData?.lgas)setLocationOptions({states:locationData.states as string[],lgas:locationData.lgas as Record<string,string[]>});
   const {data:roles,error:roleError}=await supabase.from("user_roles").select("role").eq("user_id",user.id);
   if(roleError||!(roles||[]).some((r:{role:string})=>r.role==="platform_admin")){
    setError("Only Super Administrators can create and manage estates.");setLoading(false);return;
   }
-  const {data,error:queryError}=await supabase.from("estates").select("id,name,address,city,state,country_code,is_enabled,created_at").order("created_at",{ascending:false});
+  const {data,error:queryError}=await supabase.from("estates").select("id,name,address,city,lga,state,country_code,is_enabled,created_at").order("created_at",{ascending:false});
   if(queryError)setError("Estates could not be loaded. Please refresh and try again.");
   else setRows((data||[]) as EstateRecord[]);
   setLoading(false);
@@ -89,17 +100,40 @@ function EstatesPage() {
   if(roleError||!(roles||[]).some((r:{role:string})=>r.role==="platform_admin")){
    setError("Your account is not authorized to create estates.");setSaving(false);return;
   }
+  const validLgas=locationOptions.lgas[state]||[];
+  if(!validLgas.includes(city)){setError("Select an LGA that belongs to the chosen State.");setSaving(false);return;}
   const {data,error:insertError}=await supabase.from("estates").insert({
-   name:name.trim(),address:address.trim(),city:city.trim(),state:state.trim(),country_code:country.trim().toUpperCase(),is_enabled:true
-  }).select("id,name,address,city,state,country_code,is_enabled,created_at").single();
+   name:name.trim(),address:address.trim(),city:city.trim(),lga:city.trim(),state:state.trim(),country_code:country.trim().toUpperCase(),is_enabled:true
+  }).select("id,name,address,city,lga,state,country_code,is_enabled,created_at").single();
   if(insertError){setError(insertError.message.includes("duplicate")?"An estate with these details may already exist. Please check the estate list.":"The estate could not be created. Please check the details and try again.");setSaving(false);return;}
   setRows(current=>[insertedEstate(data),...current]);
   setSuccess("Estate created successfully. You can now open User Management and assign its Facility Manager.");
   setName("");setAddress("");setCity("");setState("");setCountry("NG");setShowForm(false);setSaving(false);
  }
+ async function bulkUploadEstates(file:File|null){
+  if(!file)return;setError("");setSuccess("");setBulkResult("");
+  if(!file.name.toLowerCase().endsWith(".csv")){setError("Upload a CSV file using the CB Nest estate template.");return;}
+  setBulkBusy(true);
+  try{
+   const rows=parseEstateCsv(await file.text());
+   if(rows.length<2)throw new Error("The CSV contains no estate rows.");
+   const headers=rows[0].map(x=>x.toLowerCase().replace(/\\s+/g,"_"));
+   const required=["estate_name","address","state","lga"];
+   const indexes=required.map(h=>headers.indexOf(h));
+   if(indexes.some(i=>i<0))throw new Error("CSV headers must be: estate_name,address,state,lga.");
+   if(rows.length-1>500)throw new Error("Upload up to 500 estates per CSV file.");
+   const payload=rows.slice(1).map((r,i)=>{const [n,a,s,l]=indexes.map(ix=>r[ix]||"");if(n.length<2||n.length>160||a.length<4||!((locationOptions.lgas[s]||[]).includes(l)))throw new Error(`Row ${i+2}: check estate name, address, State and matching LGA.`);return {name:n,address:a,city:l,lga:l,state:s,country_code:"NG",is_enabled:true};});
+   const {data,error:insertError}=await supabase.from("estates").insert(payload).select("id,name,address,city,lga,state,country_code,is_enabled,created_at");
+   if(insertError)throw new Error(insertError.message.includes("duplicate")?"One or more estates already exist. Check the CSV for duplicates and existing estates.":"The bulk upload was rejected. Check the CSV rows and try again.");
+   setRows(current=>[...((data||[]) as EstateRecord[]),...current]);setBulkResult(`${data?.length||0} estates uploaded successfully.`);setSuccess("Bulk estate upload completed.");
+  }catch(error){setError(error instanceof Error?error.message:"The CSV could not be processed.");}
+  finally{setBulkBusy(false);}
+ }
  return <PortalFrame title="Estates" description="Create and manage estates across the CB Nest platform.">
   <section className="panel module-panel">
-   <div className="module-toolbar"><div><h3>Estate directory</h3><p>Create an estate first, then assign its Facility Manager from User Management.</p></div><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");}}>{showForm?"Close":"＋ Create estate"}</button></div>
+   <div className="module-toolbar"><div><h3>Estate directory</h3><p>Create estates using the same State and LGA selection used during resident registration. You can add one estate or bulk upload a CSV; assign Facility Managers later.</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><label className="secondary-action" style={{cursor:"pointer"}}>{bulkBusy?"Uploading…":"Bulk upload CSV"}<input type="file" accept=".csv,text/csv" disabled={bulkBusy} onChange={e=>{void bulkUploadEstates(e.target.files?.[0]||null);e.currentTarget.value="";}} style={{display:"none"}}/></label><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");}}>{showForm?"Close":"＋ Create estate"}</button></div></div>
+   <p className="notice-line">CSV columns: estate_name, address, state, lga. <a download="cbnest-estates-template.csv" href={"data:text/csv;charset=utf-8,"+encodeURIComponent("estate_name,address,state,lga\\nExample Estate,12 Example Road,Lagos,Ikeja\\n")}>Download CSV template</a>. Up to 500 estates per upload.</p>
+   {bulkResult&&<div className="user-alert user-alert-success" role="status">{bulkResult}</div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">{success}<div style={{marginTop:8}}><a href="/users" style={{color:"inherit",fontWeight:700,textDecoration:"underline"}}>Continue to User Management →</a></div></div>}
    {showForm&&<form className="user-form" onSubmit={createEstate}>
@@ -107,8 +141,8 @@ function EstatesPage() {
     <div className="user-form-grid">
      <label>Estate name<input required minLength={2} maxLength={160} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Cities Builders Estate"/></label>
      <label>Street address<input required minLength={3} maxLength={240} value={address} onChange={e=>setAddress(e.target.value)} placeholder="Estate street address"/></label>
-     <label>LGA<input required maxLength={120} value={city} onChange={e=>setCity(e.target.value)} placeholder="e.g. Ikeja"/></label>
-     <label>State<input required maxLength={120} value={state} onChange={e=>setState(e.target.value)} placeholder="State"/></label>
+     <label>State<select required value={state} onChange={e=>{setState(e.target.value);setCity("");}}><option value="">Select State</option>{locationOptions.states.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
+     <label>LGA<select required value={city} disabled={!state} onChange={e=>setCity(e.target.value)}><option value="">Select LGA</option>{(locationOptions.lgas[state]||[]).map(x=><option key={x} value={x}>{x}</option>)}</select></label>
      <label>Country code<input required minLength={2} maxLength={2} pattern="[A-Za-z]{2}" value={country} onChange={e=>setCountry(e.target.value.toUpperCase())} placeholder="NG"/></label>
     </div>
     <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving}>{saving?"Creating estate…":"Create estate"}</button></div>
