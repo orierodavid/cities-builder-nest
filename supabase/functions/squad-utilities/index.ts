@@ -97,7 +97,7 @@ Deno.serve(async(req:Request)=>{
   const {r,data,rawBody}=service==="cable_tv" ? await squad("/v1/service/cable/lookup","POST",body) : await squad("/v1/service/lookup","POST",body);
   const details=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
   const token=str(details.validation_token)||str(details.reference);
-  if(!r.ok||!token)return reply(422,{error:"customer_lookup_failed",message:message(data,"Could not retrieve account information. Check the provider and customer number."),upstream:{url:base+"/v1/service/lookup",status:r.status,body:rawBody}});
+  if(!r.ok||data.success!==true||!token)return reply(422,{error:"customer_lookup_failed",message:message(data,"Could not retrieve account information. Check the provider and customer number."),upstream:{url:base+"/v1/service/lookup",status:r.status,body:rawBody}});
   const {data:saved,error}=await admin.from("utility_validations").insert({
    resident_user_id:auth.user.id,estate_id:estateId,service,provider,customer_identifier:identifier,
    meter_type:service==="electricity"?meterType:null,validation_token:token,customer_name:str(details.customer_name)||null,minimum_vend:details.minimum_vend==null?null:Number(details.minimum_vend),
@@ -111,16 +111,16 @@ Deno.serve(async(req:Request)=>{
   if(!validationId||!/^\+?[0-9]{8,15}$/.test(phone)||(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return reply(400,{error:"invalid_purchase_details"});
   const {data:v,error:ve}=await admin.from("utility_validations").select("*").eq("id",validationId).eq("resident_user_id",auth.user.id).eq("status","validated").gt("expires_at",new Date().toISOString()).maybeSingle();
   if(ve||!v)return reply(409,{error:"lookup_expired_or_already_used"});
-  if(v.service==="electricity"&&(!Number.isFinite(amount)||amount<100||(v.minimum_vend!=null&&amount<Number(v.minimum_vend))))return reply(400,{error:"invalid_electricity_amount"});
+  if(v.service==="electricity"&&(!Number.isSafeInteger(amount)||amount<100||(v.minimum_vend!=null&&amount<Math.ceil(Number(v.minimum_vend)))))return reply(400,{error:"invalid_electricity_amount"});
   let selectedProduct:Record<string,unknown>|null=null;
   if(productServices.has(v.service)){
    if(!productCode)return reply(400,{error:"select_product"});
-   const {r:pr,data:pd}=await squad("/v1/service/products","POST",{service:serviceCodes[v.service],provider:v.provider});
+   const {r:pr,data:pd}=v.service==="cable_tv" ? await squad("/v1/service/cable/bouquet-list","POST",{provider:v.provider}) : await squad("/v1/service/products","POST",{service:serviceCodes[v.service],provider:v.provider});
    if(!pr.ok)return reply(502,{error:"products_unavailable",message:message(pd,"Could not verify selected product.")});
    selectedProduct=productRows(pd).find(p=>str(p.code)===productCode)??null;
    if(!selectedProduct)return reply(400,{error:"invalid_product_code"});
   }
-  if(v.service==="betting"&&(!Number.isFinite(amount)||amount<100))return reply(400,{error:"invalid_betting_amount"});
+  if(v.service==="betting"&&(!Number.isSafeInteger(amount)||amount<100))return reply(400,{error:"invalid_betting_amount"});
   // Claim the single-use lookup before calling Squad to prevent concurrent duplicate vends.
   const {data:claimed,error:claimError}=await admin.from("utility_validations").update({status:"used",used_at:new Date().toISOString()}).eq("id",v.id).eq("status","validated").select("id").maybeSingle();
   if(claimError||!claimed)return reply(409,{error:"lookup_already_consumed"});
@@ -134,7 +134,7 @@ Deno.serve(async(req:Request)=>{
    status:"pending",provider_status:"SUBMITTING",product_code:productCode||null
   }).select("id").single();
   if(txError||!tx)return reply(503,{error:"transaction_record_failed"});
-  const vendBody:Record<string,unknown>=v.service==="cable_tv" ? {provider:v.provider,reference:v.validation_token,bouquet_code:productCode,phone_number:phone,email} : {validation_token:v.validation_token,merchant_reference:ref,customer:{phone_number:phone,...(email?{email}:{})}};
+  const vendBody:Record<string,unknown>=v.service==="cable_tv" ? {provider:v.provider,reference:v.validation_token,boquet_code:productCode,phone_number:phone.replace(/^\+234/,"0"),email} : {validation_token:v.validation_token,merchant_reference:ref,customer:{phone_number:phone,...(email?{email}:{})}};
   if(v.service!=="cable_tv"){if(productServices.has(v.service))vendBody.products=[{code:productCode,quantity:1}];else vendBody.amount=productServices.has(v.service)?purchaseAmount:amount;}
   try{
    const {r,data,rawBody}=v.service==="cable_tv" ? await squad("/v1/service/cable/vend","POST",vendBody) : await squad("/v1/service/vend","POST",vendBody);
