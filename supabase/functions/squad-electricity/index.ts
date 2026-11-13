@@ -9,6 +9,7 @@ const headers = {
 const reply = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers });
 const str = (value: unknown) => typeof value === "string" ? value.trim() : "";
+const scalarString = (value: unknown) => typeof value === "string" ? value.trim() : typeof value === "number" && Number.isFinite(value) ? String(value) : "";
 const asObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const statusOf = (value: unknown) => str(value).toLowerCase();
@@ -110,9 +111,8 @@ Deno.serve(async (req: Request) => {
     const lookupBody = { meter_type: meterType, meter_no: meterNumber, provider };
     const { response, data, rawBody } = await squad("/vending/utilities/electricity/lookup", "POST", lookupBody);
     const details = detailsOf(data);
-    const providerReference = str(details.reference);
+    const providerReference = scalarString(details.reference);
     if (!response.ok || data.success !== true || !providerReference) {
-      const message = upstreamError(data, "The meter could not be verified. Check the provider and meter number.");
       console.error("[squad-electricity] meter lookup rejected", JSON.stringify({
         requestBody: lookupBody,
         upstreamStatus: response.status,
@@ -191,14 +191,14 @@ Deno.serve(async (req: Request) => {
       (response.ok && data.success === true && !["success", "pending", "failed", "failure"].includes(providerStatus));
     const finalStatus = response.ok && data.success === true && providerStatus === "success"
       ? "successful" : response.ok && data.success === true && providerStatus === "pending" || unclearResult ? "pending" : "failed";
-    const token = str(meta.token) || str(result.value_reference) || null;
+    const token = scalarString(meta.token) || scalarString(result.value_reference) || null;
     const receipt = {
-      token, units: str(meta.total_units) || null, receiptNumber: str(meta.receipt_number) || null,
-      customerName: str(meta.account_name) || str(validation.customer_name) || null,
-      meterNumber: str(meta.meter_number) || str(validation.customer_identifier),
-      address: str(meta.address) || null, tariffClass: str(meta.tariff_class) || null,
-      tariffRate: str(meta.tariff_rate) || null, amountPaid: meta.amount_paid ?? amount,
-      providerReference: str(result.reference) || str(validation.validation_token),
+      token, units: scalarString(meta.total_units) || null, receiptNumber: scalarString(meta.receipt_number) || null,
+      customerName: scalarString(meta.account_name) || str(validation.customer_name) || null,
+      meterNumber: scalarString(meta.meter_number) || str(validation.customer_identifier),
+      address: scalarString(meta.address) || null, tariffClass: scalarString(meta.tariff_class) || null,
+      tariffRate: scalarString(meta.tariff_rate) || null, amountPaid: meta.amount_paid ?? amount,
+      providerReference: scalarString(result.reference) || str(validation.validation_token),
     };
     const { error: updateError } = await admin.from("utility_transactions")
       .update({ status: finalStatus, provider_status: providerStatus || String(response.status),
@@ -238,12 +238,12 @@ Deno.serve(async (req: Request) => {
           ["failed", "failure", "reversed"].includes(providerStatus) ? "failed" : "pending";
         const providerMeta = typeof providerTx.meta_json === "object" ? asObject(providerTx.meta_json) : {};
         const receipt = nextStatus === "successful" ? {
-          token: str(providerMeta.token) || str(providerTx.value_reference) || null,
-          units: str(providerMeta.total_units) || null,
-          receiptNumber: str(providerMeta.receipt_number) || null,
-          customerName: str(providerMeta.account_name) || null,
-          meterNumber: str(providerMeta.meter_number) || str(row.customer_identifier),
-          address: str(providerMeta.address) || null,
+          token: scalarString(providerMeta.token) || scalarString(providerTx.value_reference) || null,
+          units: scalarString(providerMeta.total_units) || null,
+          receiptNumber: scalarString(providerMeta.receipt_number) || null,
+          customerName: scalarString(providerMeta.account_name) || null,
+          meterNumber: scalarString(providerMeta.meter_number) || str(row.customer_identifier),
+          address: scalarString(providerMeta.address) || null,
           amountPaid: providerMeta.amount_paid ?? Number(row.amount_kobo) / 100,
         } : row.receipt;
         const { data: updated } = await admin.from("utility_transactions")
