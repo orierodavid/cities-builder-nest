@@ -90,8 +90,8 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
   const purchase = async () => {
     if (!validation) return;
     const value = Number(amount);
-    if (!Number.isFinite(value) || value < 100 || Math.round(value * 100) !== value * 100) {
-      setError(true); setMessage("Enter a valid purchase amount of at least ₦100."); return;
+    if (!Number.isSafeInteger(value) || value < 100) {
+      setError(true); setMessage("Enter a whole-naira purchase amount of at least ₦100."); return;
     }
     if (validation.minimumVend != null && value < validation.minimumVend) {
       setError(true); setMessage(`The minimum purchase for this meter is ${money(validation.minimumVend)}.`); return;
@@ -206,7 +206,7 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
               <Text style={{ color: "#AFA89A", fontSize: 11 }}>{key}</Text><Text style={{ color: "#F7F1E5", fontSize: 11, fontWeight: "800", flexShrink: 1, textAlign: "right" }}>{value}</Text>
             </View>)}
             <Text style={label}>Purchase amount (NGN)</Text>
-            <TextInput accessibilityLabel="Electricity purchase amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder={validation.minimumVend ? String(validation.minimumVend) : "Enter amount"} placeholderTextColor="#777" style={field} />
+            <TextInput accessibilityLabel="Electricity purchase amount" value={amount} onChangeText={setAmount} keyboardType="number-pad" placeholder={validation.minimumVend ? String(Math.ceil(validation.minimumVend)) : "Enter whole-naira amount"} placeholderTextColor="#777" style={field} />
             <Text style={label}>Phone number</Text>
             <TextInput accessibilityLabel="Purchase phone number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="080..." placeholderTextColor="#777" style={field} />
             <Text style={label}>Email address (required)</Text>
