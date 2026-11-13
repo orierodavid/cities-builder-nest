@@ -40,6 +40,17 @@ const isTransientRoleError = (error: unknown) => {
     (typeof status === "number" && status >= 500);
 };
 const wait = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
+const ROLE_REQUEST_TIMEOUT_MS = 12_000;
+function fetchWithRoleTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return Promise.race([
+    fetch(input, init),
+    new Promise<Response>((_, reject) => setTimeout(() => {
+      const error = new Error("Role verification request timed out.");
+      error.name = "TimeoutError";
+      reject(error);
+    }, ROLE_REQUEST_TIMEOUT_MS)),
+  ]);
+}
 
 export default function MobileEntryRoute() {
   const [session, setSession] = useState<Session | null>(null);
@@ -91,9 +102,10 @@ export default function MobileEntryRoute() {
         try {
           // Avoid AbortSignal.timeout on iOS: native fetch cancellation was
           // previously being surfaced as a false role/access failure.
+          console.info("[CB Nest role check] Starting authenticated verification", { attempt, apiBaseUrl });
           const [profileResponse, estatesResponse] = await Promise.all([
-            fetch(apiBaseUrl + "/v1/me", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
-            fetch(apiBaseUrl + "/v1/estates", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
+            fetchWithRoleTimeout(apiBaseUrl + "/v1/me", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
+            fetchWithRoleTimeout(apiBaseUrl + "/v1/estates", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
           ]);
           console.info("[CB Nest role check] API response statuses", {
             attempt, profileStatus: profileResponse.status, estatesStatus: estatesResponse.status,
