@@ -1,6 +1,9 @@
 import type { RequestHandler } from "express";
 
 export const apiSecurityHeaders: RequestHandler = (_req, res, next) => {
+  // Suppress framework/host identification headers at the application response layer.
+  res.removeHeader("X-Powered-By");
+  res.removeHeader("Server");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
