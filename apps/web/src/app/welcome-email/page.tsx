@@ -57,11 +57,11 @@ export default function WelcomeEmailPage() {
       body: { action: "send", userId, estateId, subject, message: finalMessage, requestId }
     });
     if (invokeError || data?.error) {
-      setError("The welcome email could not be sent. Please try again.");
-    } else if (data?.queued === true) {
-      setSuccess(`Welcome email queued for ${recipient?.email}. It will be sent by the background worker when email delivery is enabled.`);
+      setError(data?.message || "The welcome email was not accepted by the email provider. Please try again.");
+    } else if (data?.sent === true) {
+      setSuccess(`Welcome email submitted to Resend immediately for ${recipient?.email}. Delivery confirmation will appear in Resend.`);
     } else {
-      setError("The welcome email could not be queued. No email has been sent.");
+      setError("The email provider did not confirm acceptance. No success was recorded.");
     }
     setSending(false);
   }
