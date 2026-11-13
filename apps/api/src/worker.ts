@@ -10,6 +10,7 @@ dotenv.config({ path: resolve(apiDirectory, ".env") });
 const workerId = `cbnest-worker-${process.pid}-${randomUUID()}`;
 const pollIntervalMs = readIntegerEnv("WORKER_POLL_INTERVAL_MS", 3000, 250, 60000);
 const batchSize = readIntegerEnv("WORKER_BATCH_SIZE", 5, 1, 50);
+const runOnce = process.env.WORKER_RUN_ONCE === "true";
 let stopping = false;
 let closeWorkerDatabase: (() => Promise<void>) | undefined;
 
@@ -76,18 +77,21 @@ async function main(): Promise<void> {
     handlers["email.send"] = sendWelcomeEmail;
     enabledTypes.push("email.send");
   } else {
-    log("email_delivery_disabled", { reason: "Set EMAIL_DELIVERY_ENABLED=true and configure Resend secrets to enable sending." });
+    log("email_delivery_disabled", { reason: "Set EMAIL_DELIVERY_ENABLED=true and configure Resend secrets." });
+    if (runOnce) throw new Error("One-shot worker cannot run while email delivery is disabled.");
   }
 
-  log("started", { enabledJobTypes: enabledTypes, pollIntervalMs, batchSize });
+  log("started", { enabledJobTypes: enabledTypes, pollIntervalMs, batchSize, runOnce });
   while (!stopping) {
     try {
       if (enabledTypes.length === 0) {
+        if (runOnce) break;
         await sleep(pollIntervalMs);
         continue;
       }
       const jobs = await claimBackgroundJobs(workerId, batchSize, enabledTypes);
       if (jobs.length === 0) {
+        if (runOnce) break;
         await sleep(pollIntervalMs);
         continue;
       }
@@ -98,9 +102,12 @@ async function main(): Promise<void> {
           log("job_processed", { jobId: job.id, jobType: job.job_type, status, attempt: job.attempts });
         } catch (error) {
           log("job_processing_error", { jobId: job.id, jobType: job.job_type, errorName: error instanceof Error ? error.name : "UnknownError" });
+          if (runOnce) throw error;
         }
       }
+      if (runOnce) stopping = true;
     } catch (error) {
+      if (runOnce) throw error;
       log("poll_error", { errorName: error instanceof Error ? error.name : "UnknownError" });
       await sleep(Math.min(30000, pollIntervalMs * 3));
     }
