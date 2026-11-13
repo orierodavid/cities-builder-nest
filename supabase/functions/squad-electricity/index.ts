@@ -104,11 +104,12 @@ Deno.serve(async (req: Request) => {
     const meterType = str(input.meterType).toLowerCase();
     const estateId = str(input.estateId);
     if (!/^[A-Z0-9]{2,20}$/.test(provider) || !/^\d{6,20}$/.test(meterNumber) ||
+        !Number.isSafeInteger(Number(meterNumber)) ||
         !["prepaid", "postpaid"].includes(meterType) || !estateIds.includes(estateId)) {
       return reply(400, { error: "invalid_meter_details" });
     }
     const { response, data } = await squad("/vending/utilities/electricity/lookup", "POST", {
-      meter_type: meterType, meter_no: meterNumber, provider,
+      meter_type: meterType, meter_no: Number(meterNumber), provider,
     });
     const details = detailsOf(data);
     const providerReference = str(details.reference);
