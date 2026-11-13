@@ -66,24 +66,52 @@ Deno.serve(async (req: Request) => {
   const requestId = typeof body.requestId === "string" && /^[0-9a-f-]{36}$/i.test(body.requestId)
     ? body.requestId
     : crypto.randomUUID();
-  const { data: queuedJob, error: queueError } = await admin
-    .from("background_jobs")
-    .insert({
-      job_type: "email.send",
-      payload: {
-        recipientEmail: target.user.email,
-        recipientName,
-        subject,
-        message,
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><p>Hello ${escapeHtml(recipientName)},</p><div style="white-space:pre-wrap">${escapeHtml(message)}</div><p style="margin-top:32px;color:#777;font-size:12px">Cities Builder Nest</p></div>`;
+  let resendResponse: Response;
+  try {
+    resendResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": requestId,
       },
-      idempotency_key: requestId,
-      max_attempts: 8,
-    })
-    .select("id")
-    .single();
-
-  if (queueError || !queuedJob) {
-    return json(503, { error: "email_queue_unavailable", message: "The welcome email could not be queued. No email has been sent." });
+      body: JSON.stringify({
+        from,
+        to: [target.user.email],
+        subject,
+        html,
+        text: `Hello ${recipientName},\\n\\n${message}\\n\\nCities Builder Nest`,
+      }),
+      signal: AbortSignal.timeout(25000),
+    });
+  } catch {
+    return json(502, {
+      error: "email_provider_unreachable",
+      message: "Resend could not be reached. Retry sending; the same request ID is protected against duplicate sends.",
+    });
   }
-  return json(202, { success: true, queued: true, jobId: queuedJob.id, recipient: target.user.email });
+
+  let providerResult: Record<string, unknown> = {};
+  try {
+    const parsed = await resendResponse.json();
+    if (parsed && typeof parsed === "object") providerResult = parsed as Record<string, unknown>;
+  } catch {
+    // Keep provider response details out of the client when the response is not valid JSON.
+  }
+  if (!resendResponse.ok) {
+    return json(502, {
+      error: "email_provider_rejected",
+      providerStatus: resendResponse.status,
+      message: "Resend did not accept the welcome email. Check the sender configuration and try again.",
+    });
+  }
+
+  return json(200, {
+    success: true,
+    sent: true,
+    provider: "resend",
+    messageId: typeof providerResult.id === "string" ? providerResult.id : null,
+    recipient: target.user.email,
+  });
 });
