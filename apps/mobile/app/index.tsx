@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Redirect } from "expo-router";
 import type { Session } from "@supabase/supabase-js";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,8 +24,6 @@ const normalizeRole = (value?: string | null) => value?.trim().toLowerCase().rep
 export default function MobileEntryRoute() {
   const [session, setSession] = useState<Session | null>(null);
   const [restoring, setRestoring] = useState(true);
-  const [profile, setProfile] = useState<ProfileResponse | null>(null);
-  const [estates, setEstates] = useState<Estate[]>([]);
   const [checkingRole, setCheckingRole] = useState(false);
   const [roleError, setRoleError] = useState("");
   const [message, setMessage] = useState("");
@@ -70,8 +68,6 @@ export default function MobileEntryRoute() {
       if (!role) {
         throw new Error("No active Resident, Security or Event Organiser role was found. Facility Manager and Super Admin accounts must use the web portal.");
       }
-      setProfile(profileBody);
-      setEstates(nextEstates);
       return role;
     } finally {
       setCheckingRole(false);
@@ -82,8 +78,6 @@ export default function MobileEntryRoute() {
   useEffect(() => {
     let active = true;
     setVerifiedRole(null);
-    setProfile(null);
-    setEstates([]);
     setRoleError("");
     if (!session?.access_token) return () => { active = false; };
     void refreshRole(session.access_token).then(role => {
