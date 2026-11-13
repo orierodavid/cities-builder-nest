@@ -55,7 +55,7 @@ type EstateRecord = { id:string; name:string; address:string; city:string; lga:s
 type EstateLocationOptions = { states:string[]; lgas:Record<string,string[]> };
 function parseEstateCsv(source:string):string[][] {
  const rows:string[][]=[]; let row:string[]=[]; let cell=""; let quoted=false;
- for(let i=0;i<source.length;i++){const ch=source[i]; if(ch==='"'){if(quoted&&source[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===","&&!quoted){row.push(cell.trim());cell="";}else if((ch==="\\n"||ch==="\\r")&&!quoted){if(ch==="\\r"&&source[i+1]==="\\n")i++;row.push(cell.trim());if(row.some(v=>v.length))rows.push(row);row=[];cell="";}else cell+=ch;}
+ for(let i=0;i<source.length;i++){const ch=source[i]; if(ch==='"'){if(quoted&&source[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===","&&!quoted){row.push(cell.trim());cell="";}else if((ch==="\n"||ch==="\r")&&!quoted){if(ch==="\\r"&&source[i+1]==="\n")i++;row.push(cell.trim());if(row.some(v=>v.length))rows.push(row);row=[];cell="";}else cell+=ch;}
  row.push(cell.trim());if(row.some(v=>v.length))rows.push(row);return rows;
 }
 
@@ -132,8 +132,8 @@ function EstatesPage() {
  return <PortalFrame title="Estates" description="Create and manage estates across the CB Nest platform.">
   <section className="panel module-panel">
    <div className="module-toolbar"><div><h3>Estate directory</h3><p>Create estates using the same State and LGA selection used during resident registration. You can add one estate or bulk upload a CSV; assign Facility Managers later.</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><label className="secondary-action" style={{cursor:"pointer"}}>{bulkBusy?"Uploading…":"Bulk upload CSV"}<input type="file" accept=".csv,text/csv" disabled={bulkBusy} onChange={e=>{void bulkUploadEstates(e.target.files?.[0]||null);e.currentTarget.value="";}} style={{display:"none"}}/></label><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");}}>{showForm?"Close":"＋ Create estate"}</button></div></div>
-   <p className="notice-line">CSV columns: estate_name, address, state, lga. <a download="cbnest-estates-template.csv" href={"data:text/csv;charset=utf-8,"+encodeURIComponent("estate_name,address,state,lga\\nExample Estate,12 Example Road,Lagos,Ikeja\\n")}>Download CSV template</a>. Up to 500 estates per upload.</p>
-   {bulkResult&&<div className="user-alert user-alert-success" role="status">{bulkResult}</div>
+   <p className="notice-line">CSV columns: estate_name, address, state, lga. <a download="cbnest-estates-template.csv" href={"data:text/csv;charset=utf-8,"+encodeURIComponent("estate_name,address,state,lga\nExample Estate,12 Example Road,Lagos,Ikeja\n")}>Download CSV template</a>. Up to 500 estates per upload.</p>
+   {bulkResult&&<div className="user-alert user-alert-success" role="status">{bulkResult}</div>}
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">{success}<div style={{marginTop:8}}><a href="/users" style={{color:"inherit",fontWeight:700,textDecoration:"underline"}}>Continue to User Management →</a></div></div>}
    {showForm&&<form className="user-form" onSubmit={createEstate}>
