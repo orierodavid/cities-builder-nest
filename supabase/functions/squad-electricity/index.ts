@@ -28,6 +28,7 @@ Deno.serve(async (req: Request) => {
   if (!supabaseUrl || !anonKey || !serviceKey || !squadKey) {
     return reply(503, { error: "squad_electricity_not_configured" });
   }
+  if (environment !== "live") return reply(503, { error: "live_squad_environment_required", message: "Live electricity vending is not configured." });
 
   const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!jwt) return reply(401, { error: "authentication_required" });
