@@ -8,7 +8,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 
 type EstateOption = { id: string; name: string; address: string; city: string; state: string; lga: string; country_code: string };
-type RegistrationOptions = { states: string[]; lgas: Record<string, string[]>; estates: EstateOption[] };
+type RegistrationOptions = { estates: EstateOption[] };
 type SelectOption = { label: string; value: string };
 
 function SelectField({
@@ -70,8 +70,6 @@ function SelectField({
 
 export default function ResidentRegistrationScreen({ onBack }: { onBack: () => void }) {
   const [estates, setEstates] = useState<EstateOption[]>([]);
-  const [availableStates, setAvailableStates] = useState<string[]>([]);
-  const [availableLgas, setAvailableLgas] = useState<Record<string, string[]>>({});
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -101,17 +99,13 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
         }
         const options = data as RegistrationOptions;
         setEstates((options?.estates || []) as EstateOption[]);
-        setAvailableStates(Array.isArray(options?.states) ? options.states : []);
-        setAvailableLgas(options?.lgas && typeof options.lgas === "object" ? options.lgas : {});
       })
       .catch(() => { if (active) setError("Estate options could not be loaded. Check your connection and try again."); })
       .finally(() => { if (active) setLoadingOptions(false); });
     return () => { active = false; };
   }, []);
 
-  const states = availableStates;
-  const lgas = useMemo(() => availableLgas[state] || [], [availableLgas, state]);
-  const estateOptions = useMemo(() => estates.filter(item => item.state === state && item.lga === lga), [estates, state, lga]);
+  const estateOptions = estates;
   const selectedEstate = estateOptions.find(item => item.id === estateId);
 
   async function submit() {
@@ -194,12 +188,15 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
                 <TextInput style={s.input} value={phone} onChangeText={setPhone} placeholder="08012345678 or +2348012345678" placeholderTextColor="#777" keyboardType="phone-pad" textContentType="telephoneNumber"/>
                 <Text style={s.label}>APARTMENT / HOME NUMBER</Text>
                 <TextInput style={s.input} value={homeNumber} onChangeText={setHomeNumber} placeholder="Enter your apartment or home number" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
-                <SelectField label="STATE" value={state} placeholder={loadingOptions ? "Loading estates…" : "Select State"} options={states.map(value => ({ label: value, value }))} disabled={loadingOptions} onSelect={value => { setState(value); setLga(""); setEstateId(""); setStreetName(""); setCountryCode(""); }}/>
-                <SelectField label="LGA" value={lga} placeholder={state ? "Select LGA" : "Select State first"} options={lgas.map(value => ({ label: value, value }))} disabled={!state} onSelect={value => { setLga(value); setEstateId(""); setStreetName(""); setCountryCode(""); }}/>
-                <SelectField label="ESTATE" value={selectedEstate?.name || ""} placeholder={lga ? "Search or select Estate" : "Select LGA first"} options={estateOptions.map(item => ({ label: item.name, value: item.id }))} disabled={!lga} searchable onSelect={value => { const estate = estateOptions.find(item => item.id === value); setEstateId(value); setStreetName(estate?.address || ""); setState(estate?.state || ""); setLga(estate?.lga || ""); setCountryCode(estate?.country_code || ""); }}/>
+                <SelectField label="ESTATE" value={selectedEstate?.name || ""} placeholder={loadingOptions ? "Loading estates…" : "Search or select your Estate"} options={estateOptions.map(item => ({ label: item.name, value: item.id }))} disabled={loadingOptions} searchable onSelect={value => { const estate = estateOptions.find(item => item.id === value); setEstateId(value); setStreetName(estate?.address || ""); setState(estate?.state || ""); setLga(estate?.lga || ""); setCountryCode(estate?.country_code || ""); }}/>
                 <Text style={s.label}>ESTATE STREET ADDRESS</Text>
                 <TextInput style={[s.input, !selectedEstate && s.disabled]} value={streetName} editable={false} placeholder="Automatically filled from the selected estate" placeholderTextColor="#777"/>
-                {selectedEstate && <Text style={s.helper}>Estate location: {selectedEstate.lga}, {selectedEstate.state} · {countryCode || selectedEstate.country_code}</Text>}
+                <View style={s.row}>
+                  <View style={s.half}><Text style={s.label}>LGA</Text><TextInput style={s.input} value={lga} editable={false} placeholder="Filled from estate" placeholderTextColor="#777"/></View>
+                  <View style={s.half}><Text style={s.label}>STATE</Text><TextInput style={s.input} value={state} editable={false} placeholder="Filled from estate" placeholderTextColor="#777"/></View>
+                </View>
+                <Text style={s.label}>COUNTRY CODE</Text>
+                <TextInput style={s.input} value={countryCode} editable={false} placeholder="Filled from estate" placeholderTextColor="#777"/>
                 <Text style={s.label}>PASSWORD</Text>
                 <TextInput style={s.input} value={password} onChangeText={setPassword} placeholder="Create a password (8+ characters)" placeholderTextColor="#777" secureTextEntry textContentType="newPassword"/>
                 <Text style={s.label}>CONFIRM PASSWORD</Text>
