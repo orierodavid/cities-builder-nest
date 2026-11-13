@@ -156,7 +156,9 @@ Deno.serve(async(req:Request)=>{
   const {data:row,error}=await admin.from("utility_transactions").select("*").eq("resident_user_id",auth.user.id).eq("merchant_reference",reference).maybeSingle();
   if(error||!row)return reply(404,{error:"transaction_not_found"});
   if(row.status==="pending"){
-   const {data:validation}=await admin.from("utility_validations").select("validation_token").eq("id",row.validation_id).eq("resident_user_id",auth.user.id).maybeSingle();\n   const providerReference=row.service==="cable_tv"?str(validation?.validation_token):reference;\n   const {r,data}=await squad(`/v1/service/transactions/${encodeURIComponent(providerReference)}`);
+   const {data:validation}=await admin.from("utility_validations").select("validation_token").eq("id",row.validation_id).eq("resident_user_id",auth.user.id).maybeSingle();
+   const providerReference=row.service==="cable_tv"?str(validation?.validation_token):reference;
+   const {r,data}=await squad(`/v1/service/transactions/${encodeURIComponent(providerReference)}`);
    if(r.ok){
     const result=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
     const ps=str(result.processed_status??result.status).toUpperCase();
