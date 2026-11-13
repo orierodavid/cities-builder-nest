@@ -141,10 +141,12 @@ Deno.serve(async(req:Request)=>{
    const {r,data,rawBody,networkError}=v.service==="cable_tv" ? await squad("/v1/service/cable/vend","POST",vendBody) : await squad("/v1/service/vend","POST",vendBody);
    const result=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
    const ps=str(result.processed_status??result.status??data.status).toUpperCase();
-   const ambiguous=!!networkError||r.status>=500||r.status===408||!rawBody||data.message==="Squad returned a non-JSON response.";\n   const status=ambiguous||r.status===202||ps==="PENDING"||(v.service==="cable_tv"&&r.ok&&data.success===true&&!ps)?"pending":r.ok&&data.success===true&&["SUCCESS","SUCCESSFUL"].includes(ps)?"successful":"failed";
+   const ambiguous=!!networkError||r.status>=500||r.status===408||!rawBody||data.message==="Squad returned a non-JSON response.";
+   const status=ambiguous||r.status===202||ps==="PENDING"||(v.service==="cable_tv"&&r.ok&&data.success===true&&!ps)?"pending":r.ok&&data.success===true&&["SUCCESS","SUCCESSFUL"].includes(ps)?"successful":"failed";
    await admin.from("utility_transactions").update({status,provider_status:ps||String(r.status),provider_response:data,receipt:result.token??result.receipt??null,updated_at:new Date().toISOString()}).eq("id",tx.id);
    const transaction={merchantReference:ref,status,amountKobo:toKobo(purchaseAmount),receipt:result.token??result.receipt??null,message:message(data,status==="pending"?"Purchase is processing.":"Purchase could not be completed.")};
-   if(ambiguous)return reply(202,{transaction:{merchantReference:ref,status:"pending"},message:"The provider response could not confirm the result. Do not submit again; check transaction history."});\n   if(!r.ok&&r.status!==202)return reply(422,{error:"vend_failed",message:message(data,"The utility purchase failed."),upstream:{url:base+"/v1/service/vend",status:r.status,body:rawBody},transaction});
+   if(ambiguous)return reply(202,{transaction:{merchantReference:ref,status:"pending"},message:"The provider response could not confirm the result. Do not submit again; check transaction history."});
+   if(!r.ok&&r.status!==202)return reply(422,{error:"vend_failed",message:message(data,"The utility purchase failed."),upstream:{url:base+"/v1/service/vend",status:r.status,body:rawBody},transaction});
    return reply(status==="pending"?202:200,{transaction});
   }catch{
    await admin.from("utility_transactions").update({provider_status:"SUBMISSION_UNKNOWN",updated_at:new Date().toISOString()}).eq("id",tx.id);
