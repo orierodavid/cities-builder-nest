@@ -74,7 +74,7 @@ export default function WelcomeEmailPage() {
       }
       setError(providerMessage || "The welcome email request failed before Resend confirmed it. Please retry.");
     } else if (data?.sent === true) {
-      setSuccess(`Welcome email submitted to Resend immediately for ${recipient?.email}. Delivery confirmation will appear in Resend.`);
+      setSuccess("Just Sent");
     } else {
       setError("The email provider did not confirm acceptance. No success was recorded.");
     }
