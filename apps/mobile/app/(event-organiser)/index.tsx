@@ -1,6 +1,5 @@
-import React from "react";
-import HomeScreen from "../index";
+import { RoleLanding } from "../../src/features/shared/RoleLanding";
 
 export default function EventOrganiserDashboardRoute() {
-  return <HomeScreen standaloneEventOrganiser />;
+  return <RoleLanding role="event_organiser" />;
 }
