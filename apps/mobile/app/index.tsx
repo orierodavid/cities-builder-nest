@@ -55,7 +55,14 @@ export default function MobileEntryRoute() {
     let active = true;
     supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
-      if (error) setMessage("We couldn't restore your session. Please sign in again.");
+      if (error) {
+        console.error("[CB Nest Supabase session restore] Failed", {
+          name: error.name,
+          message: error.message,
+          status: (error as typeof error & { status?: number }).status,
+        });
+        setMessage("We couldn't restore your session. Please sign in again.");
+      }
       setSession(data.session);
       setRestoring(false);
     }).catch(() => {
