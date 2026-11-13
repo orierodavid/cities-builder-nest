@@ -7,8 +7,7 @@ import { supabase, supabaseConfigured } from "../lib/supabase";
 import LoginScreen from "../src/features/auth/LoginScreen";
 import ResidentRegistrationScreen from "../src/features/auth/ResidentRegistrationScreen";
 import SplashScreen from "../components/SplashScreen";
-
-const API_URL = (process.env.EXPO_PUBLIC_API_URL || "").replace(/\/$/, "");
+import { getApiBaseUrl } from "../src/lib/api-url";
 type Role = "resident" | "security";
 type Membership = { estate_id: string; membership_role: string; status: string };
 type ProfileResponse = {
@@ -44,13 +43,14 @@ export default function MobileEntryRoute() {
   }, []);
 
   const refreshRole = useCallback(async (token: string) => {
-    if (!API_URL) throw new Error("The CB Nest API address is not configured.");
+    const apiBaseUrl = getApiBaseUrl();
+    if (!apiBaseUrl) throw new Error("The mobile API address is missing. Set EXPO_PUBLIC_API_URL in apps/mobile/.env, then restart Expo with --clear.");
     setCheckingRole(true);
     setRoleError("");
     try {
       const [profileResponse, estatesResponse] = await Promise.all([
-        fetch(API_URL + "/v1/me", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
-        fetch(API_URL + "/v1/estates", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
+        fetch(apiBaseUrl + "/v1/me", { headers: { Authorization: "Bearer " + token, Accept: "application/json" }, signal: AbortSignal.timeout(15000) }),
+        fetch(apiBaseUrl + "/v1/estates", { headers: { Authorization: "Bearer " + token, Accept: "application/json" }, signal: AbortSignal.timeout(15000) }),
       ]);
       const profileBody = await profileResponse.json() as ProfileResponse;
       const estatesBody = await estatesResponse.json() as EstateResponse;
@@ -68,6 +68,14 @@ export default function MobileEntryRoute() {
         throw new Error("No active Resident or Security role was found. Facility Manager and Super Admin accounts must use the web portal.");
       }
       return role;
+    } catch (error) {
+      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+        throw new Error("The CB Nest API did not respond within 15 seconds. Check the API URL and that your phone can reach it.");
+      }
+      if (error instanceof TypeError) {
+        throw new Error("The CB Nest API could not be reached from this device. Check EXPO_PUBLIC_API_URL; do not use localhost on a physical phone unless it is resolved to your computer’s LAN address.");
+      }
+      throw error;
     } finally {
       setCheckingRole(false);
     }
