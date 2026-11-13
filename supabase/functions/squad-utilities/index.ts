@@ -15,9 +15,9 @@ const toKobo=(n:number)=>Math.round(n*100);
 Deno.serve(async(req:Request)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers});
  if(req.method!=="POST")return reply(405,{error:"method_not_allowed"});
- const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY")??Deno.env.get("SUPABASE_PUBLISHABLE_KEY"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),squadKey=Deno.env.get("SQUAD_SECRET_KEY"),mode=Deno.env.get("SQUAD_ENVIRONMENT")??"sandbox";
+ const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY")??Deno.env.get("SUPABASE_PUBLISHABLE_KEY"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),squadKey=Deno.env.get("SQUAD_SECRET_KEY"),mode=Deno.env.get("SQUAD_ENVIRONMENT")??"";
  if(!url||!anon||!serviceKey||!squadKey)return reply(503,{error:"utilities_not_configured"});
- if(!["live","sandbox"].includes(mode))return reply(503,{error:"invalid_squad_environment"});
+ if(mode!=="live")return reply(503,{error:"live_squad_environment_required",message:"Live utility services are not configured. Contact support if this persists."});
  const jwt=(req.headers.get("Authorization")??"").replace(/^Bearer\s+/i,"");
  if(!jwt)return reply(401,{error:"authentication_required"});
  const userClient=createClient(url,anon,{auth:{autoRefreshToken:false,persistSession:false},global:{headers:{Authorization:`Bearer ${jwt}`}}});
@@ -119,7 +119,7 @@ Deno.serve(async(req:Request)=>{
   if(productServices.has(v.service)){
    if(!productCode)return reply(400,{error:"select_product"});
    const {r:pr,data:pd}=v.service==="cable_tv" ? await squad("/v1/service/cable/bouquet-list","POST",{provider:v.provider}) : await squad("/v1/service/products","POST",{service:serviceCodes[v.service],provider:v.provider});
-   if(!pr.ok)return reply(502,{error:"products_unavailable",message:message(pd,"Could not verify selected product.")});
+   if(!pr.ok||pd.success!==true)return reply(502,{error:"products_unavailable",message:message(pd,"Could not verify selected product.")});
    selectedProduct=productRows(pd).find(p=>str(p.code)===productCode)??null;
    if(!selectedProduct)return reply(400,{error:"invalid_product_code"});
   }
