@@ -6,6 +6,14 @@ import SplashScreen from "./SplashScreen";
 
 type LegalStatus = { requiresAcceptance: boolean; configurationRequired: boolean; accepted: boolean; documents: MobileLegalDocument[] };
 
+const CONSENT_CHECK_TIMEOUT_MS = 12_000;
+function withConsentTimeout<T>(promise: Promise<T>): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("consent_check_timeout")), CONSENT_CHECK_TIMEOUT_MS)),
+  ]);
+}
+
 export default function MobileConsentGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<LegalStatus | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -15,20 +23,26 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
   const refresh = useCallback(async () => {
     setChecking(true);
     setError("");
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      setStatus(null); setError("Your session could not be verified. Please sign in again.");
-      setSessionChecked(true); setChecking(false); return;
+    try {
+      const { data: sessionData, error: sessionError } = await withConsentTimeout(supabase.auth.getSession());
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) {
+        setStatus(null);
+        setSessionChecked(true);
+        return;
+      }
+      const { data, error: legalError } = await withConsentTimeout(supabase.rpc("get_legal_consent_status"));
+      if (legalError || !data) throw legalError || new Error("legal_consent_status_missing");
+      setStatus(data as LegalStatus);
+    } catch (cause) {
+      setStatus(null);
+      setError(cause instanceof Error && cause.message === "consent_check_timeout"
+        ? "Verification is taking too long. Check your connection and retry."
+        : "Legal acceptance could not be verified. Retry before using the app.");
+    } finally {
+      setSessionChecked(true);
+      setChecking(false);
     }
-    if (!sessionData.session) {
-      setStatus(null); setSessionChecked(true); setChecking(false); return;
-    }
-    const { data, error: legalError } = await supabase.rpc("get_legal_consent_status");
-    if (legalError || !data) {
-      setStatus(null); setError("Legal acceptance could not be verified. Retry before using the app.");
-    } else setStatus(data as LegalStatus);
-    setSessionChecked(true);
-    setChecking(false);
   }, []);
 
   useEffect(() => {
@@ -36,22 +50,33 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
     const check = async (showLoading = true) => {
       if (!alive) return;
       if (showLoading) setChecking(true);
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (!alive) return;
-      if (sessionError) {
-        setStatus(null); setError("Your session could not be verified. Please sign in again.");
-        setSessionChecked(true); setChecking(false); return;
+      try {
+        const { data: sessionData, error: sessionError } = await withConsentTimeout(supabase.auth.getSession());
+        if (!alive) return;
+        if (sessionError) throw sessionError;
+        if (!sessionData.session) {
+          setStatus(null);
+          setError("");
+          setSessionChecked(true);
+          return;
+        }
+        const { data, error: legalError } = await withConsentTimeout(supabase.rpc("get_legal_consent_status"));
+        if (!alive) return;
+        if (legalError || !data) throw legalError || new Error("legal_consent_status_missing");
+        setStatus(data as LegalStatus);
+        setError("");
+      } catch (cause) {
+        if (!alive) return;
+        setStatus(null);
+        setError(cause instanceof Error && cause.message === "consent_check_timeout"
+          ? "Verification is taking too long. Check your connection and retry."
+          : "Legal acceptance could not be verified. Retry before using the app.");
+      } finally {
+        if (alive) {
+          setSessionChecked(true);
+          if (showLoading) setChecking(false);
+        }
       }
-      if (!sessionData.session) {
-        setStatus(null); setError(""); setSessionChecked(true); setChecking(false); return;
-      }
-      const { data, error: legalError } = await supabase.rpc("get_legal_consent_status");
-      if (!alive) return;
-      if (legalError || !data) {
-        setStatus(null); setError("Legal acceptance could not be verified. Retry before using the app.");
-      } else { setStatus(data as LegalStatus); setError(""); }
-      setSessionChecked(true);
-      if (showLoading) setChecking(false);
     };
     void check(true);
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
