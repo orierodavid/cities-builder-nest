@@ -81,7 +81,7 @@ Deno.serve(async(req:Request)=>{
  }
  if(action==="products"){
   if(!productServices.has(service)||!provider)return reply(400,{error:"invalid_product_request"});
-  const {r,data,rawBody}=await squad("/v1/service/products","POST",{service:serviceCodes[service],provider});
+  const {r,data,rawBody}=service==="cable_tv" ? await squad("/v1/service/cable/bouquet-list","POST",{provider}) : await squad("/v1/service/products","POST",{service:serviceCodes[service],provider});
   if(!r.ok)return reply(502,{error:"products_unavailable",message:message(data,"Products could not be loaded."),upstream:{url:base+"/v1/service/products",status:r.status,body:rawBody}});
   return reply(200,{products:productRows(data)});
  }
@@ -90,13 +90,13 @@ Deno.serve(async(req:Request)=>{
   const estateId=str(input.estateId),identifier=str(input.customerIdentifier),meterType=str(input.meterType).toLowerCase();
   if(!estates.includes(estateId)||!/^[A-Za-z0-9@._+-]{5,40}$/.test(identifier)||(service==="electricity"&&!["prepaid","postpaid"].includes(meterType)))return reply(400,{error:"invalid_customer_details"});
   const productCode=str(input.productCode);
-  const body:Record<string,unknown>={service:serviceCodes[service],provider,customer_identifier:identifier};
+  const body:Record<string,unknown>=service==="cable_tv" ? {provider,smartcard_number:identifier} : {service:serviceCodes[service],provider,customer_identifier:identifier};
   if(service==="electricity")body.meter_type=meterType;
   if(service==="education"&&productCode)body.product_code=productCode;
   if(service==="education"&&!productCode)return reply(400,{error:"product_required_for_lookup",message:"Select an examination product before verifying the account."});
-  const {r,data,rawBody}=await squad("/v1/service/lookup","POST",body);
+  const {r,data,rawBody}=service==="cable_tv" ? await squad("/v1/service/cable/lookup","POST",body) : await squad("/v1/service/lookup","POST",body);
   const details=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
-  const token=str(details.validation_token);
+  const token=str(details.validation_token)||str(details.reference);
   if(!r.ok||!token)return reply(422,{error:"customer_lookup_failed",message:message(data,"Could not retrieve account information. Check the provider and customer number."),upstream:{url:base+"/v1/service/lookup",status:r.status,body:rawBody}});
   const {data:saved,error}=await admin.from("utility_validations").insert({
    resident_user_id:auth.user.id,estate_id:estateId,service,provider,customer_identifier:identifier,
@@ -134,11 +134,10 @@ Deno.serve(async(req:Request)=>{
    status:"pending",provider_status:"SUBMITTING",product_code:productCode||null
   }).select("id").single();
   if(txError||!tx)return reply(503,{error:"transaction_record_failed"});
-  const vendBody:Record<string,unknown>={validation_token:v.validation_token,merchant_reference:ref,customer:{phone_number:phone,...(email?{email}:{})}};
-  if(v.service==="cable_tv")vendBody.products=[{code:productCode,quantity:1}];
-  else vendBody.amount=productServices.has(v.service)?purchaseAmount:amount;
+  const vendBody:Record<string,unknown>=v.service==="cable_tv" ? {provider:v.provider,reference:v.validation_token,bouquet_code:productCode,phone_number:phone,email} : {validation_token:v.validation_token,merchant_reference:ref,customer:{phone_number:phone,...(email?{email}:{})}};
+  if(v.service!=="cable_tv"){if(productServices.has(v.service))vendBody.products=[{code:productCode,quantity:1}];else vendBody.amount=productServices.has(v.service)?purchaseAmount:amount;}
   try{
-   const {r,data,rawBody}=await squad("/v1/service/vend","POST",vendBody);
+   const {r,data,rawBody}=v.service==="cable_tv" ? await squad("/v1/service/cable/vend","POST",vendBody) : await squad("/v1/service/vend","POST",vendBody);
    const result=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
    const ps=str(result.processed_status??result.status??data.status).toUpperCase();
    const status=r.status===202||ps==="PENDING"?"pending":r.ok&&ps==="SUCCESS"?"successful":"failed";
