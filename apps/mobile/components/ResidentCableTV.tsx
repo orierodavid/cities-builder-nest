@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 type Provider = { code: string; name: string };
 type Bouquet = { code: string; name: string; kobo_amount?: number; amount_kobo?: number; amount?: number; price?: number; currency?: string };
 type Validation = { validationId: string; customerName?: string | null; customerIdentifier: string; expiresAt: string };
-type Tx = { id: string; provider: string; customer_identifier: string; merchant_reference: string; product_code?: string | null; amount_kobo: number; status: string; receipt?: unknown; created_at: string };
+type Tx = { id: string; service?: string; provider: string; customer_identifier: string; merchant_reference: string; product_code?: string | null; amount_kobo: number; status: string; receipt?: unknown; created_at: string };
 const card = { backgroundColor: "#171717", borderColor: "#3A3020", borderWidth: 1, borderRadius: 15, padding: 15 } as const;
 const field = { minHeight: 47, borderWidth: 1, borderColor: "#494133", borderRadius: 10, paddingHorizontal: 12, color: "#FFFFFF", backgroundColor: "#101010", fontSize: 13 } as const;
 const money = (n: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 2 }).format(n);
@@ -76,7 +76,7 @@ export default function ResidentCableTV({ estateId, onBack }: { estateId: string
   useEffect(() => { if (provider) void loadBouquets(provider); }, [provider, loadBouquets]);
 
   const selectedBouquet = useMemo(() => bouquets.find(x => x.code === bouquet), [bouquets, bouquet]);
-  const amount = selectedBouquet ? Number(selectedBouquet.kobo_amount ?? selectedBouquet.amount_kobo ?? selectedBouquet.amount ?? selectedBouquet.price ?? 0) / (selectedBouquet.kobo_amount != null || selectedBouquet.amount_kobo != null ? 100 : 1) : 0;
+  const rawSelectedAmount = selectedBouquet ? Number(selectedBouquet.kobo_amount ?? selectedBouquet.amount_kobo ?? selectedBouquet.amount ?? selectedBouquet.price ?? 0) : 0;\n  const amount = selectedBouquet ? rawSelectedAmount / (selectedBouquet.kobo_amount != null || selectedBouquet.amount_kobo != null ? 100 : 1) : 0;
   const label = { color: "#F1D28A", fontSize: 11, fontWeight: "800" as const, marginTop: 12, marginBottom: 6 };
   const button = { minHeight: 47, borderRadius: 10, backgroundColor: "#D4A84B", alignItems: "center" as const, justifyContent: "center" as const, marginTop: 14, paddingHorizontal: 12 };
 
