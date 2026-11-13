@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 
-type EstateOption = { id: string; name: string; state: string; lga: string };
+type EstateOption = { id: string; name: string; address: string; city: string; state: string; lga: string; country_code: string };
 type RegistrationOptions = { states: string[]; lgas: Record<string, string[]>; estates: EstateOption[] };
 type SelectOption = { label: string; value: string };
 
@@ -88,6 +88,7 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
   const [state, setState] = useState("");
   const [lga, setLga] = useState("");
   const [estateId, setEstateId] = useState("");
+  const [countryCode, setCountryCode] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -193,11 +194,12 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
                 <TextInput style={s.input} value={phone} onChangeText={setPhone} placeholder="08012345678 or +2348012345678" placeholderTextColor="#777" keyboardType="phone-pad" textContentType="telephoneNumber"/>
                 <Text style={s.label}>APARTMENT / HOME NUMBER</Text>
                 <TextInput style={s.input} value={homeNumber} onChangeText={setHomeNumber} placeholder="Enter your apartment or home number" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
-                <Text style={s.label}>STREET NAME</Text>
-                <TextInput style={s.input} value={streetName} onChangeText={setStreetName} placeholder="e.g. Admiralty Way" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
                 <SelectField label="STATE" value={state} placeholder={loadingOptions ? "Loading estates…" : "Select State"} options={states.map(value => ({ label: value, value }))} disabled={loadingOptions} onSelect={value => { setState(value); setLga(""); setEstateId(""); setStreetName(""); setCountryCode(""); }}/>
                 <SelectField label="LGA" value={lga} placeholder={state ? "Select LGA" : "Select State first"} options={lgas.map(value => ({ label: value, value }))} disabled={!state} onSelect={value => { setLga(value); setEstateId(""); setStreetName(""); setCountryCode(""); }}/>
-                <SelectField label="ESTATE" value={selectedEstate?.name || ""} placeholder={lga ? "Search or select Estate" : "Select LGA first"} options={estateOptions.map(item => ({ label: item.name, value: item.id }))} disabled={!lga} searchable onSelect={setEstateId}/>
+                <SelectField label="ESTATE" value={selectedEstate?.name || ""} placeholder={lga ? "Search or select Estate" : "Select LGA first"} options={estateOptions.map(item => ({ label: item.name, value: item.id }))} disabled={!lga} searchable onSelect={value => { const estate = estateOptions.find(item => item.id === value); setEstateId(value); setStreetName(estate?.address || ""); setState(estate?.state || ""); setLga(estate?.lga || ""); setCountryCode(estate?.country_code || ""); }}/>
+                <Text style={s.label}>ESTATE STREET ADDRESS</Text>
+                <TextInput style={[s.input, !selectedEstate && s.disabled]} value={streetName} editable={false} placeholder="Automatically filled from the selected estate" placeholderTextColor="#777"/>
+                {selectedEstate && <Text style={s.helper}>Estate location: {selectedEstate.lga}, {selectedEstate.state} · {countryCode || selectedEstate.country_code}</Text>}
                 <Text style={s.label}>PASSWORD</Text>
                 <TextInput style={s.input} value={password} onChangeText={setPassword} placeholder="Create a password (8+ characters)" placeholderTextColor="#777" secureTextEntry textContentType="newPassword"/>
                 <Text style={s.label}>CONFIRM PASSWORD</Text>
