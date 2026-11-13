@@ -56,11 +56,11 @@ export default function ServiceChargesPage(){
  }
  return <PortalFrame title="Service Charges" description="Set estate service fees and publish the amounts residents need to pay.">
   <section className="panel module-panel">
-   <div className="module-toolbar"><div><h3>Estate service fees</h3><p>Facility Managers set the amount. Residents can view the published charge but cannot change it.</p></div>
+   <div className="module-toolbar"><div><h3>Estate service fees</h3><p>Create a service charge for the selected estate. Super Administrators can select any estate; Facility Managers are restricted to their assigned estate.</p></div>
     <select aria-label="Select estate" value={estateId} onChange={e=>setEstateId(e.target.value)}>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
    </div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}{notice&&<div className="user-alert user-alert-success" role="status">{notice}</div>}
-   {!isAdmin&&<form className="user-form" onSubmit={create}>
+   <form className="user-form" onSubmit={create}>
     <div className="user-form-heading"><strong>Publish a service charge</strong><span>Set the amount residents in the selected estate will be asked to pay.</span></div>
     <div className="user-form-grid">
      <label>Charge name<input required minLength={2} maxLength={140} value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Monthly Estate Service Fee"/></label>
@@ -69,9 +69,9 @@ export default function ServiceChargesPage(){
      <label>Description<input maxLength={500} value={description} onChange={e=>setDescription(e.target.value)} placeholder="What this charge covers"/></label>
     </div>
     <div className="user-form-actions"><button className="primary-action" type="submit" disabled={saving||!estateId}>{saving?"Publishing…":"Publish service charge"}</button></div>
-   </form>}
-   <div className="table-wrap"><table className="data-table"><thead><tr><th>Charge</th><th>Amount</th><th>Due date</th><th>Paid records</th><th>Status</th>{!isAdmin&&<th>Action</th>}</tr></thead><tbody>
-    {loading?<tr><td colSpan={6} className="empty-cell">Loading charges…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.title}</strong><small>{x.description||"Estate service charge"}</small></td><td>{money(x.amount_kobo)}</td><td>{x.due_date?new Date(x.due_date+"T00:00:00").toLocaleDateString():"Not set"}</td><td>{payments.filter(p=>p.charge_id===x.id&&p.status==="successful").length}</td><td><span className={"status-pill "+(x.is_active?"status-active":"status-suspended")}>{x.is_active?"Published":"Archived"}</span></td>{!isAdmin&&<td><button className="secondary-action" onClick={()=>void toggle(x)}>{x.is_active?"Archive":"Republish"}</button></td>}</tr>):<tr><td colSpan={6} className="empty-cell"><strong>No service charges yet</strong><small>Publish a charge to make the amount visible to residents.</small></td></tr>}
+   </form>
+   <div className="table-wrap"><table className="data-table"><thead><tr><th>Charge</th><th>Amount</th><th>Due date</th><th>Paid records</th><th>Status</th><th>Action</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={6} className="empty-cell">Loading charges…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.title}</strong><small>{x.description||"Estate service charge"}</small></td><td>{money(x.amount_kobo)}</td><td>{x.due_date?new Date(x.due_date+"T00:00:00").toLocaleDateString():"Not set"}</td><td>{payments.filter(p=>p.charge_id===x.id&&p.status==="successful").length}</td><td><span className={"status-pill "+(x.is_active?"status-active":"status-suspended")}>{x.is_active?"Published":"Archived"}</span></td><td><button className="secondary-action" onClick={()=>void toggle(x)}>{x.is_active?"Archive":"Republish"}</button></td></tr>):<tr><td colSpan={6} className="empty-cell"><strong>No service charges yet</strong><small>Publish a charge to make the amount visible to residents.</small></td></tr>}
    </tbody></table></div>
    <p className="optional-label">Residents can pay published charges from the Service Charges section of their app. A charge is marked paid only after the payment is confirmed.</p>
   </section>
