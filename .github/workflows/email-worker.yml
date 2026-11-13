@@ -1,0 +1,48 @@
+name: Process CB Nest email queue
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: c bnest-email-worker
+  cancel-in-progress: false
+
+jobs:
+  process-email-queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: npm install --no-audit --no-fund
+
+      - name: Build API and worker
+        working-directory: apps/api
+        run: npm run build
+
+      - name: Process one email queue batch
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.CBNEST_DATABASE_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          WELCOME_EMAIL_FROM: ${{ secrets.WELCOME_EMAIL_FROM }}
+          EMAIL_DELIVERY_ENABLED: "true"
+          WORKER_RUN_ONCE: "true"
+          WORKER_BATCH_SIZE: "5"
+        run: node dist/worker.js
