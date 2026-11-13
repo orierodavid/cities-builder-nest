@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: c bnest-email-worker
+  group: cbnest-email-worker
   cancel-in-progress: false
 
 jobs:
