@@ -76,7 +76,8 @@ export default function ResidentCableTV({ estateId, onBack }: { estateId: string
   useEffect(() => { if (provider) void loadBouquets(provider); }, [provider, loadBouquets]);
 
   const selectedBouquet = useMemo(() => bouquets.find(x => x.code === bouquet), [bouquets, bouquet]);
-  const rawSelectedAmount = selectedBouquet ? Number(selectedBouquet.kobo_amount ?? selectedBouquet.amount_kobo ?? selectedBouquet.amount ?? selectedBouquet.price ?? 0) : 0;\n  const amount = selectedBouquet ? rawSelectedAmount / (selectedBouquet.kobo_amount != null || selectedBouquet.amount_kobo != null ? 100 : 1) : 0;
+  const rawSelectedAmount = selectedBouquet ? Number(selectedBouquet.kobo_amount ?? selectedBouquet.amount_kobo ?? selectedBouquet.amount ?? selectedBouquet.price ?? 0) : 0;
+  const amount = selectedBouquet ? rawSelectedAmount / (selectedBouquet.kobo_amount != null || selectedBouquet.amount_kobo != null ? 100 : 1) : 0;
   const label = { color: "#F1D28A", fontSize: 11, fontWeight: "800" as const, marginTop: 12, marginBottom: 6 };
   const button = { minHeight: 47, borderRadius: 10, backgroundColor: "#D4A84B", alignItems: "center" as const, justifyContent: "center" as const, marginTop: 14, paddingHorizontal: 12 };
 
