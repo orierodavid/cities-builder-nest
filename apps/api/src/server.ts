@@ -49,6 +49,8 @@ import { apiSecurityHeaders } from "./security-headers.js";
 import type { ErrorRequestHandler } from "express";
 
 export const app = express();
+// Do not disclose the Express framework in HTTP response headers.
+app.disable("x-powered-by");
 // The production API runs behind one trusted platform ingress proxy. Keep this
 // configurable so direct/local deployments do not trust arbitrary forwarded IPs.
 app.set("trust proxy", trustedProxyHops(process.env.TRUST_PROXY_HOPS, process.env.NODE_ENV));
