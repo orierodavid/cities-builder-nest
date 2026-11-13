@@ -11,7 +11,7 @@ import AuditLogsPage from "../AuditLogsPage";
 import AdminAlertsPage from "../AdminAlertsPage";
 import VenueCapacityPage from "./VenueCapacityPage";
 
-type Estate = { id: string; name: string };
+type Estate = { id: string; name: string; address?: string; city?: string; lga?: string; state?: string; country_code?: string };
 type Membership = {
   id: string; estate_id: string; user_id: string; membership_role: string;
   status: string; created_at: string;
@@ -191,7 +191,7 @@ function UsersPage() {
   if(roleError||ownError){setError("Unable to verify your estate permissions.");setLoading(false);return;}
   const admin=(globalRoles||[]).some((x:{role:string})=>x.role==="platform_admin");
   setIsAdmin(admin);
-  let estateQuery=supabase.from("estates").select("id,name").eq("is_enabled",true).order("name");
+  let estateQuery=supabase.from("estates").select("id,name,address,city,lga,state,country_code").eq("is_enabled",true).order("name");
   if(!admin){
    const allowed=(ownMemberships||[]).filter((x:{membership_role:string})=>["facility_manager","estate_manager","estate_admin"].includes(x.membership_role)).map((x:{estate_id:string})=>x.estate_id);
    if(!allowed.length){setError("You do not have permission to manage estate users.");setLoading(false);return;}
@@ -328,6 +328,7 @@ function UsersPage() {
      <label>Email address<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com"/></label>
      <label>Initial password<input required type="password" minLength={8} autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Create a password (8+ characters)"/><span className="optional-label">Copy the password after account creation and share it securely.</span></label>
      <label>Estate<select required value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+     {(()=>{const estate=estates.find(x=>x.id===selectedEstate);return estate?<div style={{gridColumn:"1 / -1",border:"1px solid var(--border,#ddd)",borderRadius:8,padding:12,display:"grid",gap:5}}><strong>{estate.name}</strong><span>{estate.address||"Address not provided"}</span><span>{[estate.city||estate.lga,estate.state,estate.country_code].filter(Boolean).join(", ")}</span><small>Estate address and location are filled from the estate record. Enter the resident’s building and apartment details below.</small></div>:null;})()}
      <label>Role<select value={role} onChange={e=>setRole(e.target.value as Role)}>{allowedRoles.map(x=><option key={x} value={x}>{roleLabels[x]}</option>)}</select></label>
      {role==="resident"&&<><label>Building name<input required value={buildingName} onChange={e=>setBuildingName(e.target.value)} placeholder="e.g. Block A"/></label><label>Apartment / unit number<input required value={unitCode} onChange={e=>setUnitCode(e.target.value)} placeholder="e.g. A-04"/></label><label>Apartment type <span className="optional-label">Optional</span><input value={unitType} onChange={e=>setUnitType(e.target.value)} placeholder="e.g. 3-bedroom"/></label></>}
     </div>
