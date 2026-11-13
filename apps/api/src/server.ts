@@ -1899,7 +1899,7 @@ app.post("/v1/estates/:estateId/security/incidents", requireAuth, async (req, re
   res.status(201).json({ incident: data });
 });
 
-async function requireEventOrganiser(req: import("express").Request, res: import("express").Response, estateId: string): Promise<AuthenticatedRequest | null> {
+async function requireResidentEventAccess(req: import("express").Request, res: import("express").Response, estateId: string): Promise<AuthenticatedRequest | null> {
   const authenticated = req as AuthenticatedRequest;
   let membership: { membership_role: string } | null = null;
   if (process.env.NATIVE_POSTGRES_READS === "true") {
@@ -1914,11 +1914,11 @@ async function requireEventOrganiser(req: import("express").Request, res: import
       .eq("user_id", authenticated.authUser.id)
       .eq("status", "active")
       .maybeSingle();
-    if (result.error) { res.status(403).json({ error: "event_organiser_access_check_failed" }); return null; }
+    if (result.error) { res.status(403).json({ error: "resident_event_access_check_failed" }); return null; }
     membership = result.data;
   }
-  if (!["resident", "event_organiser"].includes(membership?.membership_role ?? "")) {
-    res.status(403).json({ error: "event_organiser_membership_required" }); return null;
+  if (membership?.membership_role !== "resident") {
+    res.status(403).json({ error: "resident_membership_required_for_events" }); return null;
   }
   const enabled = await isEstateEnabled(authenticated.userSupabase, estateId, authenticated.authUser.id);
   if (enabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return null; }
@@ -1932,7 +1932,7 @@ async function requireEventOwner(
   estateId: string,
   eventId: string,
 ): Promise<AuthenticatedRequest | null> {
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireResidentEventAccess(req, res, estateId);
   if (!authenticated) return null;
 
   let membership: { membership_role: string } | null = null;
@@ -1954,10 +1954,6 @@ async function requireEventOwner(
     res.status(403).json({ error: "event_organiser_membership_required" });
     return null;
   }
-
-  // Legacy event-organiser accounts remain supported; resident accounts can
-  // manage only events they personally created.
-  if (membership.membership_role === "event_organiser") return authenticated;
 
   let eventCreator: string | null;
   if (process.env.NATIVE_POSTGRES_READS === "true") {
@@ -2046,7 +2042,7 @@ app.get("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
 
 app.get("/v1/estates/:estateId/events/attendance-summaries", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireResidentEventAccess(req, res, estateId);
   if (!authenticated) return;
   const page = getPageWindow(req);
   if (process.env.NATIVE_POSTGRES_READS === "true") {
@@ -2091,7 +2087,7 @@ app.get("/v1/estates/:estateId/events/attendance-summaries", requireAuth, async 
 
 app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   const estateId = Array.isArray(req.params.estateId) ? req.params.estateId[0] : req.params.estateId;
-  const authenticated = await requireEventOrganiser(req, res, estateId);
+  const authenticated = await requireResidentEventAccess(req, res, estateId);
   if (!authenticated) return;
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
