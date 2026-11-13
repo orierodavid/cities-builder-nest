@@ -814,7 +814,8 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
   const isResident = mobileClient && (
     activeResidentMemberships.length > 0 ||
     hasResidentUnit ||
-    selectedEstateRole === "resident"
+    selectedEstateRole === "resident" ||
+    estates.some((estate) => normalizeRole(estate.membershipRole) === "resident")
   );
 
   useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) { void loadEstateEvents(); void loadEventVenues(); } }, [isEventOrganiser, selectedEstateId, session?.access_token]);
@@ -852,6 +853,25 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
   if (standaloneEventOrganiser && session && !isEventOrganiser) return <Redirect href={"/" as never} />;
   if (session && isSecurity) return <Redirect href={"/(security)" as never} />;
   if (session && isResident) return <Redirect href={"/(resident)" as never} />;
+
+  // Never fall through to the retired legacy dashboard on a signed-in mobile
+  // session. If role data is temporarily missing, show a clear recovery state.
+  if (session && mobileClient && !isResident && !isSecurity && !isEventOrganiser) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#050505", justifyContent: "center", padding: 28 }} edges={["top","right","bottom","left"]}>
+        <View style={{ alignItems: "center", gap: 14 }}>
+          <Text style={{ color: "#D9A93F", fontSize: 19, fontWeight: "900" }}>CB NEST</Text>
+          <Text style={{ color: "#F7F3EA", fontSize: 20, fontWeight: "800", textAlign: "center" }}>Your mobile workspace is being verified</Text>
+          <Text style={{ color: "#A7A095", fontSize: 13, lineHeight: 20, textAlign: "center" }}>
+            We could not confirm an active Resident, Security or Event Organiser role. Please refresh your account details or contact your estate administrator. The retired dashboard will not be shown.
+          </Text>
+          <TouchableOpacity onPress={() => { if (session?.access_token) { void loadProfile(session.access_token); void loadEstates(session.access_token); } }} style={{ borderWidth: 1, borderColor: "#6B5324", borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 }}>
+            <Text style={{ color: "#D9A93F", fontSize: 12, fontWeight: "900" }}>RETRY ROLE CHECK</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!restoring && !session && showRegistration) {
     return <ResidentRegistrationScreen onBack={() => setShowRegistration(false)} />;
