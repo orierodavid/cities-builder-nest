@@ -5,6 +5,6 @@ export default function handler(req, res) {
   const queryIndex = url.indexOf("?");
   const pathname = queryIndex < 0 ? url : url.slice(0, queryIndex);
   const query = queryIndex < 0 ? "" : url.slice(queryIndex);
-  req.url = pathname.replace(/^\\/api(?=\\/)/, "") + query;
+  req.url = pathname.replace(/^\/api(?=\/)/, "") + query;
   app(req, res);
 }
