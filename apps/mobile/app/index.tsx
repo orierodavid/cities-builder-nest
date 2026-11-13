@@ -174,10 +174,40 @@ export default function MobileEntryRoute() {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@") || !password) throw new Error("Enter your registered email address and password.");
     const { data, error } = await supabase.functions.invoke("account-login", { body: { email: cleanEmail, password } });
-    if (error) throw error;
+    if (error) {
+      const response = (error as { context?: Response }).context;
+      const status = response?.status;
+      const body = response
+        ? await response.clone().json().catch(() => ({})) as { error?: string; message?: string; retry_after_seconds?: number }
+        : {};
+      console.error("[CB Nest account login] Edge Function rejected request", {
+        status,
+        error: body.error || error.name,
+        message: body.message || error.message,
+      });
+      const retry = Number(body.retry_after_seconds || 0);
+      if (body.error === "invalid_credentials" || status === 401) {
+        throw new Error("Email or password is incorrect. Check your details and try again.");
+      }
+      if (body.error === "account_locked" || status === 423) {
+        throw new Error(body.message || "Your account is temporarily locked. Please try again later.");
+      }
+      if (body.error === "email_not_confirmed") {
+        throw new Error(body.message || "Your email address has not been confirmed.");
+      }
+      if (body.error === "account_pending_approval") {
+        throw new Error(body.message || "Your account is awaiting administrator approval.");
+      }
+      if (status === 429) {
+        throw new Error(body.message || "Too many sign-in attempts. Please wait and try again.");
+      }
+      throw new Error(body.message || (status && status >= 500
+        ? "CB Nest sign-in is temporarily unavailable. Please try again shortly."
+        : "Sign-in could not be completed. Please try again."));
+    }
     if (data?.error) {
       const retry = Number(data.retry_after_seconds || 0);
-      throw new Error(data.data?.message || data.message || (data.error === "account_locked" ? "Account locked. Try again in " + Math.ceil(retry / 60) + " minutes." : "Email or password is incorrect."));
+      throw new Error(data.message || (data.error === "account_locked" ? "Account locked. Try again in " + Math.ceil(retry / 60) + " minutes." : "Email or password is incorrect."));
     }
     if (!data?.session) throw new Error("Authentication service returned no session. Please try again.");
     const { error: sessionError } = await supabase.auth.setSession(data.session);
