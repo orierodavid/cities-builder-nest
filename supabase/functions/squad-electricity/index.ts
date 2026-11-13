@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const squadKey = Deno.env.get("SQUAD_SECRET_KEY");
-  const environment = Deno.env.get("SQUAD_ENVIRONMENT") ?? "sandbox";
+  const environment = Deno.env.get("SQUAD_ENVIRONMENT") ?? "";
   if (!supabaseUrl || !anonKey || !serviceKey || !squadKey) {
     return reply(503, { error: "squad_electricity_not_configured" });
   }
