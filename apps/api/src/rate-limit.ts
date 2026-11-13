@@ -89,7 +89,7 @@ export async function consumeRedisBucket(
   return { count, retryAfterSeconds: Math.max(1, retryAfterSeconds) };
 }
 
-function consumeLocalBucket(key: string, maxRequests: number): boolean {
+export function consumeLocalBucket(key: string, maxRequests: number): boolean {
   const now = Date.now();
   const existing = localBuckets.get(key);
   if (!existing || now - existing.startedAt >= WINDOW_SECONDS * 1000) {
@@ -100,12 +100,24 @@ function consumeLocalBucket(key: string, maxRequests: number): boolean {
   return existing.count <= maxRequests;
 }
 
-function rejectUnavailable(res: Parameters<RequestHandler>[1]): void {
-  res.setHeader("Retry-After", "5");
-  res.status(503).json({
-    error: "rate_limit_unavailable",
-    message: "Request protection is temporarily unavailable. Please retry shortly.",
-  });
+function useLocalFallback(
+  req: Parameters<RequestHandler>[0],
+  res: Parameters<RequestHandler>[1],
+  next: Parameters<RequestHandler>[2],
+  bucketKey: string,
+  maxRequests: number,
+  reason: "redis_not_configured" | "redis_unavailable",
+): void {
+  // Temporary availability fallback: preserve per-instance request limits while
+  // Redis is absent/unhealthy. Distributed coordination is reduced until Redis
+  // recovers, but requests are not left completely unthrottled.
+  console.warn("Using local API rate-limit fallback", { reason });
+  if (!consumeLocalBucket(bucketKey, maxRequests)) {
+    res.setHeader("Retry-After", String(WINDOW_SECONDS));
+    res.status(429).json({ error: "rate_limit_exceeded", message: "Too many requests. Please retry shortly." });
+    return;
+  }
+  next();
 }
 
 export async function closeRateLimitStore(): Promise<void> {
@@ -142,7 +154,7 @@ export const sharedRateLimit: RequestHandler = (req, res, next) => {
 
   const client = getRedisClient();
   if (!client) {
-    rejectUnavailable(res);
+    useLocalFallback(req, res, next, bucketKey, maxRequests, "redis_not_configured");
     return;
   }
 
@@ -160,6 +172,6 @@ export const sharedRateLimit: RequestHandler = (req, res, next) => {
       console.error("Shared API rate limiter unavailable", {
         name: error instanceof Error ? error.name : "unknown",
       });
-      rejectUnavailable(res);
+      useLocalFallback(req, res, next, bucketKey, maxRequests, "redis_unavailable");
     });
 };
