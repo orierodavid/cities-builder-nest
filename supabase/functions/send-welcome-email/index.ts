@@ -55,8 +55,8 @@ Deno.serve(async (req: Request) => {
   if (action === "preview") return json(200, { success: true, recipient: { email: target.user.email, name: recipientName } });
 
   const apiKey = Deno.env.get("RESEND_API_KEY");
-  const from = Deno.env.get("WELCOME_EMAIL_FROM");
-  if (!apiKey || !from) {
+  const from = "Cities Builder Nest <noreply@mail.cbnestltd.com>";
+  if (!apiKey) {
     return json(503, {
       error: "email_delivery_not_configured",
       message: "The welcome email composer is ready, but email delivery is not configured. Configure the email provider and worker before sending. No email has been sent.",
