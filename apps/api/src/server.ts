@@ -1951,7 +1951,7 @@ async function requireEventOwner(
     membership = result.error ? null : result.data;
   }
   if (!membership) {
-    res.status(403).json({ error: "event_organiser_membership_required" });
+    res.status(403).json({ error: "resident_membership_required_for_events" });
     return null;
   }
 
