@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const headers = { "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods":"POST, OPTIONS", "Content-Type":"application/json" };
 const reply=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers});
 const str=(v:unknown)=>typeof v==="string"?v.trim():"";
+const normalizeNigeriaPhone=(v:string)=>{const d=v.replace(/\\D/g,"");if(d.startsWith("234")&&d.length===13)return "0"+d.slice(3);if(d.startsWith("0")&&d.length===11)return d;if(d.length===10)return "0"+d;return "";};
 const services=new Set(["electricity","cable_tv","education","internet","betting"]);
 const productServices=new Set(["cable_tv","education","internet"]);
 const BILLER_CACHE_TTL_MS=10*60*1000;
@@ -112,6 +113,7 @@ Deno.serve(async(req:Request)=>{
   if(!validationId||!/^\+?[0-9]{8,15}$/.test(phone)||(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return reply(400,{error:"invalid_purchase_details"});
   const {data:v,error:ve}=await admin.from("utility_validations").select("*").eq("id",validationId).eq("resident_user_id",auth.user.id).eq("status","validated").gt("expires_at",new Date().toISOString()).maybeSingle();
   if(ve||!v)return reply(409,{error:"lookup_expired_or_already_used"});
+  if(v.service==="cable_tv"&&(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)))return reply(400,{error:"cable_email_required",message:"A valid email address is required for this cable subscription."});
   if(v.service==="electricity"&&(!Number.isSafeInteger(amount)||amount<100||(v.minimum_vend!=null&&amount<Math.ceil(Number(v.minimum_vend)))))return reply(400,{error:"invalid_electricity_amount"});
   let selectedProduct:Record<string,unknown>|null=null;
   if(productServices.has(v.service)){
