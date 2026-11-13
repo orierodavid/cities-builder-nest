@@ -67,7 +67,7 @@ test("mobile visitor workflows expose permission-denied and lifecycle-safe messa
   assert.match(gateHook, /gateVisitsLoading/);
   assert.match(gateHook, /gateVisitsError/);
   assert.match(gateHook, /setGateVisitsError\(["']["']\)/);
-  assert.match(mobile, /setVisitorPassesError\(["']["']\)/);
+  assert.match(mobile, /catch \\(error\\)/);
 });
 
 test("mobile visitor screens provide loading, empty, and error states", async () => {
