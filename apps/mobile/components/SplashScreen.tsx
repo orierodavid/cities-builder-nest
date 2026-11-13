@@ -32,12 +32,12 @@ const s = StyleSheet.create({
   root:{flex:1,backgroundColor:theme.bg,alignItems:'center',justifyContent:'center',padding:28,overflow:'hidden'},
   glowTop:{position:'absolute',width:310,height:310,borderRadius:155,borderWidth:1,borderColor:theme.border,top:-190,alignSelf:'center'},
   brand:{alignItems:'center'},
-  logo:{width:132,height:132,maxWidth:'100%',alignSelf:'center',marginBottom:4},
+  logo:{width:76,height:76,maxWidth:'100%',alignSelf:'center',marginBottom:4},
   name:{color:theme.text,fontSize:31,fontWeight:'900',letterSpacing:5,marginTop:22},
-  tag:{color:theme.darkBrown,fontSize:10,fontWeight:'900',letterSpacing:4,marginTop:7},
+  tag:{color:theme.goldSoft,fontSize:10,fontWeight:'900',letterSpacing:4,marginTop:7},
   rule:{width:54,height:2,backgroundColor:theme.gold,marginTop:24,marginBottom:17},
   promise:{color:theme.muted,fontSize:12,letterSpacing:.3,textAlign:'center'},
   bottom:{position:'absolute',bottom:54,alignItems:'center',gap:10},
-  dot:{width:6,height:6,borderRadius:3,backgroundColor:'#D4A84B'},
-  loading:{color:theme.olive,fontSize:8,fontWeight:'900',letterSpacing:2.1}
+  dot:{width:6,height:6,borderRadius:3,backgroundColor:theme.gold},
+  loading:{color:theme.goldSoft,fontSize:8,fontWeight:'900',letterSpacing:2.1}
 });
