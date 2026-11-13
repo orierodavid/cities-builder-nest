@@ -97,7 +97,7 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
       setError(true); setMessage(`The minimum purchase for this meter is ${money(validation.minimumVend)}.`); return;
     }
     if (!/^\+?[0-9]{8,15}$/.test(phone.trim())) { setError(true); setMessage("Enter a valid phone number."); return; }
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError(true); setMessage("Enter a valid email address."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError(true); setMessage("Enter a valid email address to receive your electricity token."); return; }
     setBusy(true); setError(false); setMessage(""); setLastReceipt(null);
     try {
       const result = await invoke({ action: "vend", validationId: validation.validationId, amount: value, phone: phone.trim(), email: email.trim() });
@@ -209,8 +209,8 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
             <TextInput accessibilityLabel="Electricity purchase amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder={validation.minimumVend ? String(validation.minimumVend) : "Enter amount"} placeholderTextColor="#777" style={field} />
             <Text style={label}>Phone number</Text>
             <TextInput accessibilityLabel="Purchase phone number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="080..." placeholderTextColor="#777" style={field} />
-            <Text style={label}>Email (optional)</Text>
-            <TextInput accessibilityLabel="Purchase email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholder="Email address" placeholderTextColor="#777" style={field} />
+            <Text style={label}>Email address (required)</Text>
+            <TextInput accessibilityLabel="Purchase email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholder="Email address for your token" placeholderTextColor="#777" style={field} />
             <TouchableOpacity onPress={() => void purchase()} disabled={busy} style={[goldButton, { opacity: busy ? 0.55 : 1 }]}>
               {busy ? <ActivityIndicator color="#17130B" /> : <Text style={{ color: "#17130B", fontSize: 12, fontWeight: "900" }}>CONFIRM AND BUY</Text>}
             </TouchableOpacity>
