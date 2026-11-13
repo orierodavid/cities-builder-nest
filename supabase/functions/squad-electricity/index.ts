@@ -73,8 +73,18 @@ Deno.serve(async (req: Request) => {
     }
   };
   const detailsOf = (data: Record<string, unknown>) => asObject(data.data);
-  const upstreamError = (data: Record<string, unknown>, fallback: string) =>
-    str(data.message) || fallback;
+  const upstreamError = (data: Record<string, unknown>, fallback: string) => {
+    const nested = asObject(data.data);
+    const errors = data.errors;
+    const errorText = typeof data.error === "string" ? data.error :
+      typeof errors === "string" ? errors :
+      Array.isArray(errors) ? errors.map((item) => {
+        const row = asObject(item);
+        return str(row.message) || str(row.detail) || str(row.code);
+      }).filter(Boolean).join("; ") : "";
+    return str(data.message) || errorText || str(nested.message) ||
+      str(nested.error) || fallback;
+  };
 
   if (action === "providers") {
     const { response, data } = await squad("/vending/utilities/electricity/service-providers");
@@ -103,7 +113,23 @@ Deno.serve(async (req: Request) => {
     const details = detailsOf(data);
     const providerReference = str(details.reference);
     if (!response.ok || data.success !== true || !providerReference) {
-      return reply(422, { error: "meter_validation_failed", message: upstreamError(data, "The meter could not be verified. Check the provider and meter number.") });
+      const message = upstreamError(data, "The meter could not be verified. Check the provider and meter number.");
+      console.error("[squad-electricity] meter lookup rejected", JSON.stringify({
+        upstreamStatus: response.status,
+        provider,
+        meterSuffix: meterNumber.slice(-4),
+        success: data.success ?? null,
+        message,
+        error: typeof data.error === "string" ? data.error : null,
+        errors: data.errors ?? null,
+        responseKeys: Object.keys(data),
+        dataKeys: Object.keys(details),
+      }));
+      return reply(422, {
+        error: "meter_validation_failed",
+        message,
+        upstreamStatus: response.status,
+      });
     }
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     const { data: saved, error } = await admin.from("utility_validations").insert({
