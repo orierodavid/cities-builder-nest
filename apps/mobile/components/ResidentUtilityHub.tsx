@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import ResidentElectricity from "./ResidentElectricity";
+import ResidentCableTV from "./ResidentCableTV";
 
 const card = {
   backgroundColor: "#171717", borderColor: "#3A3020", borderWidth: 1,
@@ -10,16 +11,15 @@ const card = {
 
 export default function ResidentUtilityHub({ estateId, onBack }: { estateId: string; onBack: () => void }) {
   const [showElectricity, setShowElectricity] = useState(false);
+  const [showCableTV, setShowCableTV] = useState(false);
 
   if (showElectricity) {
     return <ResidentElectricity estateId={estateId} onBack={() => setShowElectricity(false)} />;
   }
+  if (showCableTV) {
+    return <ResidentCableTV estateId={estateId} onBack={() => setShowCableTV(false)} />;
+  }
 
-  const comingSoon = [
-    { title: "Water", subtitle: "Water bills and utility payments", icon: "water-outline" as const },
-    { title: "Internet", subtitle: "Internet subscriptions and renewals", icon: "web" as const },
-    { title: "Cable TV", subtitle: "Television subscriptions", icon: "television-classic" as const },
-  ];
 
   return (
     <View style={{ gap: 12, paddingBottom: 30 }}>
@@ -44,19 +44,16 @@ export default function ResidentUtilityHub({ estateId, onBack }: { estateId: str
         </View>
         <Text style={{ color: "#D4A84B", fontSize: 22 }}>›</Text>
       </TouchableOpacity>
-      <Text style={{ color: "#D4A84B", fontSize: 11, fontWeight: "900", letterSpacing: 1, marginTop: 5 }}>COMING SOON</Text>
-      {comingSoon.map((item) => (
-        <View key={item.title} style={[card, { flexDirection: "row", alignItems: "center", gap: 13, opacity: 0.78 }]}>
-          <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: "#302719", alignItems: "center", justifyContent: "center" }}>
-            <MaterialCommunityIcons name={item.icon} size={23} color="#D9A93F" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: "#FFFFFF", fontWeight: "900", fontSize: 14 }}>{item.title}</Text>
-            <Text style={{ color: "#B9B9B9", fontSize: 11, marginTop: 3 }}>{item.subtitle}</Text>
-          </View>
-          <Text style={{ color: "#D9A93F", fontSize: 9, fontWeight: "900" }}>SOON</Text>
+      <TouchableOpacity onPress={() => setShowCableTV(true)} style={[card, { flexDirection: "row", alignItems: "center", gap: 13 }]}>
+        <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: "#302719", alignItems: "center", justifyContent: "center" }}>
+          <MaterialCommunityIcons name="television-classic" size={23} color="#D9A93F" />
         </View>
-      ))}
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: "#FFFFFF", fontWeight: "900", fontSize: 15 }}>Cable TV</Text>
+          <Text style={{ color: "#B9B9B9", fontSize: 11, marginTop: 3 }}>Verify decoder and renew your subscription</Text>
+        </View>
+        <Text style={{ color: "#D4A84B", fontSize: 22 }}>›</Text>
+      </TouchableOpacity>
     </View>
   );
 }
