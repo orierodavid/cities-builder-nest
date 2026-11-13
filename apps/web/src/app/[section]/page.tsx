@@ -55,7 +55,7 @@ type EstateRecord = { id:string; name:string; address:string; city:string; lga:s
 type EstateLocationOptions = { states:string[]; lgas:Record<string,string[]> };
 function parseEstateCsv(source:string):string[][] {
  const rows:string[][]=[]; let row:string[]=[]; let cell=""; let quoted=false;
- for(let i=0;i<source.length;i++){const ch=source[i]; if(ch==='"'){if(quoted&&source[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===","&&!quoted){row.push(cell.trim());cell="";}else if((ch==="\n"||ch==="\r")&&!quoted){if(ch==="\\r"&&source[i+1]==="\n")i++;row.push(cell.trim());if(row.some(v=>v.length))rows.push(row);row=[];cell="";}else cell+=ch;}
+ for(let i=0;i<source.length;i++){const ch=source[i]; if(ch==='"'){if(quoted&&source[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===","&&!quoted){row.push(cell.trim());cell="";}else if((ch==="\n"||ch==="\r")&&!quoted){if(ch==="\r"&&source[i+1]==="\n")i++;row.push(cell.trim());if(row.some(v=>v.length))rows.push(row);row=[];cell="";}else cell+=ch;}
  row.push(cell.trim());if(row.some(v=>v.length))rows.push(row);return rows;
 }
 
