@@ -204,7 +204,10 @@ Deno.serve(async (req: Request) => {
       .eq("merchant_reference", reference).maybeSingle();
     if (error || !row) return reply(404, { error: "transaction_not_found" });
     if (row.status === "pending") {
-      const { response, data } = await squad(`/vending/transactions?reference=${encodeURIComponent(reference)}`);
+      const { data: validation } = await admin.from("utility_validations").select("validation_token")
+        .eq("id", row.validation_id).eq("resident_user_id", auth.user.id).maybeSingle();
+      if (!validation?.validation_token) return reply(503, { error: "provider_reference_unavailable" });
+      const { response, data } = await squad(`/vending/transactions?reference=${encodeURIComponent(validation.validation_token)}`);
       if (response.ok && data.success === true) {
         const providerTx = detailsOf(data);
         const providerStatus = statusOf(providerTx.status);
