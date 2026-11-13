@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Redirect } from "expo-router";
 import type { Session } from "@supabase/supabase-js";
@@ -19,12 +19,35 @@ type ProfileResponse = {
 type Estate = { id: string; membershipRole?: string | null };
 type EstateResponse = { estates?: Estate[]; error?: string };
 const normalizeRole = (value?: string | null) => value?.trim().toLowerCase().replace(/-/g, "_") || "";
+type RoleErrorKind = "network" | "access" | "verification";
+class RoleCheckError extends Error {
+  kind: RoleErrorKind;
+  status?: number;
+  constructor(message: string, kind: RoleErrorKind, status?: number) {
+    super(message);
+    this.name = "RoleCheckError";
+    this.kind = kind;
+    this.status = status;
+  }
+}
+const isTransientRoleError = (error: unknown) => {
+  if (!(error instanceof Error)) return false;
+  const details = (error.name + " " + error.message).toLowerCase();
+  const status = (error as Error & { status?: number }).status;
+  return error.name === "TypeError" || error.name === "AbortError" ||
+    error.name === "TimeoutError" || details.includes("fetchrequestcanceled") ||
+    details.includes("network request failed") || details.includes("failed to fetch") ||
+    (typeof status === "number" && status >= 500);
+};
+const wait = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 export default function MobileEntryRoute() {
   const [session, setSession] = useState<Session | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [checkingRole, setCheckingRole] = useState(false);
   const [roleError, setRoleError] = useState("");
+  const [roleErrorKind, setRoleErrorKind] = useState<RoleErrorKind | null>(null);
+  const roleCheckInFlight = useRef<Promise<Role> | null>(null);
   const [message, setMessage] = useState("");
   const [registration, setRegistration] = useState(false);
 
@@ -42,43 +65,79 @@ export default function MobileEntryRoute() {
     return () => { active = false; data.subscription.unsubscribe(); };
   }, []);
 
-  const refreshRole = useCallback(async (token: string) => {
-    const apiBaseUrl = getApiBaseUrl();
-    if (!apiBaseUrl) throw new Error("The mobile API address is missing. Set EXPO_PUBLIC_API_URL in apps/mobile/.env, then restart Expo with --clear.");
-    setCheckingRole(true);
-    setRoleError("");
-    try {
-      const [profileResponse, estatesResponse] = await Promise.all([
-        fetch(apiBaseUrl + "/v1/me", { headers: { Authorization: "Bearer " + token, Accept: "application/json" }, signal: AbortSignal.timeout(15000) }),
-        fetch(apiBaseUrl + "/v1/estates", { headers: { Authorization: "Bearer " + token, Accept: "application/json" }, signal: AbortSignal.timeout(15000) }),
-      ]);
-      const profileBody = await profileResponse.json() as ProfileResponse;
-      const estatesBody = await estatesResponse.json() as EstateResponse;
-      if (!profileResponse.ok) throw new Error(profileBody.error || "Account role verification failed.");
-      if (!estatesResponse.ok) throw new Error(estatesBody.error || "Estate role verification failed.");
-      const nextEstates = estatesBody.estates || [];
-      const activeMemberships = (profileBody.estateMemberships || []).filter(m => m.status?.trim().toLowerCase() === "active");
-      const roles = new Set(activeMemberships.map(m => normalizeRole(m.membership_role)));
-      const estateRoles = new Set(nextEstates.map(e => normalizeRole(e.membershipRole)));
-      const hasResidentUnit = (profileBody.residentUnits || []).length > 0;
-      const role: Role | null =
-        roles.has("resident") || hasResidentUnit || estateRoles.has("resident") ? "resident" :
-        roles.has("security") || estateRoles.has("security") ? "security" : null;
-      if (!role) {
-        throw new Error("No active Resident or Security role was found. Facility Manager and Super Admin accounts must use the web portal.");
+  const refreshRole = useCallback((token: string): Promise<Role> => {
+    if (roleCheckInFlight.current) return roleCheckInFlight.current;
+    const run = async (): Promise<Role> => {
+      const apiBaseUrl = getApiBaseUrl();
+      if (!apiBaseUrl) throw new RoleCheckError(
+        "The mobile API address is missing. Set EXPO_PUBLIC_API_URL in apps/mobile/.env, then restart Expo with --clear.",
+        "verification"
+      );
+      setCheckingRole(true);
+      setRoleError("");
+      setRoleErrorKind(null);
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          // Avoid AbortSignal.timeout on iOS: native fetch cancellation was
+          // previously being surfaced as a false role/access failure.
+          const [profileResponse, estatesResponse] = await Promise.all([
+            fetch(apiBaseUrl + "/v1/me", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
+            fetch(apiBaseUrl + "/v1/estates", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
+          ]);
+          console.info("[CB Nest role check] API response statuses", {
+            attempt, profileStatus: profileResponse.status, estatesStatus: estatesResponse.status,
+          });
+          if ([401, 403].includes(profileResponse.status) || [401, 403].includes(estatesResponse.status)) {
+            const status = [401, 403].includes(profileResponse.status) ? profileResponse.status : estatesResponse.status;
+            throw new RoleCheckError("Your session is not authorised for mobile access. Sign in again or contact your estate administrator.", "access", status);
+          }
+          if (!profileResponse.ok || !estatesResponse.ok) {
+            const response = !profileResponse.ok ? profileResponse : estatesResponse;
+            const body = await response.json().catch(() => ({})) as { error?: string };
+            const failure = new Error(body.error || "The CB Nest service could not verify your account.") as Error & { status?: number };
+            failure.status = response.status;
+            throw failure;
+          }
+          const [profileBody, estatesBody] = await Promise.all([
+            profileResponse.json() as Promise<ProfileResponse>,
+            estatesResponse.json() as Promise<EstateResponse>,
+          ]);
+          const nextEstates = estatesBody.estates || [];
+          const activeMemberships = (profileBody.estateMemberships || []).filter(m => m.status?.trim().toLowerCase() === "active");
+          const roles = new Set(activeMemberships.map(m => normalizeRole(m.membership_role)));
+          const estateRoles = new Set(nextEstates.map(e => normalizeRole(e.membershipRole)));
+          const hasResidentUnit = (profileBody.residentUnits || []).length > 0;
+          const role: Role | null =
+            roles.has("resident") || hasResidentUnit || estateRoles.has("resident") ? "resident" :
+            roles.has("security") || estateRoles.has("security") ? "security" : null;
+          if (!role) throw new RoleCheckError(
+            "No active Resident or Security role was found. Facility Manager and Super Admin accounts must use the web portal.",
+            "access"
+          );
+          return role;
+        } catch (error) {
+          console.error("[CB Nest role check] Request failed", {
+            attempt,
+            name: error instanceof Error ? error.name : typeof error,
+            message: error instanceof Error ? error.message : String(error),
+            status: error instanceof RoleCheckError ? error.status : (error as { status?: number } | null)?.status,
+          });
+          if (error instanceof RoleCheckError && error.kind === "access") throw error;
+          if (isTransientRoleError(error)) {
+            if (attempt < 3) { await wait(500 * attempt); continue; }
+            throw new RoleCheckError("Can't connect to CB Nest right now. Check your internet connection and tap to retry.", "network");
+          }
+          throw new RoleCheckError(error instanceof Error ? error.message : "We couldn't verify your account. Please try again.", "verification");
+        }
       }
-      return role;
-    } catch (error) {
-      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
-        throw new Error("The CB Nest API did not respond within 15 seconds. Check the API URL and that your phone can reach it.");
-      }
-      if (error instanceof TypeError) {
-        throw new Error("The CB Nest API could not be reached from this device. Check EXPO_PUBLIC_API_URL; do not use localhost on a physical phone unless it is resolved to your computer’s LAN address.");
-      }
-      throw error;
-    } finally {
+      throw new RoleCheckError("Can't connect to CB Nest right now. Check your internet connection and tap to retry.", "network");
+    };
+    const pending = run().finally(() => {
       setCheckingRole(false);
-    }
+      if (roleCheckInFlight.current === pending) roleCheckInFlight.current = null;
+    });
+    roleCheckInFlight.current = pending;
+    return pending;
   }, []);
 
   const [verifiedRole, setVerifiedRole] = useState<Role | null>(null);
@@ -90,7 +149,10 @@ export default function MobileEntryRoute() {
     void refreshRole(session.access_token).then(role => {
       if (active) setVerifiedRole(role);
     }).catch(error => {
-      if (active) setRoleError(error instanceof Error ? error.message : "Unable to verify your mobile role.");
+      if (active) {
+        setRoleError(error instanceof Error ? error.message : "Unable to verify your mobile role.");
+        setRoleErrorKind(error instanceof RoleCheckError ? error.kind : "verification");
+      }
     });
     return () => { active = false; };
   }, [session?.access_token, refreshRole]);
@@ -126,10 +188,10 @@ export default function MobileEntryRoute() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.center}>
         <Text style={styles.brand}>CB NEST</Text>
-        <Text style={styles.heading}>Mobile access unavailable</Text>
-        <Text style={styles.body}>{roleError}</Text>
-        <Pressable onPress={() => void refreshRole(session.access_token).then(setVerifiedRole).catch(e => setRoleError(e instanceof Error ? e.message : "Role check failed."))} style={styles.retry}>
-          <Text style={styles.retryText}>RETRY ROLE CHECK</Text>
+        <Text style={styles.heading}>{roleErrorKind === "access" ? "Mobile access unavailable" : roleErrorKind === "network" ? "Can't connect" : "Unable to verify access"}</Text>
+        <Text style={styles.body}>{roleErrorKind === "network" ? "Can't connect, tap to retry. Check your internet connection and try again." : roleError}</Text>
+        <Pressable disabled={checkingRole} onPress={() => void refreshRole(session.access_token).then(role => { setVerifiedRole(role); setRoleError(""); setRoleErrorKind(null); }).catch(e => { setRoleError(e instanceof Error ? e.message : "Role check failed."); setRoleErrorKind(e instanceof RoleCheckError ? e.kind : "verification"); })} style={styles.retry}>
+          <Text style={styles.retryText}>{checkingRole ? "CONNECTING..." : "RETRY"}</Text>
         </Pressable>
         <Pressable onPress={() => void supabase.auth.signOut()}><Text style={styles.signOut}>SIGN OUT</Text></Pressable>
       </View>
