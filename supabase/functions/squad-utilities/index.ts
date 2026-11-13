@@ -61,7 +61,7 @@ Deno.serve(async(req:Request)=>{
   billerCache={billers,expiresAt:Date.now()+BILLER_CACHE_TTL_MS};
   return {ok:true as const,billers};
  };
- const productRows=(d:Record<string,unknown>)=>rowsAt(nested(d).products).length?rowsAt(nested(d).products):rowsAt(d.products);
+ const productRows=(d:Record<string,unknown>)=>rowsAt(nested(d).products).length?rowsAt(nested(d).products):rowsAt(nested(d).bouquets).length?rowsAt(nested(d).bouquets):rowsAt(d.products).length?rowsAt(d.products):rowsAt(d.bouquets);
  const message=(d:Record<string,unknown>,fallback:string)=>str(d.message)||fallback;
 
  if(action==="billers"){
@@ -140,7 +140,7 @@ Deno.serve(async(req:Request)=>{
    const {r,data,rawBody}=v.service==="cable_tv" ? await squad("/v1/service/cable/vend","POST",vendBody) : await squad("/v1/service/vend","POST",vendBody);
    const result=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
    const ps=str(result.processed_status??result.status??data.status).toUpperCase();
-   const status=r.status===202||ps==="PENDING"?"pending":r.ok&&ps==="SUCCESS"?"successful":"failed";
+   const status=r.status===202||ps==="PENDING"||(v.service==="cable_tv"&&r.ok&&data.success===true&&!ps)?"pending":r.ok&&data.success===true&&["SUCCESS","SUCCESSFUL"].includes(ps)?"successful":"failed";
    await admin.from("utility_transactions").update({status,provider_status:ps||String(r.status),provider_response:data,receipt:result.token??result.receipt??null,updated_at:new Date().toISOString()}).eq("id",tx.id);
    const transaction={merchantReference:ref,status,amountKobo:toKobo(purchaseAmount),receipt:result.token??result.receipt??null,message:message(data,status==="pending"?"Purchase is processing.":"Purchase could not be completed.")};
    if(!r.ok&&r.status!==202)return reply(422,{error:"vend_failed",message:message(data,"The utility purchase failed."),upstream:{url:base+"/v1/service/vend",status:r.status,body:rawBody},transaction});
@@ -156,7 +156,7 @@ Deno.serve(async(req:Request)=>{
   const {data:row,error}=await admin.from("utility_transactions").select("*").eq("resident_user_id",auth.user.id).eq("merchant_reference",reference).maybeSingle();
   if(error||!row)return reply(404,{error:"transaction_not_found"});
   if(row.status==="pending"){
-   const {r,data}=await squad(`/v1/service/transactions/${encodeURIComponent(reference)}`);
+   const {data:validation}=await admin.from("utility_validations").select("validation_token").eq("id",row.validation_id).eq("resident_user_id",auth.user.id).maybeSingle();\n   const providerReference=row.service==="cable_tv"?str(validation?.validation_token):reference;\n   const {r,data}=await squad(`/v1/service/transactions/${encodeURIComponent(providerReference)}`);
    if(r.ok){
     const result=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
     const ps=str(result.processed_status??result.status).toUpperCase();
