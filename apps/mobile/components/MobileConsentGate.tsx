@@ -7,7 +7,7 @@ import SplashScreen from "./SplashScreen";
 type LegalStatus = { requiresAcceptance: boolean; configurationRequired: boolean; accepted: boolean; documents: MobileLegalDocument[] };
 
 const CONSENT_CHECK_TIMEOUT_MS = 12_000;
-function withConsentTimeout<T>(promise: Promise<T>): Promise<T> {
+function withConsentTimeout<T>(promise: PromiseLike<T>): Promise<Awaited<T>> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error("consent_check_timeout")), CONSENT_CHECK_TIMEOUT_MS)),
