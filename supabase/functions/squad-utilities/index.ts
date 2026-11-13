@@ -16,6 +16,7 @@ Deno.serve(async(req:Request)=>{
  if(req.method!=="POST")return reply(405,{error:"method_not_allowed"});
  const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY")??Deno.env.get("SUPABASE_PUBLISHABLE_KEY"),serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),squadKey=Deno.env.get("SQUAD_SECRET_KEY"),mode=Deno.env.get("SQUAD_ENVIRONMENT")??"sandbox";
  if(!url||!anon||!serviceKey||!squadKey)return reply(503,{error:"utilities_not_configured"});
+ if(!["live","sandbox"].includes(mode))return reply(503,{error:"invalid_squad_environment"});
  const jwt=(req.headers.get("Authorization")??"").replace(/^Bearer\s+/i,"");
  if(!jwt)return reply(401,{error:"authentication_required"});
  const userClient=createClient(url,anon,{auth:{autoRefreshToken:false,persistSession:false},global:{headers:{Authorization:`Bearer ${jwt}`}}});
@@ -137,13 +138,13 @@ Deno.serve(async(req:Request)=>{
   const vendBody:Record<string,unknown>=v.service==="cable_tv" ? {provider:v.provider,reference:v.validation_token,boquet_code:productCode,phone_number:phone.replace(/^\+234/,"0"),email} : {validation_token:v.validation_token,merchant_reference:ref,customer:{phone_number:phone,...(email?{email}:{})}};
   if(v.service!=="cable_tv"){if(productServices.has(v.service))vendBody.products=[{code:productCode,quantity:1}];else vendBody.amount=productServices.has(v.service)?purchaseAmount:amount;}
   try{
-   const {r,data,rawBody}=v.service==="cable_tv" ? await squad("/v1/service/cable/vend","POST",vendBody) : await squad("/v1/service/vend","POST",vendBody);
+   const {r,data,rawBody,networkError}=v.service==="cable_tv" ? await squad("/v1/service/cable/vend","POST",vendBody) : await squad("/v1/service/vend","POST",vendBody);
    const result=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
    const ps=str(result.processed_status??result.status??data.status).toUpperCase();
-   const status=r.status===202||ps==="PENDING"||(v.service==="cable_tv"&&r.ok&&data.success===true&&!ps)?"pending":r.ok&&data.success===true&&["SUCCESS","SUCCESSFUL"].includes(ps)?"successful":"failed";
+   const ambiguous=!!networkError||r.status>=500||r.status===408||!rawBody||data.message==="Squad returned a non-JSON response.";\n   const status=ambiguous||r.status===202||ps==="PENDING"||(v.service==="cable_tv"&&r.ok&&data.success===true&&!ps)?"pending":r.ok&&data.success===true&&["SUCCESS","SUCCESSFUL"].includes(ps)?"successful":"failed";
    await admin.from("utility_transactions").update({status,provider_status:ps||String(r.status),provider_response:data,receipt:result.token??result.receipt??null,updated_at:new Date().toISOString()}).eq("id",tx.id);
    const transaction={merchantReference:ref,status,amountKobo:toKobo(purchaseAmount),receipt:result.token??result.receipt??null,message:message(data,status==="pending"?"Purchase is processing.":"Purchase could not be completed.")};
-   if(!r.ok&&r.status!==202)return reply(422,{error:"vend_failed",message:message(data,"The utility purchase failed."),upstream:{url:base+"/v1/service/vend",status:r.status,body:rawBody},transaction});
+   if(ambiguous)return reply(202,{transaction:{merchantReference:ref,status:"pending"},message:"The provider response could not confirm the result. Do not submit again; check transaction history."});\n   if(!r.ok&&r.status!==202)return reply(422,{error:"vend_failed",message:message(data,"The utility purchase failed."),upstream:{url:base+"/v1/service/vend",status:r.status,body:rawBody},transaction});
    return reply(status==="pending"?202:200,{transaction});
   }catch{
    await admin.from("utility_transactions").update({provider_status:"SUBMISSION_UNKNOWN",updated_at:new Date().toISOString()}).eq("id",tx.id);
@@ -162,7 +163,7 @@ Deno.serve(async(req:Request)=>{
    if(r.ok){
     const result=(data.data&&typeof data.data==="object"?data.data:data) as Record<string,unknown>;
     const ps=str(result.processed_status??result.status).toUpperCase();
-    const status=ps==="SUCCESS"?"successful":["FAILED","FAILURE"].includes(ps)?"failed":"pending";
+    const status=["SUCCESS","SUCCESSFUL"].includes(ps)?"successful":["FAILED","FAILURE","REVERSED"].includes(ps)?"failed":"pending";
     const {data:updated}=await admin.from("utility_transactions").update({status,provider_status:ps||"PENDING",provider_response:data,receipt:result.token??result.receipt??row.receipt,updated_at:new Date().toISOString()}).eq("id",row.id).eq("status","pending").select("*").maybeSingle();
     if(updated)return reply(200,{transaction:updated});
    }
