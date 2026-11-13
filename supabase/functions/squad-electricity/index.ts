@@ -149,8 +149,8 @@ Deno.serve(async (req: Request) => {
     const email = str(input.email);
     const amount = Number(input.amount);
     if (!validationId || !phone || !validEmail(email) ||
-        !Number.isFinite(amount) || amount < 100 || Math.round(amount * 100) !== amount * 100) {
-      return reply(400, { error: "invalid_purchase_details", message: "Enter a valid amount, phone number and email address." });
+        !Number.isSafeInteger(amount) || amount < 100) {
+      return reply(400, { error: "invalid_purchase_details", message: "Enter a whole-naira amount of at least ₦100, a valid phone number and email address." });
     }
     const { data: validation, error: validationError } = await admin.from("utility_validations")
       .select("*").eq("id", validationId).eq("resident_user_id", auth.user.id)
