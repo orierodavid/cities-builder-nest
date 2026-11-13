@@ -57,7 +57,20 @@ export default function WelcomeEmailPage() {
       body: { action: "send", userId, estateId, subject, message: finalMessage, requestId }
     });
     if (invokeError || data?.error) {
-      setError(data?.message || "The welcome email was not accepted by the email provider. Please try again.");
+      let providerMessage = data?.message as string | undefined;
+      const errorContext = (invokeError as { context?: unknown } | null)?.context;
+      if (!providerMessage && errorContext instanceof Response) {
+        try {
+          const errorBody = await errorContext.clone().json() as { message?: unknown; error?: unknown; providerStatus?: unknown };
+          if (typeof errorBody.message === "string") providerMessage = errorBody.message;
+          else if (errorBody.error === "email_delivery_not_configured") providerMessage = "Email delivery is not configured in Supabase. Add RESEND_API_KEY and WELCOME_EMAIL_FROM under Edge Function Secrets.";
+          else if (errorBody.error === "email_provider_unreachable") providerMessage = "Supabase could not reach Resend. Please retry; if it continues, check the Supabase function logs.";
+          else if (errorBody.error === "email_provider_rejected") providerMessage = `Resend rejected the email (HTTP ${String(errorBody.providerStatus || "unknown")}). Check the Resend API key and verified sender address.`;
+        } catch {
+          // Fall back to the request error when the response body cannot be read.
+        }
+      }
+      setError(providerMessage || "The welcome email request failed before Resend confirmed it. Please retry.");
     } else if (data?.sent === true) {
       setSuccess(`Welcome email submitted to Resend immediately for ${recipient?.email}. Delivery confirmation will appear in Resend.`);
     } else {
