@@ -2749,6 +2749,10 @@ const apiErrorHandler: ErrorRequestHandler = (error, req, res, next) => {
 };
 app.use(apiErrorHandler);
 
-if (process.env.NODE_ENV !== "test") {
+// Vercel invokes the Express app as a serverless function. Keep the
+// traditional listener for local and container deployments only.
+if (process.env.NODE_ENV !== "test" && process.env.VERCEL !== "1") {
   startApiServer(app, port);
 }
+
+export default app;
