@@ -808,7 +808,14 @@ export default function HomeScreen({ standaloneEventOrganiser = false }: { stand
   // Resident access is resolved across the account, not just the currently
   // selected estate. A stale saved estate selection must never send a resident
   // back into the legacy root dashboard.
-  const isResident = mobileClient && (activeResidentMemberships.length > 0 || hasResidentUnit);
+  // Route residents using either the authenticated /v1/me membership OR the
+  // estate-list membership. The estate list is a fallback because profile
+  // membership data can be temporarily incomplete while the API catches up.
+  const isResident = mobileClient && (
+    activeResidentMemberships.length > 0 ||
+    hasResidentUnit ||
+    selectedEstateRole === "resident"
+  );
 
   useEffect(() => { if (isEventOrganiser && selectedEstateId && session?.access_token) { void loadEstateEvents(); void loadEventVenues(); } }, [isEventOrganiser, selectedEstateId, session?.access_token]);
 
