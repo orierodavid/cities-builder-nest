@@ -1326,12 +1326,10 @@ app.patch("/v1/estates/:estateId/visitor-passes/:passId/status", requireAuth, as
   const estateEnabled = await isEstateEnabled(authenticated.userSupabase, estateId, authenticated.authUser.id);
   if (estateEnabled === null) { res.status(404).json({ error: "estate_not_found_or_unavailable" }); return; }
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey || !process.env.SUPABASE_URL) {
-    res.status(503).json({ error: "visitor_pass_update_not_configured" }); return;
-  }
-  const admin = createClient(process.env.SUPABASE_URL, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: existing, error: lookupError } = await admin.from("visitor_passes")
+  // Use the resident's authenticated Supabase session. The database grants
+  // authenticated users UPDATE on status only and enforces host ownership,
+  // active resident membership, and eligible pass states through RLS.
+  const { data: existing, error: lookupError } = await authenticated.userSupabase.from("visitor_passes")
     .select("id, status, valid_until").eq("id", passId).eq("estate_id", estateId)
     .eq("host_user_id", authenticated.authUser.id).maybeSingle();
   if (lookupError || !existing) { res.status(404).json({ error: "visitor_pass_not_found" }); return; }
@@ -1342,7 +1340,7 @@ app.patch("/v1/estates/:estateId/visitor-passes/:passId/status", requireAuth, as
     res.status(409).json({ error: "visitor_pass_expired" }); return;
   }
   if (existing.status === targetStatus) { res.status(200).json({ pass: existing }); return; }
-  const { data: updated, error: updateError } = await admin.from("visitor_passes").update({ status: targetStatus })
+  const { data: updated, error: updateError } = await authenticated.userSupabase.from("visitor_passes").update({ status: targetStatus })
     .eq("id", passId).eq("estate_id", estateId).eq("host_user_id", authenticated.authUser.id)
     .eq("status", existing.status).gt("valid_until", new Date().toISOString())
     .select("id, status, valid_until").maybeSingle();
