@@ -45,7 +45,7 @@ test("checkout stays estate-scoped and can only close an open visit once", async
 
 
 test("mobile visitor workflows expose permission-denied and lifecycle-safe messages", async () => {
-  const mobilePath = resolve(here, "../../mobile/app/index.tsx");
+  const mobilePath = resolve(here, "../../mobile/app/(resident)/visitors.tsx");
   const visitorApiPath = resolve(here, "../../mobile/src/features/security/visitor-api.ts");
   const gateHookPath = resolve(here, "../../mobile/src/features/security/useGate.ts");
   const [mobile, visitorApi, gateHook] = await Promise.all([
@@ -60,8 +60,10 @@ test("mobile visitor workflows expose permission-denied and lifecycle-safe messa
     assert.ok(visitorApi.includes('case "' + code + '"'), "missing mobile message mapping for " + code);
   }
 
-  assert.match(mobile, /visitorPassesLoading/);
-  assert.match(mobile, /visitorPassesError/);
+  assert.match(mobile, /const \[loading, setLoading\] = useState\(true\)/);
+  assert.match(mobile, /setMessage\(/);
+  assert.match(mobile, /Visitor pass history/);
+  assert.match(mobile, /No visitor passes yet/);
   assert.match(gateHook, /gateVisitsLoading/);
   assert.match(gateHook, /gateVisitsError/);
   assert.match(gateHook, /setGateVisitsError\(["']["']\)/);
@@ -69,14 +71,17 @@ test("mobile visitor workflows expose permission-denied and lifecycle-safe messa
 });
 
 test("mobile visitor screens provide loading, empty, and error states", async () => {
-  const mobilePath = resolve(here, "../../mobile/app/index.tsx");
+  const mobilePath = resolve(here, "../../mobile/app/(resident)/visitors.tsx");
   const gateHookPath = resolve(here, "../../mobile/src/features/security/useGate.ts");
   const recordsPath = resolve(here, "../../mobile/app/(security)/records.tsx");
   const [mobile, gateHook, records] = await Promise.all([
     readFile(mobilePath, "utf8"), readFile(gateHookPath, "utf8"), readFile(recordsPath, "utf8"),
   ]);
 
-  assert.match(mobile, /Loading visitor passes|Loading passes|visitorPassesLoading/);
+  assert.match(mobile, /loading \? <ActivityIndicator/);
+  assert.match(mobile, /passes\.length/);
+  assert.match(mobile, /No visitor passes yet/);
+  assert.match(mobile, /setMessage\(/);
   assert.match(gateHook, /gateVisitsLoading/);
   assert.match(records, /gate\.gateVisitsError/);
   assert.match(records, /gate\.gateVisits\.length/);
