@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createClient } from "redis";
 import test from "node:test";
-import { consumeRedisBucket, createRateLimitBucketKey, rateLimitForMethod } from "./rate-limit.js";
+import { consumeLocalBucket, consumeRedisBucket, createRateLimitBucketKey, rateLimitForMethod } from "./rate-limit.js";
 
 test("applies a higher read limit and a stricter write limit", () => {
   assert.equal(rateLimitForMethod("GET"), 120);
@@ -11,6 +11,15 @@ test("applies a higher read limit and a stricter write limit", () => {
   assert.equal(rateLimitForMethod("PUT"), 30);
   assert.equal(rateLimitForMethod("PATCH"), 30);
   assert.equal(rateLimitForMethod("DELETE"), 30);
+});
+
+test("keeps a local per-instance request limit available as a Redis fallback", () => {
+  const key = "local-fallback-test-" + randomUUID();
+  for (let index = 0; index < 120; index += 1) {
+    assert.equal(consumeLocalBucket(key, 120), true);
+  }
+  assert.equal(consumeLocalBucket(key, 120), false);
+  assert.equal(consumeLocalBucket(key + "-other-client", 120), true);
 });
 
 test("does not apply a request quota to unsupported HTTP methods", () => {
