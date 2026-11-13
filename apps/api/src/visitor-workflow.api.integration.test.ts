@@ -403,12 +403,16 @@ test("authenticated resident can create a pass and list only passes hosted by th
   assert.ok(listed.body.visitorPasses.some((pass: Record<string, unknown>) => pass.id === "denial-test-pass"));
   assert.ok(!listed.body.visitorPasses.some((pass: Record<string, unknown>) => pass.id === "other-host-pass"));
 
+  // The resident-scoped status update must work without a service-role secret.
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   const deactivated = await request(`/v1/estates/${estateA}/visitor-passes/${createdPass.id}/status`, "resident-token", "PATCH", { status: "revoked" });
   assert.equal(deactivated.status, 200);
   assert.equal(deactivated.body.pass.status, "revoked");
   const reactivated = await request(`/v1/estates/${estateA}/visitor-passes/${createdPass.id}/status`, "resident-token", "PATCH", { status: "active" });
   assert.equal(reactivated.status, 200);
   assert.equal(reactivated.body.pass.status, "active");
+  if (serviceRoleKey) process.env.SUPABASE_SERVICE_ROLE_KEY = serviceRoleKey;
 });
 
 test("authenticated security and inactive resident accounts cannot create resident visitor passes", async () => {
