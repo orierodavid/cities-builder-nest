@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const headers = { "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods":"POST, OPTIONS", "Content-Type":"application/json" };
 const reply=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers});
 const str=(v:unknown)=>typeof v==="string"?v.trim():"";
-const normalizeNigeriaPhone=(v:string)=>{const d=v.replace(/\\D/g,"");if(d.startsWith("234")&&d.length===13)return "0"+d.slice(3);if(d.startsWith("0")&&d.length===11)return d;if(d.length===10)return "0"+d;return "";};
+const normalizeNigeriaPhone=(v:string)=>{const d=v.replace(/\D/g,"");if(d.startsWith("234")&&d.length===13)return "0"+d.slice(3);if(d.startsWith("0")&&d.length===11)return d;if(d.length===10)return "0"+d;return "";};
 const services=new Set(["electricity","cable_tv","education","internet","betting"]);
 const productServices=new Set(["cable_tv","education","internet"]);
 const BILLER_CACHE_TTL_MS=10*60*1000;
@@ -109,11 +109,11 @@ Deno.serve(async(req:Request)=>{
   return reply(200,{validationId:saved.id,service,provider,customerIdentifier:identifier,customerName:details.customer_name??null,minimumVend:details.minimum_vend??null,accountDetails:details,expiresAt:new Date(Date.now()+10*60*1000).toISOString()});
  }
  if(action==="vend"){
-  const validationId=str(input.validationId),phone=str(input.phone),email=str(input.email),productCode=str(input.productCode),amount=Number(input.amount);
+  const validationId=str(input.validationId),phone=normalizeNigeriaPhone(str(input.phone)),email=str(input.email),productCode=str(input.productCode),amount=Number(input.amount);
   if(!validationId||!/^\+?[0-9]{8,15}$/.test(phone)||(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return reply(400,{error:"invalid_purchase_details"});
   const {data:v,error:ve}=await admin.from("utility_validations").select("*").eq("id",validationId).eq("resident_user_id",auth.user.id).eq("status","validated").gt("expires_at",new Date().toISOString()).maybeSingle();
   if(ve||!v)return reply(409,{error:"lookup_expired_or_already_used"});
-  if(v.service==="cable_tv"&&(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)))return reply(400,{error:"cable_email_required",message:"A valid email address is required for this cable subscription."});
+  if(v.service==="cable_tv"&&(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return reply(400,{error:"cable_email_required",message:"A valid email address is required for this cable subscription."});
   if(v.service==="electricity"&&(!Number.isSafeInteger(amount)||amount<100||(v.minimum_vend!=null&&amount<Math.ceil(Number(v.minimum_vend)))))return reply(400,{error:"invalid_electricity_amount"});
   let selectedProduct:Record<string,unknown>|null=null;
   if(productServices.has(v.service)){
@@ -137,7 +137,7 @@ Deno.serve(async(req:Request)=>{
    status:"pending",provider_status:"SUBMITTING",product_code:productCode||null
   }).select("id").single();
   if(txError||!tx)return reply(503,{error:"transaction_record_failed"});
-  const vendBody:Record<string,unknown>=v.service==="cable_tv" ? {provider:v.provider,reference:v.validation_token,boquet_code:productCode,phone_number:phone.replace(/^\+234/,"0"),email} : {validation_token:v.validation_token,merchant_reference:ref,customer:{phone_number:phone,...(email?{email}:{})}};
+  const vendBody:Record<string,unknown>=v.service==="cable_tv" ? {provider:v.provider,reference:v.validation_token,boquet_code:productCode,phone_number:phone,email} : {validation_token:v.validation_token,merchant_reference:ref,customer:{phone_number:phone,...(email?{email}:{})}};
   if(v.service!=="cable_tv"){if(productServices.has(v.service))vendBody.products=[{code:productCode,quantity:1}];else vendBody.amount=productServices.has(v.service)?purchaseAmount:amount;}
   try{
    const {r,data,rawBody,networkError}=v.service==="cable_tv" ? await squad("/v1/service/cable/vend","POST",vendBody) : await squad("/v1/service/vend","POST",vendBody);
