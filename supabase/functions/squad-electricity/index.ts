@@ -13,7 +13,7 @@ const asObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const statusOf = (value: unknown) => str(value).toLowerCase();
 const validPhone = (value: string) => /^\+?[0-9]{8,15}$/.test(value);
-const validEmail = (value: string) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers });
@@ -189,7 +189,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const { response, data, rawBody } = await squad("/vending/utilities/electricity", "POST", {
-      phone_number: phone, amount, ...(email ? { email } : {}), reference: str(validation.validation_token),
+      phone_number: phone, amount: String(amount), email, reference: str(validation.validation_token),
     });
     const result = detailsOf(data);
     const meta = typeof result.meta_json === "object" ? asObject(result.meta_json) :
