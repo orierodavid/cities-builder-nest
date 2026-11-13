@@ -9,7 +9,7 @@ import ResidentRegistrationScreen from "../src/features/auth/ResidentRegistratio
 import SplashScreen from "../components/SplashScreen";
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || "").replace(/\/$/, "");
-type Role = "resident" | "security" | "event_organiser";
+type Role = "resident" | "security";
 type Membership = { estate_id: string; membership_role: string; status: string };
 type ProfileResponse = {
   estateMemberships?: Membership[];
@@ -63,10 +63,9 @@ export default function MobileEntryRoute() {
       const hasResidentUnit = (profileBody.residentUnits || []).length > 0;
       const role: Role | null =
         roles.has("resident") || hasResidentUnit || estateRoles.has("resident") ? "resident" :
-        roles.has("security") || estateRoles.has("security") ? "security" :
-        roles.has("event_organiser") || estateRoles.has("event_organiser") ? "event_organiser" : null;
+        roles.has("security") || estateRoles.has("security") ? "security" : null;
       if (!role) {
-        throw new Error("No active Resident, Security or Event Organiser role was found. Facility Manager and Super Admin accounts must use the web portal.");
+        throw new Error("No active Resident or Security role was found. Facility Manager and Super Admin accounts must use the web portal.");
       }
       return role;
     } finally {
@@ -114,7 +113,6 @@ export default function MobileEntryRoute() {
   if (restoring || (session && (checkingRole || (!verifiedRole && !roleError)))) return <SplashScreen />;
   if (session && verifiedRole === "resident") return <Redirect href={"/(resident)" as never} />;
   if (session && verifiedRole === "security") return <Redirect href={"/(security)" as never} />;
-  if (session && verifiedRole === "event_organiser") return <Redirect href={"/(event-organiser)" as never} />;
 
   if (session && roleError) return (
     <SafeAreaView style={styles.safe}>
