@@ -185,7 +185,6 @@ export default function MobileEntryRoute() {
         error: body.error || error.name,
         message: body.message || error.message,
       });
-      const retry = Number(body.retry_after_seconds || 0);
       if (body.error === "invalid_credentials" || status === 401) {
         throw new Error("Email or password is incorrect. Check your details and try again.");
       }
