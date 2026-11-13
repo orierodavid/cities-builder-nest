@@ -1,60 +1,62 @@
-import React,{useCallback,useEffect,useState} from "react";
-import {ActivityIndicator,BackHandler,Text,TextInput,TouchableOpacity,View} from "react-native";
-import {MaterialCommunityIcons} from "@expo/vector-icons";
-import Svg,{Circle,Defs,LinearGradient,Stop} from "react-native-svg";
-import {supabase} from "../lib/supabase";
-type S="electricity"|"cable_tv"|"education"|"internet"|"betting";
-type UtilityIconName="flash"|"television-classic"|"school"|"web"|"soccer";
-type R={code:string;name?:string;title?:string;description?:string;amount?:number;price?:number;kobo_amount?:number;amount_kobo?:number;[k:string]:unknown};
-const sv:{id:S;name:string;desc:string;icon:UtilityIconName}[]=[{id:"electricity",name:"Electricity",desc:"Prepaid and postpaid meters",icon:"flash"},{id:"cable_tv",name:"Cable TV",desc:"DStv, GOtv and StarTimes",icon:"television-classic"},{id:"internet",name:"Internet",desc:"Internet bundles and renewals",icon:"web"},{id:"education",name:"Education",desc:"Supported examination payments",icon:"school"},{id:"betting",name:"Betting",desc:"Fund supported betting accounts",icon:"soccer"}];
-const productSvc=["cable_tv","education","internet"];
-const code=(x:R)=>String(x.code??x.provider_code??x.id??"");
-const title=(x:R)=>String(x.name??x.provider_name??x.title??x.description??x.code??"");
-const price=(x:R)=>Number(x.kobo_amount??x.amount_kobo??(Number(x.amount??x.price??0)*100));
-const card={backgroundColor:"#171717",borderColor:"#3A3020",borderWidth:1,borderRadius:14,padding:15} as const;
-const input={minHeight:46,borderWidth:1,borderColor:"#494133",borderRadius:9,paddingHorizontal:12,color:"white",backgroundColor:"#101010"} as const;
-function UtilityGradientIcon({name}:{name:UtilityIconName}){
- return <View style={{width:48,height:48,alignItems:"center",justifyContent:"center"}}>
-  <Svg width={48} height={48} viewBox="0 0 48 48" style={{position:"absolute"}}>
-   <Defs><LinearGradient id="utilityGoldGradient" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor="#F7D978"/><Stop offset="0.52" stopColor="#D9A93F"/><Stop offset="1" stopColor="#9C6B1D"/></LinearGradient></Defs>
-   <Circle cx="24" cy="24" r="23" fill="url(#utilityGoldGradient)"/>
-  </Svg>
-  <MaterialCommunityIcons name={name} size={25} color="#17130B"/>
- </View>;
-}
-export default function ResidentUtilityHub({estateId,onBack}:{estateId:string;onBack:()=>void}){
- const [s,S]=useState<S|null>(null),[providers,P]=useState<R[]>([]),[provider,SP]=useState(""),[products,Pr]=useState<R[]>([]),[product,SPr]=useState("");
- const [identifier,I]=useState(""),[meter,M]=useState<"prepaid"|"postpaid">("prepaid"),[amount,A]=useState(""),[phone,Ph]=useState(""),[email,E]=useState("");
- const [validation,V]=useState<any>(null),[history,H]=useState<any[]>([]),[tab,T]=useState<"buy"|"history">("buy"),[busy,B]=useState(false),[loading,L]=useState(false),[msg,Msg]=useState(""),[bad,Bad]=useState(false),[providerError,setProviderError]=useState(""),[productError,setProductError]=useState("");
- const call=useCallback(async(b:Record<string,unknown>)=>{const {data,error}=await supabase.functions.invoke("squad-utilities",{body:b});if(error){const c=(error as typeof error&{context?:Response}).context;const status=c?.status;const p=c?await c.clone().json().catch(async()=>({body:await c.clone().text().catch(()=>"")})):null;const u=p?.upstream;const detail=u?`\nSquad HTTP ${u.status}${u.message?`: ${u.message}`:""}\nURL: ${u.url??""}\nResponse: ${u.body??""}`:"";throw Error(`${status?`Backend HTTP ${status}: `:""}${p?.message??p?.error??error.message}${detail}`)}if(data?.error){const u=data.upstream;throw Error(`${data.message??data.error}${u?`\nSquad HTTP ${u.status}\nURL: ${u.url}\nResponse: ${u.body}`:""}`)}return data},[]);
- const historyLoad=useCallback(async()=>{try{H((await call({action:"history"})).transactions??[])}catch(e){Bad(true);Msg(String(e))}},[call]);
- useEffect(()=>{if(!s)return;const sub=BackHandler.addEventListener("hardwareBackPress",()=>{S(null);V(null);SP("");Pr([]);SPr("");I("");Msg("");return true});return()=>sub.remove()},[s]);
- useEffect(()=>{void historyLoad()},[historyLoad]);
- const loadProviders=useCallback(async(service:S)=>{L(true);P([]);SP("");setProviderError("");try{const d=await call({action:"billers",service});const rows=Array.isArray(d?.billers)?d.billers.filter((x:unknown)=>x&&typeof x==="object"&&typeof (x as R).code==="string") as R[]:[];P(rows);if(rows.length)SP(code(rows[0]));else setProviderError("Squad returned no providers for this service. Please try again shortly.");}catch(e){const detail=e instanceof Error?e.message:String(e);setProviderError(detail);Bad(true);Msg(detail)}finally{L(false)}},[call]);
- useEffect(()=>{if(!s)return;void loadProviders(s)},[s,loadProviders]);
- useEffect(()=>{if(!s||!provider||!productSvc.includes(s))return;L(true);Pr([]);SPr("");setProductError("");void call({action:"products",service:s,provider}).then(d=>{const rows=Array.isArray(d?.products)?d.products.filter((x:unknown)=>x&&typeof x==="object"&&typeof (x as R).code==="string") as R[]:[];Pr(rows);if(rows.length)SPr(code(rows[0]));else setProductError("No products are currently available for this provider.");}).catch(e=>{const detail=e instanceof Error?e.message:String(e);setProductError(detail);Bad(true);Msg(detail)}).finally(()=>L(false))},[s,provider,call]);
- const lookup=async()=>{if(!s||!provider||identifier.trim().length<5)return;if(s==="education"&&!product){Bad(true);Msg("Select an examination product first.");return}B(true);try{V(await call({action:"lookup",service:s,provider,estateId,customerIdentifier:identifier.trim(),...((s==="education"||s==="internet")&&product?{productCode:product}:{}),...(s==="electricity"?{meterType:meter}:{})}));Bad(false);Msg("Account verified. Review the details below.")}catch(e){Bad(true);Msg(String(e));V(null)}finally{B(false)}};
- const vend=async()=>{if(!validation||!s)return;if(!/^\+?[0-9]{8,15}$/.test(phone.trim())){Bad(true);Msg("Enter a valid phone number.");return}const pb=productSvc.includes(s),n=Number(amount);if(pb&&!product){Bad(true);Msg("Select a product.");return}if(!pb&&(!Number.isFinite(n)||n<100)){Bad(true);Msg("Enter an amount of at least NGN 100.");return}if(s==="electricity"&&validation.minimumVend&&n<Number(validation.minimumVend)){Bad(true);Msg("Amount is below the provider minimum.");return}B(true);try{let d=await call({action:"vend",validationId:validation.validationId,phone:phone.trim(),email:email.trim(),...(pb?{productCode:product}:{amount:n}),...(s==="electricity"?{minimumVend:validation.minimumVend}:{})});const reference=String(d.transaction?.merchantReference??"");let finalStatus=String(d.transaction?.status??"pending");if(finalStatus==="pending"&&reference){for(let attempt=0;attempt<8&&finalStatus==="pending";attempt++){await new Promise(resolve=>setTimeout(resolve,4000));const checked=await call({action:"status",merchantReference:reference});finalStatus=String(checked.transaction?.status??"pending");}}V(null);T("history");Bad(false);Msg(finalStatus==="successful"?"Payment successful.":finalStatus==="failed"?"The provider confirmed that this payment failed.":"Payment is still pending. It was not submitted again; you can check its status from History.");await historyLoad()}catch(e){Bad(true);Msg(String(e))}finally{B(false)}};
- const status=async(ref:string)=>{try{const d=await call({action:"status",merchantReference:ref});await historyLoad();Bad(false);Msg("Transaction status: "+String(d.transaction?.status??"pending").toUpperCase())}catch(e){Bad(true);Msg(String(e))}};
- const label={color:"#F1D28A",fontSize:11,fontWeight:"800" as const,marginTop:11,marginBottom:5};
- const money=(k:number)=>new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN"}).format(k/100);
- return <View style={{gap:12,paddingBottom:30}}>
- <TouchableOpacity onPress={()=>{if(s){S(null);V(null);SP("");Pr([]);SPr("");I("");Msg("")}else onBack()}} style={{paddingVertical:8}}><Text style={{color:"#D4A84B",fontWeight:"900"}}>{s?"‹ ALL UTILITIES":"‹ BACK TO HOME"}</Text></TouchableOpacity>
- <View style={card}><Text style={{color:"#D4A84B",fontWeight:"900",fontSize:11}}>RESIDENT UTILITIES</Text><Text style={{color:"white",fontWeight:"900",fontSize:24,marginTop:6}}>{s?sv.find(x=>x.id===s)?.name:"Utilities"}</Text><Text style={{color:"#B9B9B9",fontSize:12,marginTop:5}}>Pay supported services and track every transaction.</Text></View>
- <View style={{flexDirection:"row",gap:8}}>{(["buy","history"] as const).map(x=><TouchableOpacity key={x} onPress={()=>{T(x);if(x==="history")void historyLoad()}} style={{flex:1,padding:12,alignItems:"center",borderRadius:9,backgroundColor:tab===x?"#D4A84B":"#171717"}}><Text style={{color:tab===x?"#17130B":"#D4A84B",fontWeight:"900",fontSize:10}}>{x==="buy"?"MAKE PAYMENT":"HISTORY"}</Text></TouchableOpacity>)}</View>
- {tab==="history"?<View style={card}><Text style={{color:"#D4A84B",fontWeight:"900"}}>UTILITY TRANSACTIONS</Text><TouchableOpacity onPress={()=>void historyLoad()}><Text style={{color:"#D4A84B",textAlign:"right",fontSize:10}}>REFRESH</Text></TouchableOpacity>{history.length?history.map(x=><View key={x.id} style={{paddingVertical:11,borderTopWidth:1,borderTopColor:"#3A3020"}}><Text style={{color:"white",fontWeight:"800"}}>{sv.find(y=>y.id===x.service)?.name} · {x.provider} · {money(Number(x.amount_kobo))}</Text><Text style={{color:x.status==="successful"?"#79D6A1":x.status==="failed"?"#F28B82":"#F1D28A",fontSize:11,fontWeight:"900",marginTop:4}}>{String(x.status).toUpperCase()}</Text><Text style={{color:"#999",fontSize:10,marginTop:4}}>{x.customer_identifier} · {new Date(x.created_at).toLocaleString()}</Text>{x.status==="pending"&&<TouchableOpacity onPress={()=>void status(x.merchant_reference)}><Text style={{color:"#D4A84B",fontSize:10,marginTop:6}}>CHECK STATUS</Text></TouchableOpacity>}</View>):<Text style={{color:"#B9B9B9",marginTop:12}}>No utility transactions yet.</Text>}</View>:!s?<View style={{gap:9}}><Text style={{color:"#D4A84B",fontWeight:"900",fontSize:11}}>CHOOSE A SERVICE</Text>{sv.map(x=><TouchableOpacity key={x.id} onPress={()=>{S(x.id);V(null);I("");Msg("")}} style={[card,{flexDirection:"row",alignItems:"center",gap:12}]}><UtilityGradientIcon name={x.icon}/><View style={{flex:1}}><Text style={{color:"white",fontWeight:"900",fontSize:15}}>{x.name}</Text><Text style={{color:"#B9B9B9",fontSize:11,marginTop:3}}>{x.desc}</Text></View><Text style={{color:"#D4A84B",fontSize:20}}>›</Text></TouchableOpacity>)}</View>:<View style={card}>
- 
- <Text style={label}>Provider</Text>{loading&&!providers.length?<ActivityIndicator color="#D4A84B"/>:providerError?<View style={{padding:12,backgroundColor:"#2B1717",borderRadius:9}}><Text selectable style={{color:"#F28B82",fontSize:11,lineHeight:17}}>{providerError}</Text><TouchableOpacity onPress={()=>s&&void loadProviders(s)} style={{marginTop:10,padding:9,borderRadius:7,backgroundColor:"#D4A84B"}}><Text style={{color:"#17130B",fontWeight:"900",textAlign:"center"}}>RETRY PROVIDERS</Text></TouchableOpacity></View>:providers.length?providers.map(x=><TouchableOpacity key={code(x)} onPress={()=>{SP(code(x));V(null)}} style={{padding:10,marginBottom:6,borderRadius:8,borderWidth:1,borderColor:provider===code(x)?"#D4A84B":"#494133"}}><Text style={{color:"white",fontSize:12,fontWeight:"800"}}>{title(x)}</Text></TouchableOpacity>):<View style={{padding:12,backgroundColor:"#2B1717",borderRadius:9}}><Text style={{color:"#F28B82",fontSize:11}}>No providers were returned. Check your connection and retry.</Text><TouchableOpacity onPress={()=>s&&void loadProviders(s)} style={{marginTop:10,padding:9,borderRadius:7,backgroundColor:"#D4A84B"}}><Text style={{color:"#17130B",fontWeight:"900",textAlign:"center"}}>RETRY PROVIDERS</Text></TouchableOpacity></View>}
- {s==="electricity"&&<><Text style={label}>Meter type</Text><View style={{flexDirection:"row",gap:8}}>{(["prepaid","postpaid"] as const).map(x=><TouchableOpacity key={x} onPress={()=>M(x)} style={{flex:1,padding:10,backgroundColor:meter===x?"#302719":"#101010",borderRadius:8}}><Text style={{color:"#F1D28A",textAlign:"center"}}>{x}</Text></TouchableOpacity>)}</View></>}
- {productSvc.includes(s)&&<><Text style={label}>Available products / packages</Text>{loading&&!products.length?<ActivityIndicator color="#D4A84B"/>:productError?<View style={{padding:10,backgroundColor:"#2B1717",borderRadius:8}}><Text selectable style={{color:"#F28B82",fontSize:11}}>{productError}</Text><TouchableOpacity onPress={()=>{if(s&&provider){setProductError("");L(true);void call({action:"products",service:s,provider}).then(d=>{const rows=Array.isArray(d?.products)?d.products.filter((x:unknown)=>x&&typeof x==="object"&&typeof (x as R).code==="string") as R[]:[];Pr(rows);if(rows.length)SPr(code(rows[0]));else setProductError("No products are currently available for this provider.")}).catch(e=>setProductError(e instanceof Error?e.message:String(e))).finally(()=>L(false))}}} style={{marginTop:8}}><Text style={{color:"#D4A84B",fontWeight:"900"}}>RETRY PRODUCTS</Text></TouchableOpacity></View>:products.length?products.map(x=><TouchableOpacity key={code(x)} onPress={()=>{SPr(code(x));V(null)}} style={{padding:10,marginBottom:6,borderRadius:8,borderWidth:1,borderColor:product===code(x)?"#D4A84B":"#494133",backgroundColor:product===code(x)?"#302719":"transparent"}}><Text style={{color:"white",fontWeight:"800"}}>{title(x)} {price(x)>0?"· "+money(price(x)):""}</Text></TouchableOpacity>):<Text style={{color:"#B9B9B9",fontSize:11}}>No packages returned for this provider.</Text>}</>}
- <Text style={label}>{s==="electricity"?"Meter number":s==="cable_tv"?"Smart-card number":s==="betting"?"Betting account ID":"Customer / account identifier"}</Text><TextInput style={input} value={identifier} onChangeText={x=>{I(x);V(null)}} placeholder="Enter account identifier" placeholderTextColor="#777"/>
- <TouchableOpacity disabled={busy||loading||!provider||identifier.length<5} onPress={()=>void lookup()} style={{padding:14,backgroundColor:"#D4A84B",borderRadius:9,marginTop:12,opacity:busy||loading||!provider||identifier.length<5?.5:1}}>{busy?<ActivityIndicator/>:<Text style={{textAlign:"center",color:"#17130B",fontWeight:"900"}}>VERIFY ACCOUNT</Text>}</TouchableOpacity>
- {validation&&<View style={{marginTop:16,borderTopWidth:1,borderTopColor:"#3A3020",paddingTop:12}}><Text style={{color:"#D4A84B",fontWeight:"900"}}>CONFIRM PURCHASE</Text><Text style={{color:"white",fontWeight:"900",fontSize:16,marginTop:8}}>{validation.customerName||"Account verified"}</Text><Text style={{color:"#B9B9B9",fontSize:11}}>{identifier}</Text>
+import React, { useState } from "react";
+import { Text, TouchableOpacity, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import ResidentElectricity from "./ResidentElectricity";
 
- {!productSvc.includes(s!)&&<><Text style={label}>Amount (NGN)</Text><TextInput style={input} value={amount} onChangeText={A} keyboardType="decimal-pad" placeholder="Enter amount" placeholderTextColor="#777"/></>}
- <Text style={label}>Phone number</Text><TextInput style={input} value={phone} onChangeText={Ph} keyboardType="phone-pad" placeholder="080..." placeholderTextColor="#777"/><Text style={label}>Email (optional)</Text><TextInput style={input} value={email} onChangeText={E} keyboardType="email-address" autoCapitalize="none" placeholder="Email" placeholderTextColor="#777"/>
- <TouchableOpacity disabled={busy||!phone||(productSvc.includes(s!)&&!product)} onPress={()=>void vend()} style={{padding:14,backgroundColor:"#D4A84B",borderRadius:9,marginTop:14}}>{busy?<ActivityIndicator/>:<Text style={{color:"#17130B",fontWeight:"900",textAlign:"center"}}>CONFIRM AND PAY</Text>}</TouchableOpacity></View>}
- </View>}
- {!!msg&&<View style={{padding:12,borderRadius:9,backgroundColor:bad?"#2B1717":"#17251B"}}><Text style={{color:bad?"#F28B82":"#8ED6A5",fontSize:11}}>{msg}</Text></View>}
- </View>;
+const card = {
+  backgroundColor: "#171717", borderColor: "#3A3020", borderWidth: 1,
+  borderRadius: 14, padding: 16,
+} as const;
+
+export default function ResidentUtilityHub({ estateId, onBack }: { estateId: string; onBack: () => void }) {
+  const [showElectricity, setShowElectricity] = useState(false);
+
+  if (showElectricity) {
+    return <ResidentElectricity estateId={estateId} onBack={() => setShowElectricity(false)} />;
+  }
+
+  const comingSoon = [
+    { title: "Water", subtitle: "Water bills and utility payments", icon: "water-outline" as const },
+    { title: "Internet", subtitle: "Internet subscriptions and renewals", icon: "web" as const },
+    { title: "Cable TV", subtitle: "Television subscriptions", icon: "television-classic" as const },
+  ];
+
+  return (
+    <View style={{ gap: 12, paddingBottom: 30 }}>
+      <TouchableOpacity onPress={onBack} style={{ paddingVertical: 8 }}>
+        <Text style={{ color: "#D4A84B", fontWeight: "900" }}>‹ BACK TO HOME</Text>
+      </TouchableOpacity>
+      <View style={card}>
+        <Text style={{ color: "#D4A84B", fontWeight: "900", fontSize: 11 }}>RESIDENT UTILITIES</Text>
+        <Text style={{ color: "#FFFFFF", fontWeight: "900", fontSize: 24, marginTop: 6 }}>Utilities</Text>
+        <Text style={{ color: "#B9B9B9", fontSize: 12, lineHeight: 18, marginTop: 5 }}>
+          Pay supported estate utilities and keep your transaction receipts in one place.
+        </Text>
+      </View>
+      <Text style={{ color: "#D4A84B", fontSize: 11, fontWeight: "900", letterSpacing: 1 }}>AVAILABLE NOW</Text>
+      <TouchableOpacity onPress={() => setShowElectricity(true)} style={[card, { flexDirection: "row", alignItems: "center", gap: 13 }]}>
+        <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: "#D9A93F", alignItems: "center", justifyContent: "center" }}>
+          <MaterialCommunityIcons name="flash" size={25} color="#17130B" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: "#FFFFFF", fontWeight: "900", fontSize: 15 }}>Electricity</Text>
+          <Text style={{ color: "#B9B9B9", fontSize: 11, marginTop: 3 }}>Verify meters, buy tokens and view receipts</Text>
+        </View>
+        <Text style={{ color: "#D4A84B", fontSize: 22 }}>›</Text>
+      </TouchableOpacity>
+      <Text style={{ color: "#D4A84B", fontSize: 11, fontWeight: "900", letterSpacing: 1, marginTop: 5 }}>COMING SOON</Text>
+      {comingSoon.map((item) => (
+        <View key={item.title} style={[card, { flexDirection: "row", alignItems: "center", gap: 13, opacity: 0.78 }]}>
+          <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: "#302719", alignItems: "center", justifyContent: "center" }}>
+            <MaterialCommunityIcons name={item.icon} size={23} color="#D9A93F" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: "#FFFFFF", fontWeight: "900", fontSize: 14 }}>{item.title}</Text>
+            <Text style={{ color: "#B9B9B9", fontSize: 11, marginTop: 3 }}>{item.subtitle}</Text>
+          </View>
+          <Text style={{ color: "#D9A93F", fontSize: 9, fontWeight: "900" }}>SOON</Text>
+        </View>
+      ))}
+    </View>
+  );
 }
