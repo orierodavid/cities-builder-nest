@@ -47,7 +47,7 @@ export default function MobileEntryRoute() {
   const [checkingRole, setCheckingRole] = useState(false);
   const [roleError, setRoleError] = useState("");
   const [roleErrorKind, setRoleErrorKind] = useState<RoleErrorKind | null>(null);
-  const roleCheckInFlight = useRef<Promise<Role> | null>(null);
+  const roleCheckInFlight = useRef<{ token: string; promise: Promise<Role> } | null>(null);
   const [message, setMessage] = useState("");
   const [registration, setRegistration] = useState(false);
 
@@ -66,7 +66,11 @@ export default function MobileEntryRoute() {
   }, []);
 
   const refreshRole = useCallback((token: string): Promise<Role> => {
-    if (roleCheckInFlight.current) return roleCheckInFlight.current;
+    if (roleCheckInFlight.current) {
+      const activeCheck = roleCheckInFlight.current;
+      if (activeCheck.token === token) return activeCheck.promise;
+      return activeCheck.promise.catch(() => null as unknown as Role).then(() => refreshRole(token));
+    }
     const run = async (): Promise<Role> => {
       const apiBaseUrl = getApiBaseUrl();
       if (!apiBaseUrl) throw new RoleCheckError(
@@ -134,9 +138,9 @@ export default function MobileEntryRoute() {
     };
     const pending = run().finally(() => {
       setCheckingRole(false);
-      if (roleCheckInFlight.current === pending) roleCheckInFlight.current = null;
+      if (roleCheckInFlight.current?.promise === pending) roleCheckInFlight.current = null;
     });
-    roleCheckInFlight.current = pending;
+    roleCheckInFlight.current = { token, promise: pending };
     return pending;
   }, []);
 
