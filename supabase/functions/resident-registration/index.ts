@@ -107,12 +107,12 @@ Deno.serve(async (req: Request) => {
 
   if (input.action === "options") {
     const { data, error } = await admin.from("estates")
-      .select("id,name,state,lga,city").eq("is_enabled", true)
+      .select("id,name,address,city,state,lga,country_code").eq("is_enabled", true)
       .order("state").order("lga").order("name");
     if (error) return reply(503, { error: "estate_options_unavailable" });
     const estates = (data ?? []).map((estate: any) => ({
-      id: estate.id, name: estate.name, state: estate.state,
-      lga: estate.lga || estate.city || "",
+      id: estate.id, name: estate.name, address: estate.address || "", city: estate.city || "",
+      state: estate.state, lga: estate.lga || estate.city || "", country_code: estate.country_code || "NG",
     })).filter((estate: any) => estate.state && estate.lga);
     const states = Object.keys(NIGERIA_LGAS).sort();
     return reply(200, { states, lgas: NIGERIA_LGAS, estates });
@@ -132,7 +132,7 @@ Deno.serve(async (req: Request) => {
   if (firstName.length < 2 || firstName.length > 60 || lastName.length < 2 || lastName.length > 60 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone ||
       password.length < 8 || password.length > 128 || !estateId || !state || !lga ||
-      homeNumber.length < 1 || homeNumber.length > 80 || streetName.length < 2 || streetName.length > 160) {
+      homeNumber.length < 1 || homeNumber.length > 80) {
     return reply(400, { error: "invalid_registration_details", message: "Complete all fields and use a valid Nigerian phone number and a password of at least 8 characters." });
   }
 
@@ -145,7 +145,7 @@ Deno.serve(async (req: Request) => {
   if (rate.data !== true) return reply(429, { error: "registration_rate_limited", message: "Too many registration attempts. Please try again later." });
 
   const { data: estate, error: estateError } = await admin.from("estates")
-    .select("id,name,state,lga,city,is_enabled").eq("id", estateId).maybeSingle();
+    .select("id,name,address,city,state,lga,country_code,is_enabled").eq("id", estateId).maybeSingle();
   if (estateError) return reply(503, { error: "estate_validation_unavailable" });
   if (!estate || estate.is_enabled !== true || estate.state !== state || (estate.lga || estate.city) !== lga) {
     return reply(400, { error: "invalid_estate_selection", message: "Select an active estate matching the selected State and LGA." });
@@ -180,7 +180,7 @@ Deno.serve(async (req: Request) => {
   const userId = created.user.id;
   const { error: profileError } = await admin.from("users").upsert({
     id: userId, full_name: fullName, first_name: firstName, last_name: lastName,
-    phone_e164: phone, home_number: homeNumber, street_name: streetName, is_active: false,
+    phone_e164: phone, home_number: homeNumber, street_name: estate.address, is_active: false,
   }, { onConflict: "id" });
   if (profileError) {
     const duplicatePhone = profileError.code === "23505" &&
