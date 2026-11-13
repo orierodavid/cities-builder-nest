@@ -191,12 +191,12 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
                 <TextInput style={s.input} value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor="#777" autoCapitalize="none" keyboardType="email-address" autoCorrect={false} textContentType="emailAddress"/>
                 <Text style={s.label}>PHONE NUMBER</Text>
                 <TextInput style={s.input} value={phone} onChangeText={setPhone} placeholder="08012345678 or +2348012345678" placeholderTextColor="#777" keyboardType="phone-pad" textContentType="telephoneNumber"/>
-                <Text style={s.label}>HOME NUMBER / APARTMENT</Text>
-                <TextInput style={s.input} value={homeNumber} onChangeText={setHomeNumber} placeholder="e.g. House 12, Flat 3, Apartment B4" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
+                <Text style={s.label}>APARTMENT / HOME NUMBER</Text>
+                <TextInput style={s.input} value={homeNumber} onChangeText={setHomeNumber} placeholder="Enter your apartment or home number" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
                 <Text style={s.label}>STREET NAME</Text>
                 <TextInput style={s.input} value={streetName} onChangeText={setStreetName} placeholder="e.g. Admiralty Way" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
-                <SelectField label="STATE" value={state} placeholder={loadingOptions ? "Loading estates…" : "Select State"} options={states.map(value => ({ label: value, value }))} disabled={loadingOptions} onSelect={value => { setState(value); setLga(""); setEstateId(""); }}/>
-                <SelectField label="LGA" value={lga} placeholder={state ? "Select LGA" : "Select State first"} options={lgas.map(value => ({ label: value, value }))} disabled={!state} onSelect={value => { setLga(value); setEstateId(""); }}/>
+                <SelectField label="STATE" value={state} placeholder={loadingOptions ? "Loading estates…" : "Select State"} options={states.map(value => ({ label: value, value }))} disabled={loadingOptions} onSelect={value => { setState(value); setLga(""); setEstateId(""); setStreetName(""); setCountryCode(""); }}/>
+                <SelectField label="LGA" value={lga} placeholder={state ? "Select LGA" : "Select State first"} options={lgas.map(value => ({ label: value, value }))} disabled={!state} onSelect={value => { setLga(value); setEstateId(""); setStreetName(""); setCountryCode(""); }}/>
                 <SelectField label="ESTATE" value={selectedEstate?.name || ""} placeholder={lga ? "Search or select Estate" : "Select LGA first"} options={estateOptions.map(item => ({ label: item.name, value: item.id }))} disabled={!lga} searchable onSelect={setEstateId}/>
                 <Text style={s.label}>PASSWORD</Text>
                 <TextInput style={s.input} value={password} onChangeText={setPassword} placeholder="Create a password (8+ characters)" placeholderTextColor="#777" secureTextEntry textContentType="newPassword"/>
