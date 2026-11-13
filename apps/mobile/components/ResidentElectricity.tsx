@@ -76,7 +76,7 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
 
   const validateMeter = async () => {
     if (!estateId) { setMessage("Select your estate first."); setError(true); return; }
-    if (!/^\d{6,20}$/.test(meter.trim())) { setMessage("Enter a valid meter number (6–20 digits)."); setError(true); return; }
+    if (!/^\d{8,13}$/.test(meter.trim())) { setMessage("Enter a valid meter number (8–13 digits)."); setError(true); return; }
     setBusy(true); setMessage(""); setValidation(null); setLastReceipt(null);
     try {
       const data = await invoke({ action: "lookup", estateId, discoCode: companyCode, meterNumber: meter.trim(), meterType });
@@ -187,9 +187,9 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
               ))}
             </View>
             <Text style={label}>Meter number</Text>
-            <TextInput accessibilityLabel="Electricity meter number" value={meter} onChangeText={(value) => { setMeter(value.replace(/\D/g, "").slice(0, 20)); setValidation(null); }}
-              keyboardType="number-pad" maxLength={20} placeholder="Enter meter number" placeholderTextColor="#777" style={field} />
-            <TouchableOpacity onPress={() => void validateMeter()} disabled={busy || loading || !companyCode || meter.length < 6} style={[goldButton, { opacity: busy || loading || !companyCode || meter.length < 6 ? 0.55 : 1 }]}>
+            <TextInput accessibilityLabel="Electricity meter number" value={meter} onChangeText={(value) => { setMeter(value.replace(/\D/g, "").slice(0, 13)); setValidation(null); }}
+              keyboardType="number-pad" maxLength={13} placeholder="Enter meter number" placeholderTextColor="#777" style={field} />
+            <TouchableOpacity onPress={() => void validateMeter()} disabled={busy || loading || !companyCode || meter.trim().length < 8} style={[goldButton, { opacity: busy || loading || !companyCode || meter.trim().length < 8 ? 0.55 : 1 }]}>
               {busy ? <ActivityIndicator color="#17130B" /> : <Text style={{ color: "#17130B", fontSize: 12, fontWeight: "900" }}>VERIFY METER</Text>}
             </TouchableOpacity>
           </View>
