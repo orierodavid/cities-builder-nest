@@ -153,7 +153,7 @@ Deno.serve(async (req: Request) => {
   const [{ data: platformAdmin, error: platformRoleError }, { data: estateMembership, error: membershipCheckError }, { data: estate, error: estateError }] = await Promise.all([
     admin.from("user_roles").select("role").eq("user_id", userId).eq("role", "platform_admin").maybeSingle(),
     admin.from("estate_memberships").select("membership_role").eq("estate_id", estateId).eq("user_id", userId).eq("status", "active").in("membership_role", ["facility_manager", "estate_manager", "estate_admin"]).maybeSingle(),
-    admin.from("estates").select("is_enabled").eq("id", estateId).maybeSingle(),
+    admin.from("estates").select("is_enabled,address").eq("id", estateId).maybeSingle(),
   ]);
   if (platformRoleError || membershipCheckError) return json(500, { error: "authorization_check_failed" });
 
@@ -243,7 +243,13 @@ Deno.serve(async (req: Request) => {
   }
 
   const { error: profileError } = await admin.from("users")
-    .upsert({ id: createdUserId, full_name: fullName, phone_e164: null, is_active: true }, { onConflict: "id" });
+    .upsert({
+      id: createdUserId, full_name: fullName, phone_e164: null, is_active: true,
+      street_name: estate.address || null,
+      home_number: role === "resident" ? unitCode || null : null,
+      building_name: role === "resident" ? buildingName || null : null,
+      unit_number: role === "resident" ? unitCode || null : null,
+    }, { onConflict: "id" });
   if (profileError) {
     const rolledBack = await rollbackOnboarding(admin, createdUserId, estateId, role === "resident" ? residentUnitId : undefined, createdUnitId || undefined, createdBuildingId || undefined);
     return json(500, {
