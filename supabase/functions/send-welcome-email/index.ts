@@ -100,10 +100,25 @@ Deno.serve(async (req: Request) => {
     // Keep provider response details out of the client when the response is not valid JSON.
   }
   if (!resendResponse.ok) {
+    const providerMessage = typeof providerResult.message === "string"
+      ? providerResult.message.slice(0, 500)
+      : "Resend rejected the request without a readable error message.";
+    const providerCode = typeof providerResult.name === "string"
+      ? providerResult.name.slice(0, 100)
+      : typeof providerResult.statusCode === "number"
+        ? String(providerResult.statusCode)
+        : "provider_rejection";
+    console.error("welcome_email_provider_rejected", JSON.stringify({
+      status: resendResponse.status,
+      code: providerCode,
+      message: providerMessage,
+    }));
     return json(502, {
       error: "email_provider_rejected",
       providerStatus: resendResponse.status,
-      message: "Resend did not accept the welcome email. Check the sender configuration and try again.",
+      providerCode,
+      providerMessage,
+      message: "Resend rejected the welcome email request.",
     });
   }
 
