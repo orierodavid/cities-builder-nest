@@ -82,3 +82,105 @@
 .growth-stats span{display:block;color:#8c877b;font-size:9px;line-height:1.4}
 .growth-stats strong{display:block;margin-top:6px;color:#252116;font-size:clamp(12px,1.6vw,17px);font-weight:800;overflow-wrap:anywhere}
 @media(max-width:520px){.growth-stats{gap:5px}.growth-stats>div{padding:8px 7px}.growth-stats span{font-size:8px}.growth-stats strong{font-size:12px}}
+
+
+/* CB Nest management portal — restore the approved dark / gold dashboard theme. */
+.portal{background:#050505;color:#f4f1e8;color-scheme:dark}
+.portal .main{background:#050505;color:#f4f1e8}
+.portal .sidebar{background:#000;border-right:1px solid #2b2414}
+.portal .topbar{background:#101010;border-bottom:1px solid #3a2e12;color:#f4f1e8}
+.portal .content{background:#050505;color:#f4f1e8}
+.portal .page-heading h1{color:#f7f4ec}
+.portal .page-heading p{color:#a39b89}
+.portal .top-right,.portal .top-right strong{color:#f0eadb}
+.portal .top-right small,.portal .profile-shortcut small{color:#a39b89}
+.portal .top-right .avatar{background:#302714;color:#f0c766}
+.portal .estate-select,.portal .search,.portal .date-control,
+.portal .audit-filters input,.portal .audit-filters select,
+.portal .user-form-grid input,.portal .user-form-grid select,
+.portal .user-list-toolbar input,.portal .user-list-toolbar select,
+.portal .legal-admin-form input,.portal .legal-admin-form select,
+.portal .legal-admin-form textarea,
+.portal .maintenance-reply-label textarea{
+ background:#151515!important;color:#f2eee4!important;border-color:#3a2e12!important
+}
+.portal .estate-select option,.portal select option{background:#151515;color:#f2eee4}
+.portal .metrics article,.portal .panel,.portal .growth-panel,
+.portal .legal-settings-card,.portal .legal-admin-card,
+.portal .user-form,.portal .audit-alert-card,
+.portal .audit-summary-grid article{
+ background:#121212;border:1px solid #3a2e12;color:#f2eee4;box-shadow:none
+}
+.portal .metrics small,.portal .panel p,.portal .module-toolbar p,
+.portal .growth-panel-head p,.portal .growth-chart-foot,
+.portal .estate-rank-meta,.portal .audit-result-count,
+.portal .audit-alert-card>p,.portal .audit-alert-meta span,
+.portal .user-form-heading span,.portal .user-form-grid label,
+.portal .legal-settings-card>p,.portal .legal-admin-card>p{
+ color:#aaa18e
+}
+.portal .metrics strong,.portal .panel h3,.portal .growth-panel-head h3,
+.portal .growth-chart-summary strong,.portal .estate-rank-name,
+.portal .estate-rank-top>strong,.portal .growth-state strong,
+.portal .module-toolbar h3,.portal .user-form-heading strong,
+.portal .user-data-table td strong,.portal .legal-settings-card h2,
+.portal .legal-admin-card h2,.portal .audit-alert-card h4{
+ color:#f4f1e8
+}
+.portal .metrics p{color:#9b927f}
+.portal .metric-icon{background:#302714;color:#f0c766}
+.portal .chart-placeholder{background:repeating-linear-gradient(to bottom,transparent 0,transparent 37px,#302a1d 38px);border-top-color:#302a1d;color:#a39b89}
+.portal .list-placeholder div,.portal .data-table th,.portal .user-data-table td,
+.portal .audit-admin-history article,.portal .legal-admin-history article{
+ border-color:#302a1d;color:#c4bba8
+}
+.portal .list-placeholder strong{color:#f0eadb}
+.portal .data-table th{background:#191919;color:#c6bda9}
+.portal .empty-cell{color:#aaa18e}
+.portal .empty-cell strong{color:#f0eadb}
+.portal .empty-mark{background:#302714;color:#f0c766}
+.portal .notice-line{background:#151515;border-color:#514326;color:#c2b696}
+.portal .growth-panel-head h3{color:#f4f1e8}
+.portal .growth-period{background:#302714;border-color:#5b4820;color:#f0c766}
+.portal .growth-stats>div{background:#19160f;border-color:#3a2e12}
+.portal .growth-stats span,.portal .growth-chart-summary span{color:#aaa18e}
+.portal .growth-stats strong{color:#f4f1e8}
+.portal .growth-gridline{stroke:#383225}
+.portal .growth-point{fill:#121212}
+.portal .growth-axis-label{fill:#a39b89}
+.portal .growth-chart-foot{border-top-color:#302a1d}
+.portal .growth-zero-note{background:#19160f;border-color:#5b4820;color:#c6b27d}
+.portal .growth-state{color:#aaa18e}
+.portal .estate-rank-name b{background:#302714;color:#f0c766}
+.portal .estate-bar-track{background:#302a1d}
+.portal .estate-rank-meta strong{color:#e9dfc9}
+.portal .table-wrap{background:#121212}
+.portal .user-data-table td{color:#c4bba8}
+.portal .user-data-table td strong{color:#f4f1e8}
+.portal .user-form{background:#15130e}
+.portal .secondary-action,.portal .audit-alert-filters button{
+ background:#191919;border-color:#49402e;color:#d7cfbd
+}
+.portal .audit-alert-filters button.active{background:#d9a93f;border-color:#d9a93f;color:#17130a}
+.portal .audit-details pre{background:#191919;border-color:#3a2e12;color:#cfc6b5}
+.portal .audit-alert-card{border-left-color:#d9a93f}
+.portal .audit-alert-critical{border-left-color:#c74444}
+.portal .maintenance-reply{border-top-color:#3a2e12;color:#f2eee4}
+.portal .maintenance-reply .module-toolbar h3,
+.portal .maintenance-request-description strong,
+.portal .maintenance-previous-reply strong,
+.portal .maintenance-request-description p,
+.portal .maintenance-previous-reply p,
+.portal .maintenance-reply-label{color:#e7dfce}
+.portal .maintenance-previous-reply{border-color:#3a2e12}
+.portal .maintenance-previous-reply small{color:#a39b89}
+.portal .maintenance-reply-label textarea::placeholder{color:#8e8779}
+.portal .status-pill{background:#292929;color:#d6cfbf}
+.portal .status-active{background:#153322;color:#8de0aa}
+.portal .status-invited{background:#3a2d12;color:#f0cf7b}
+.portal .status-suspended,.portal .status-ended{background:#3b1d1d;color:#f1a2a2}
+.portal .role-chip{background:#302714;color:#f0c766}
+.portal .icon-button{color:#d4c7a8}
+.portal .logout{color:#e4dbc9;border-color:#514326}
+.portal .logout:hover{background:#211b10}
+@media(max-width:700px){.portal .sidebar{border-right:0;border-bottom:1px solid #3a2e12}.portal .nav{color:#d0c8b8}.portal .nav.active{background:#574522;color:#f5d58b}}
