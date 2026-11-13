@@ -109,7 +109,7 @@ Deno.serve(async (req: Request) => {
       return reply(400, { error: "invalid_meter_details" });
     }
     const { response, data } = await squad("/vending/utilities/electricity/lookup", "POST", {
-      meter_type: meterType, meter_no: Number(meterNumber), provider,
+      meter_type: meterType, meter_no: meterNumber, provider, // Squad sandbox currently validates meter_no as a string despite the docs declaring Integer.
     });
     const details = detailsOf(data);
     const providerReference = str(details.reference);
