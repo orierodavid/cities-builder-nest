@@ -4,17 +4,23 @@ import type { NextFunction, Request, Response } from "express";
 import { apiSecurityHeaders } from "./security-headers.js";
 
 function responseRecorder() {
-  const headers = new Map<string, string>();
+  const headers = new Map<string, string>([
+    ["x-powered-by", "Express"],
+    ["server", "test-server"],
+  ]);
   const response = {
     setHeader(name: string, value: string) { headers.set(name.toLowerCase(), value); return this; },
+    removeHeader(name: string) { headers.delete(name.toLowerCase()); return this; },
   };
   return { response: response as unknown as Response, headers };
 }
 
-test("sets defensive API response headers and disables caching", () => {
+test("sets defensive API response headers, removes identifying headers and disables caching", () => {
   const { response, headers } = responseRecorder();
   let nextCalled = false;
   apiSecurityHeaders({} as Request, response, (() => { nextCalled = true; }) as NextFunction);
+  assert.equal(headers.has("x-powered-by"), false);
+  assert.equal(headers.has("server"), false);
   assert.equal(headers.get("x-content-type-options"), "nosniff");
   assert.equal(headers.get("x-frame-options"), "DENY");
   assert.equal(headers.get("x-permitted-cross-domain-policies"), "none");
