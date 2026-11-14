@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
+import { emitConnectionRestored } from "../lib/connection-events";
 
 type ConnectionState = "checking" | "online" | "slow" | "offline";
 
@@ -31,6 +32,7 @@ export default function ConnectionStatusBanner() {
       const next: ConnectionState = Date.now() - startedAt >= SLOW_CONNECTION_MS ? "slow" : "online";
       setState(next);
       if ((previousState.current === "offline" || previousState.current === "slow") && next === "online") {
+        emitConnectionRestored();
         setRestored(true);
         setTimeout(() => setRestored(false), 2500);
       }
