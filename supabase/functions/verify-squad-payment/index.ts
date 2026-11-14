@@ -44,7 +44,7 @@ Deno.serve(async (req: Request) => {
       .select("id,amount_kobo,currency,status,resident_user_id,verified_at,created_at")
       .eq("provider_reference", ref).eq("resident_user_id", auth.user.id).maybeSingle(),
     admin.from("rent_savings_contributions")
-      .select("id,amount_kobo,currency,status,resident_user_id,verified_at")
+      .select("id,amount_kobo,currency,status,resident_user_id,verified_at,created_at")
       .eq("provider_reference", ref).eq("resident_user_id", auth.user.id).maybeSingle(),
   ]);
   if (serviceError || rentError) return reply(503, { error: "payment_ledger_lookup_failed" });
