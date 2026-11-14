@@ -29,7 +29,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [contributions, setContributions] = useState<Array<{id:string;goal_id:string;amount_kobo:number;status:string;created_at:string;provider_reference:string|null}>>([]);
+  const [contributions, setContributions] = useState<Array<{id:string;goal_id:string;amount_kobo:number;status:string;created_at:string;provider_reference:string|null;verified_at:string|null}>>([]);
   const [contributionAmount, setContributionAmount] = useState("");
   const [fundingGoalId, setFundingGoalId] = useState<string | null>(null);
 
@@ -40,7 +40,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
       .eq("resident_user_id", residentUserId)
       .order("created_at", { ascending: false });
     let contributionsQuery = supabase.from("rent_savings_contributions")
-      .select("id,goal_id,amount_kobo,status,created_at,provider_reference")
+      .select("id,goal_id,amount_kobo,status,created_at,provider_reference,verified_at")
       .eq("resident_user_id", residentUserId)
       .order("created_at", { ascending: false });
     if (estateId) contributionsQuery = contributionsQuery.eq("estate_id", estateId);
@@ -53,7 +53,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
         setContributions([]);
         setMessage("Your goals are available, but contribution history could not be loaded. Please refresh.");
       } else {
-        setContributions((contributionsResult.data || []) as Array<{id:string;goal_id:string;amount_kobo:number;status:string;created_at:string;provider_reference:string|null}>);
+        setContributions((contributionsResult.data || []) as Array<{id:string;goal_id:string;amount_kobo:number;status:string;created_at:string;provider_reference:string|null;verified_at:string|null}>);
         setMessage("");
       }
     }
@@ -178,7 +178,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
             const targetKobo = Math.max(0, Number(goal.target_amount_kobo || 0));
             const remainingKobo = Math.max(0, targetKobo - savedKobo);
             const progress = targetKobo > 0 ? Math.min(100, Math.max(0, (savedKobo / targetKobo) * 100)) : 0;
-            const pendingCount = goalContributions.filter(x => x.status === "pending").length;
+            const pendingCount = goalContributions.filter(x => x.status === "pending" || (x.status === "failed" && !x.verified_at)).length;
             return (
               <View style={styles.progressCard}>
                 <Text style={styles.targetLabel}>SAVINGS PROGRESS</Text>
@@ -207,7 +207,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
                 <Text style={styles.historyDate}>{new Date(item.created_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}</Text>
                 {item.provider_reference ? <Text style={styles.historyReference}>Ref: {item.provider_reference}</Text> : null}
               </View>
-              <Text style={[styles.historyStatus, item.status === "successful" ? styles.historySuccess : item.status === "pending" ? styles.historyPending : styles.historyFailed]}>{item.status.toUpperCase()}</Text>
+              <Text style={[styles.historyStatus, item.status === "successful" ? styles.historySuccess : item.status === "pending" || (item.status === "failed" && !item.verified_at) ? styles.historyPending : styles.historyFailed]}>{item.status === "failed" && !item.verified_at ? "PENDING CONFIRMATION" : item.status.toUpperCase()}</Text>
             </View>
           ))}
         </View>
