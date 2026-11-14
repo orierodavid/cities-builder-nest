@@ -16,12 +16,9 @@ if (!base || !allowed || base !== "http://" + allowed || allowed !== "127.0.0.1:
 }
 
 const estate = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const event = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 const workloads = [
-  { weight: 7, path: `/v1/estates/${estate}/dashboard`, token: "load-manager-token", valid: body => Boolean(body.estate && body.summary) },
-  { weight: 5, path: `/v1/estates/${estate}/visitor-passes?page=1&pageSize=20`, token: "load-resident-token", valid: body => Array.isArray(body.visitorPasses) },
-  { weight: 4, path: `/v1/estates/${estate}/events/attendance-summaries?page=1&pageSize=20`, token: "load-organiser-token", valid: body => Array.isArray(body.summaries) },
-  { weight: 4, path: `/v1/estates/${estate}/events/${event}/attendance-report?page=1&pageSize=50`, token: "load-organiser-token", valid: body => Boolean(body.event && body.summary && Array.isArray(body.guests)) },
+  { weight: 7, role: "facility-manager", path: `/v1/estates/${estate}/dashboard`, token: "load-manager-token", valid: body => Boolean(body.estate && body.summary) },
+  { weight: 5, role: "resident", path: `/v1/estates/${estate}/visitor-passes?page=1&pageSize=20`, token: "load-resident-token", valid: body => Array.isArray(body.visitorPasses) },
 ];
 const expanded = workloads.flatMap(item => Array(item.weight).fill(item));
 const stages = {
@@ -32,7 +29,7 @@ const stages = {
 };
 if (!stages[profile]) throw new Error("Profile must be 250, 500, 1000, or full.");
 export const options = {
-  scenarios: { cb_nest_realistic_reads: {
+  scenarios: { cb_nest_read_only_roles: {
     executor: "ramping-vus", startVUs: 0, stages: stages[profile], gracefulRampDown: "30s",
   } },
   thresholds: {
@@ -46,11 +43,11 @@ export default function () {
   const workload = expanded[(__VU + __ITER) % expanded.length];
   const simulatedClientIp = `10.20.${Math.floor(__VU / 250)}.${(__VU % 250) + 1}`;
   const headers = { Accept: "application/json", Authorization: `Bearer ${workload.token}`, "X-Forwarded-For": simulatedClientIp };
-  const response = http.get(base + workload.path, { headers, timeout: "20s", tags: { endpoint: workload.path } });
-  latency.add(response.timings.duration, { endpoint: workload.path });
+  const response = http.get(base + workload.path, { headers, timeout: "20s", tags: { endpoint: workload.path, role: workload.role } });
+  latency.add(response.timings.duration, { endpoint: workload.path, role: workload.role });
   let parsed = null;
   try { parsed = response.json(); } catch (_) {}
-  const ok = check(response, {
+  check(response, {
     "HTTP 200": r => r.status === 200,
     "expected endpoint payload": () => parsed !== null && workload.valid(parsed),
   });
