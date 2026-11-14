@@ -23,11 +23,11 @@ test("event creation rejects a venue that is unavailable",async()=>{
  assert.deepEqual(result,{kind:"venue_unavailable"}); assert.equal(calls.length,1);
 });
 test("home event is immediately approved and can be published",async()=>{
- const published={...event,venue:"Home",venue_id:null,venue_approval_status:"approved",status:"published"};
+ const published={...event,venue:"Home / Private Residence",venue_id:null,venue_approval_status:"approved",status:"published"};
  const {client,calls}=mockClient([[published]]);
- const result=await createEstateEvent(client,{estateId:"e1",creatorUserId:"u1",title:"Town Hall",description:"",venueId:"home",venueLabel:"Home",startsAt:event.starts_at,endsAt:event.ends_at,status:"published",requestedAt:"now"});
+ const result=await createEstateEvent(client,{estateId:"e1",creatorUserId:"u1",title:"Town Hall",description:"",venueId:"home",venueLabel:"Home / Private Residence",startsAt:event.starts_at,endsAt:event.ends_at,status:"published",requestedAt:"now"});
  assert.deepEqual(result,{kind:"created",event:published}); assert.equal(calls.length,1);
- assert.deepEqual(calls[0].values,["e1","Town Hall","","Home",null,"approved",null,false,event.starts_at,event.ends_at,"published","u1"]);
+ assert.deepEqual(calls[0].values,["e1","Town Hall","","Home / Private Residence",null,"approved",null,false,event.starts_at,event.ends_at,"published","u1"]);
 });
 test("event update locks the event and blocks publishing while venue approval is pending",async()=>{
  const {client,calls}=mockClient([[{venue_approval_status:"pending"}]]);
