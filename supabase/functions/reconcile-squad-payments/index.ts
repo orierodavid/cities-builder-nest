@@ -122,7 +122,7 @@ Deno.serve(async (req: Request) => {
         if (updated) totals.successful += 1;
       } else if (status === "failed" || status === "abandoned") {
         const { data: updated, error: updateError } = await admin.from(table)
-          .update({ status: "failed", last_reconciled_at: attemptedAt })
+          .update({ status: "failed", verified_at: attemptedAt, last_reconciled_at: attemptedAt })
           .eq("id", row.id).eq("status", "pending").is("verified_at", null)
           .select("id").maybeSingle();
         if (updateError) return reply(500, { error: "payment_ledger_update_failed" });
