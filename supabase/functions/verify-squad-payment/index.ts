@@ -121,10 +121,17 @@ Deno.serve(async (req: Request) => {
   }
 
   if (status === "failed" || status === "abandoned") {
-    const { error } = await admin.from(table).update({ status: "failed", verified_at: new Date().toISOString() })
-      .eq("id", row.id).eq("status", "pending").is("verified_at", null);
+    const { error } = await admin.from(table).update({
+      status: "failed", verified_at: new Date().toISOString(),
+    }).eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
     if (error) return reply(500, { error: "payment_ledger_update_failed" });
-    return reply(200, { status: "failed", verified: true });
+    const { data: current, error: currentError } = await admin.from(table)
+      .select("status,verified_at").eq("id", row.id).maybeSingle();
+    if (currentError || !current) return reply(503, { error: "payment_ledger_lookup_failed" });
+    return reply(200, {
+      status: current.status,
+      verified: (current.status === "successful" || current.status === "failed") && !!current.verified_at,
+    });
   }
   return reply(202, { status: "pending", verified: true });
 });
