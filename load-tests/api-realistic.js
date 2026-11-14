@@ -67,7 +67,8 @@ function validate(response, role, screen, valid, level) {
   });
   return payload;
 }
-function restRead(user, screen, path, valid = Array.isArray, method = "GET") {
+function restRead(user, screen, path, valid, method = "GET") {
+  if (method === "GET" && valid === undefined) valid = Array.isArray;
   let payload = null;
   group(`${user.role}/${screen}`,() => {
     const level = loadTag();
