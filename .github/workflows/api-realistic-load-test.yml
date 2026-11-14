@@ -60,8 +60,9 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/cbnest_load_test
       DB_POOL_MAX: "30"
       DB_POOL_CONNECTION_TIMEOUT_MS: "10000"
-      SUPABASE_URL: http://127.0.0.1:4100
+      SUPABASE_URL: http://127.0.0.1:4101
       SUPABASE_ANON_KEY: isolated-load-test-anon-key
+      PGRST_JWT_SECRET: cbnest-local-load-test-jwt-secret-32-bytes
       VISITOR_PASS_ENCRYPTION_KEY: isolated-load-test-encryption-secret
       PORT: "4000"
       TRUST_PROXY_HOPS: "1"
@@ -90,14 +91,33 @@ jobs:
       - name: Seed isolated PostgreSQL fixture schema
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$GITHUB_WORKSPACE/load-tests/realistic-fixtures.sql"
 
-      - name: Start isolated Supabase Auth/PostgREST stub
+      - name: Start isolated PostgREST against synthetic PostgreSQL
         run: |
           set -euo pipefail
-          nohup node "$GITHUB_WORKSPACE/load-tests/mock-supabase-auth.cjs" > "$RUNNER_TEMP/cbnest-auth-stub.log" 2>&1 &
+          docker run --detach --name cbnest-load-postgrest --network host \
+            -e PGRST_DB_URI="$DATABASE_URL" \
+            -e PGRST_DB_SCHEMAS=public \
+            -e PGRST_DB_ANON_ROLE=anon \
+            -e PGRST_JWT_SECRET="$PGRST_JWT_SECRET" \
+            -e PGRST_SERVER_PORT=4100 \
+            -e PGRST_DB_POOL=30 \
+            postgrest/postgrest:v12.2.3
+          ready=0
+          for attempt in $(seq 1 30); do
+            code=$(curl --silent --output /dev/null --write-out "%{http_code}" http://127.0.0.1:4100/ || true)
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then docker logs cbnest-load-postgrest; exit 1; fi
+
+      - name: Start isolated Supabase Auth stub
+        run: |
+          set -euo pipefail
+          AUTH_STUB_PORT=4101 nohup node "$GITHUB_WORKSPACE/load-tests/mock-supabase-auth.cjs" > "$RUNNER_TEMP/cbnest-auth-stub.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/cbnest-auth-stub.pid"
           ready=0
           for attempt in $(seq 1 30); do
-            code=$(curl --silent --output /dev/null --write-out "%{http_code}" http://127.0.0.1:4100/auth/v1/user || true)
+            code=$(curl --silent --output /dev/null --write-out "%{http_code}" http://127.0.0.1:4101/auth/v1/user || true)
             if [ "$code" = "401" ]; then ready=1; break; fi
             sleep 1
           done
@@ -145,6 +165,9 @@ jobs:
             -e LOAD_TEST_CONFIRM=YES \
             -e LOAD_TEST_MODE=realistic \
             -e LOAD_TEST_BASE_URL=http://127.0.0.1:4000 \
+            -e LOAD_TEST_SUPABASE_BASE_URL=http://127.0.0.1:4100 \
+            -e LOAD_TEST_SUPABASE_ALLOWED_HOST=127.0.0.1:4100 \
+            -e LOAD_TEST_SUPABASE_ANON_KEY=isolated-load-test-anon-key \
             -e LOAD_TEST_ALLOWED_HOST=127.0.0.1:4000 \
             -e LOAD_TEST_ALLOW_LOCAL_HTTP=true \
             -e LOAD_TEST_PROFILE="$LOAD_TEST_PROFILE" \
@@ -155,6 +178,7 @@ jobs:
       - name: Stop isolated services
         if: always()
         run: |
+          docker rm -f cbnest-load-postgrest >/dev/null 2>&1 || true
           for file in "$RUNNER_TEMP/cbnest-realistic-api.pid" "$RUNNER_TEMP/cbnest-auth-stub.pid"; do
             if [ -f "$file" ]; then kill -TERM "$(cat "$file")" 2>/dev/null || true; fi
           done
