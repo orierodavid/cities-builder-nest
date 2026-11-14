@@ -3,6 +3,7 @@ import type { PropsWithChildren } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../../lib/supabase";
 import { getApiBaseUrl } from "../../lib/api-url";
+import { readDashboardCache, writeDashboardCache } from "../../lib/dashboard-cache";
 
 export type SecurityEstate = { id: string; name: string; membershipRole?: string | null };
 type Value = {
@@ -26,7 +27,10 @@ export function SecurityProvider({ children }: PropsWithChildren) {
     if (!apiUrl) {
       setEstate(null); setError("Security services are not configured."); setLoading(false); return;
     }
-    setLoading(true); setError("");
+    const cached = await readDashboardCache<{ estate?: SecurityEstate }>("security", activeSession.user.id);
+    if (cached?.estate?.id) { setEstate(cached.estate); setLoading(false); }
+    else setLoading(true);
+    setError("");
     try {
       const response = await fetch(apiUrl + "/v1/estates", { headers: { Authorization: "Bearer " + activeSession.access_token, Accept: "application/json" } });
       const result = await response.json() as { estates?: SecurityEstate[]; error?: string };
@@ -34,6 +38,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       const selected = (result.estates || []).find((item) => (item.membershipRole || "").trim().toLowerCase().replace(/[- ]/g, "_") === "security");
       if (!selected) throw new Error("No active Security membership was found for this account.");
       setEstate(selected);
+      await writeDashboardCache("security", activeSession.user.id, { estate: selected });
     } catch (cause) {
       setEstate(null); setError(cause instanceof Error ? cause.message : "Security services could not be loaded.");
     } finally { setLoading(false); }
