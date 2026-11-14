@@ -47,6 +47,8 @@ export const options = {
 
 const screenLatency = new Trend("app_screen_data_load_ms", true);
 const transportErrors = new Counter("app_transport_errors");
+const http4xxErrors = new Counter("app_http_4xx_errors");
+const http5xxErrors = new Counter("app_http_5xx_errors");
 const timeoutErrors = new Counter("app_timeout_errors");
 
 function loadTag() {
@@ -55,10 +57,12 @@ function loadTag() {
 }
 function validate(response, role, screen, valid, level) {
   screenLatency.add(response.timings.duration,{role,screen,load_level:level});
-  if (response.error_code) {
+  if (response.status === 0 || (response.error_code >= 1000 && response.error_code < 1400) || (response.error_code >= 1600 && response.error_code < 1700)) {
     transportErrors.add(1,{role,screen,load_level:level});
-    if (response.error_code === 1050) timeoutErrors.add(1,{role,screen,load_level:level});
   }
+  if (response.status >= 400 && response.status < 500) http4xxErrors.add(1,{role,screen,load_level:level});
+  if (response.status >= 500) http5xxErrors.add(1,{role,screen,load_level:level});
+  if (response.error_code === 1050 || response.status === 408 || response.status === 504) timeoutErrors.add(1,{role,screen,load_level:level});
   let payload = null;
   try { payload = response.json(); } catch (_) {}
   check(response,{
@@ -77,9 +81,12 @@ function restRead(user, screen, path, valid, method = "GET") {
       timeout:"20s",
       tags:{ role:user.role, screen, source:"supabase-rest", load_level:level },
     };
-    const response = method === "HEAD" ? http.head(restBase + path,params) : http.get(restBase + path,params);
-    if (response.error_code && __VU <= 4 && __ITER === 0) {
-      console.error(`Supabase REST transport failure role=${user.role} screen=${screen} code=${response.error_code} error=${response.error}`);
+    // The app calls Supabase at /rest/v1; the local PostgREST container serves
+    // the same schema directly at its root, so strip only that local prefix.
+    const localPath = path.replace(/^\\/rest\\/v1(?=\\/)/, "");
+    const response = method === "HEAD" ? http.head(restBase + localPath,params) : http.get(restBase + localPath,params);
+    if ((response.status !== 200 && response.status !== 206) && __VU <= 4 && __ITER === 0) {
+      console.error(`Supabase REST read failed role=${user.role} screen=${screen} status=${response.status} code=${response.error_code} error=${response.error} body=${String(response.body).slice(0,300)}`);
     }
     payload = validate(response,user.role,screen,valid,level);
   });
