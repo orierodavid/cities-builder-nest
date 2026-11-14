@@ -7,6 +7,7 @@ import { getApiBaseUrl } from '../../src/lib/api-url';
 
 type Estate = { id: string; membershipRole?: string | null };
 type EstateResponse = { estates?: Estate[]; error?: string };
+type EstateVenue = { id: string; name: string; location: string | null; status: string };
 type EstateEvent = {
   id: string;
   title: string;
@@ -22,6 +23,9 @@ const apiUrl = getApiBaseUrl();
 export default function ResidentEventsRoute() {
   const [estateId, setEstateId] = useState('');
   const [events, setEvents] = useState<EstateEvent[]>([]);
+  const [venues, setVenues] = useState<EstateVenue[]>([]);
+  const [selectedVenueId, setSelectedVenueId] = useState('home');
+  const [venueDropdownOpen, setVenueDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -60,7 +64,18 @@ export default function ResidentEventsRoute() {
         activeEstateId = residentEstate.id;
         setEstateId(activeEstateId);
       }
-      const result = await request('/v1/estates/' + encodeURIComponent(activeEstateId) + '/events', token);
+      const [{ data: availableVenues, error: venueError }, result] = await Promise.all([
+        supabase.from('estate_venues')
+          .select('id,name,location,status')
+          .eq('estate_id', activeEstateId)
+          .eq('status', 'available')
+          .order('name', { ascending: true }),
+        request('/v1/estates/' + encodeURIComponent(activeEstateId) + '/events', token),
+      ]);
+      if (venueError) throw new Error('Available estate venues could not be loaded. Please refresh and try again.');
+      const venueList = (availableVenues || []) as EstateVenue[];
+      setVenues(venueList);
+      setSelectedVenueId(current => current === 'home' || venueList.some(venue => venue.id === current) ? current : 'home');
       setEvents(result.events || []);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Events could not be loaded. Please try again.');
@@ -74,6 +89,11 @@ export default function ResidentEventsRoute() {
   async function createEvent() {
     const cleanTitle = title.trim();
     if (cleanTitle.length < 3) { setMessage('Enter an event title with at least 3 characters.'); return; }
+    const selectedVenue = selectedVenueId === 'home' ? null : venues.find(venue => venue.id === selectedVenueId && venue.status === 'available');
+    if (selectedVenueId !== 'home' && !selectedVenue) {
+      setMessage('That venue is no longer available. Refresh the venue list and choose another.');
+      return;
+    }
     const start = new Date(startsAt);
     const end = new Date(endsAt);
     if (!startsAt.trim() || !endsAt.trim() || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
@@ -88,8 +108,8 @@ export default function ResidentEventsRoute() {
       await request('/v1/estates/' + encodeURIComponent(estateId) + '/events', session.access_token, 'POST', {
         title: cleanTitle,
         description: description.trim(),
-        venue: 'Home',
-        venueId: 'home',
+        venue: selectedVenue ? (selectedVenue.location ? selectedVenue.name + ' · ' + selectedVenue.location : selectedVenue.name) : 'Home / Private Residence',
+        venueId: selectedVenueId,
         startsAt: start.toISOString(),
         endsAt: end.toISOString(),
         status: 'published',
@@ -119,10 +139,20 @@ export default function ResidentEventsRoute() {
         <TextInput value={title} onChangeText={setTitle} placeholder="Event title" placeholderTextColor={theme.muted} style={fieldStyle} />
         <TextInput value={description} onChangeText={setDescription} placeholder="Description (optional)" placeholderTextColor={theme.muted} multiline style={[fieldStyle, { minHeight: 86, textAlignVertical: 'top' }]} />
         <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>Venue</Text>
-        <View style={{ borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 12 }}>
-          <Text style={{ color: theme.text }}>Home / Private residence</Text>
-          <Text style={{ color: theme.muted, fontSize: 11, marginTop: 3 }}>Estate facility booking and approval can be selected when available.</Text>
-        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Select event venue" accessibilityState={{ expanded: venueDropdownOpen }} onPress={() => setVenueDropdownOpen(value => !value)} style={{ borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 13, marginBottom: venueDropdownOpen ? 6 : 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ color: theme.text }}>{selectedVenueId === 'home' ? 'Home / Private Residence' : (() => { const venue = venues.find(item => item.id === selectedVenueId); return venue ? (venue.location ? venue.name + ' · ' + venue.location : venue.name) : 'Select a venue'; })()}</Text>
+          <Text style={{ color: theme.gold, fontSize: 16 }}>{venueDropdownOpen ? '▴' : '▾'}</Text>
+        </Pressable>
+        {venueDropdownOpen ? <View style={{ borderColor: theme.border, borderWidth: 1, borderRadius: 10, marginBottom: 12, overflow: 'hidden' }}>
+          <Pressable onPress={() => { setSelectedVenueId('home'); setVenueDropdownOpen(false); }} style={{ padding: 13, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+            <Text style={{ color: selectedVenueId === 'home' ? theme.gold : theme.text, fontWeight: selectedVenueId === 'home' ? '800' : '500' }}>Home / Private Residence</Text>
+          </Pressable>
+          {venues.map(venue => <Pressable key={venue.id} onPress={() => { setSelectedVenueId(venue.id); setVenueDropdownOpen(false); }} style={{ padding: 13, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+            <Text style={{ color: selectedVenueId === venue.id ? theme.gold : theme.text, fontWeight: selectedVenueId === venue.id ? '800' : '500' }}>{venue.name}</Text>
+            {venue.location ? <Text style={{ color: theme.muted, fontSize: 11, marginTop: 3 }}>{venue.location}</Text> : null}
+          </Pressable>)}
+          {!venues.length ? <Text style={{ color: theme.muted, fontSize: 12, padding: 13 }}>No other venues are currently available in this estate.</Text> : null}
+        </View> : null}
         <TextInput value={startsAt} onChangeText={setStartsAt} placeholder="Start date/time (e.g. 2026-12-20T15:00)" placeholderTextColor={theme.muted} autoCapitalize="none" style={fieldStyle} />
         <TextInput value={endsAt} onChangeText={setEndsAt} placeholder="End date/time (e.g. 2026-12-20T18:00)" placeholderTextColor={theme.muted} autoCapitalize="none" style={fieldStyle} />
         <Pressable disabled={saving} onPress={() => void createEvent()} style={{ backgroundColor: theme.gold, borderRadius: 10, padding: 14, alignItems: 'center', opacity: saving ? 0.6 : 1 }}>
