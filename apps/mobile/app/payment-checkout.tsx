@@ -120,7 +120,10 @@ export default function PaymentCheckoutScreen() {
             setPageError("The checkout page could not load. We are checking the transaction status. Do not pay again while it is pending.");
           }}
           onHttpError={(event) => {
-            if (event.nativeEvent.statusCode >= 500) setPageError("The payment provider is temporarily unavailable.");
+            if (event.nativeEvent.statusCode >= 500) {
+              setCheckoutVisible(false);
+              setPageError("The payment provider is temporarily unavailable. We are checking your payment status. Do not pay again while it is pending.");
+            }
           }}
           javaScriptEnabled
           domStorageEnabled
