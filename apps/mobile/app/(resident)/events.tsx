@@ -24,10 +24,16 @@ type DateTimeFieldProps = { label: string; value: Date | null; onChange: (value:
 
 function DateTimeField({ label, value, onChange }: DateTimeFieldProps) {
   const [mode, setMode] = useState<'date' | 'time' | null>(null);
+  const [dateDraft, setDateDraft] = useState<Date | null>(value);
+  const [hasTime, setHasTime] = useState(Boolean(value));
   const [visibleMonth, setVisibleMonth] = useState(() => value ? new Date(value.getFullYear(), value.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [hour, setHour] = useState(() => value ? (value.getHours() % 12 || 12) : 9);
   const [minute, setMinute] = useState(() => value ? value.getMinutes() : 0);
   const [period, setPeriod] = useState<'AM' | 'PM'>(() => value && value.getHours() >= 12 ? 'PM' : 'AM');
+  useEffect(() => {
+    if (value) { setDateDraft(new Date(value)); setHasTime(true); }
+    else { setDateDraft(null); setHasTime(false); }
+  }, [value]);
   const calendarDays = useMemo(() => {
     const offset = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1).getDay();
     const count = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
@@ -38,14 +44,20 @@ function DateTimeField({ label, value, onChange }: DateTimeFieldProps) {
     setMode('time');
   }
   function chooseDate(day: number) {
-    const next = value ? new Date(value) : new Date();
+    const next = dateDraft ? new Date(dateDraft) : new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day);
     next.setFullYear(visibleMonth.getFullYear(), visibleMonth.getMonth(), day);
-    onChange(next); setMode(null);
+    setDateDraft(next);
+    if (hasTime) { next.setHours((hour % 12) + (period === 'PM' ? 12 : 0), minute, 0, 0); onChange(next); }
+    setMode(null);
   }
   function saveTime() {
-    const next = value ? new Date(value) : new Date();
-    next.setHours((hour % 12) + (period === 'PM' ? 12 : 0), minute, 0, 0);
-    onChange(next); setMode(null);
+    setHasTime(true);
+    if (dateDraft) {
+      const next = new Date(dateDraft);
+      next.setHours((hour % 12) + (period === 'PM' ? 12 : 0), minute, 0, 0);
+      onChange(next);
+    }
+    setMode(null);
   }
   function shift(current: number, delta: number, min: number, max: number, setter: (value: number) => void) {
     const next = current + delta;
@@ -55,13 +67,13 @@ function DateTimeField({ label, value, onChange }: DateTimeFieldProps) {
     <View style={{ marginBottom: 12 }}>
       <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>{label}</Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={label + ' calendar date'} onPress={() => { setVisibleMonth(value ? new Date(value.getFullYear(), value.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1)); setMode('date'); }} style={{ flex: 1.25, borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 13 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={label + ' calendar date'} onPress={() => { setVisibleMonth(dateDraft ? new Date(dateDraft.getFullYear(), dateDraft.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1)); setMode('date'); }} style={{ flex: 1.25, borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 13 }}>
           <Text style={{ color: theme.muted, fontSize: 10, marginBottom: 4 }}>DATE</Text>
-          <Text style={{ color: value ? theme.text : theme.muted, fontSize: 13 }}>{value ? value.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : 'Choose date'}</Text>
+          <Text style={{ color: dateDraft ? theme.text : theme.muted, fontSize: 13 }}>{dateDraft ? dateDraft.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : 'Choose date'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={label + ' clock time'} onPress={openTimePicker} style={{ flex: 1, borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 13 }}>
           <Text style={{ color: theme.muted, fontSize: 10, marginBottom: 4 }}>TIME</Text>
-          <Text style={{ color: value ? theme.text : theme.muted, fontSize: 13 }}>{value ? value.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Choose time'}</Text>
+          <Text style={{ color: hasTime ? theme.text : theme.muted, fontSize: 13 }}>{hasTime ? new Date(2000, 0, 1, (hour % 12) + (period === 'PM' ? 12 : 0), minute).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Choose time'}</Text>
         </Pressable>
       </View>
       <Modal transparent visible={mode !== null} animationType="fade" onRequestClose={() => setMode(null)}>
@@ -78,8 +90,8 @@ function DateTimeField({ label, value, onChange }: DateTimeFieldProps) {
                 {calendarDays.map((day, index) => day === null
                   ? <View key={'blank-' + index} style={{ width: '14.285%', height: 42 }} />
                   : <Pressable key={day} accessibilityRole="button" accessibilityLabel={'Choose ' + visibleMonth.toLocaleDateString(undefined, { month: 'long' }) + ' ' + day} onPress={() => chooseDate(day)} style={{ width: '14.285%', height: 42, alignItems: 'center', justifyContent: 'center' }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: value && value.getFullYear() === visibleMonth.getFullYear() && value.getMonth() === visibleMonth.getMonth() && value.getDate() === day ? theme.gold : 'transparent' }}>
-                      <Text style={{ color: value && value.getFullYear() === visibleMonth.getFullYear() && value.getMonth() === visibleMonth.getMonth() && value.getDate() === day ? '#080808' : theme.text, fontWeight: '700' }}>{day}</Text>
+                    <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: dateDraft && dateDraft.getFullYear() === visibleMonth.getFullYear() && dateDraft.getMonth() === visibleMonth.getMonth() && dateDraft.getDate() === day ? theme.gold : 'transparent' }}>
+                      <Text style={{ color: dateDraft && dateDraft.getFullYear() === visibleMonth.getFullYear() && dateDraft.getMonth() === visibleMonth.getMonth() && dateDraft.getDate() === day ? '#080808' : theme.text, fontWeight: '700' }}>{day}</Text>
                     </View>
                   </Pressable>)}
               </View>
