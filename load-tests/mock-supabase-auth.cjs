@@ -1,10 +1,10 @@
 const http = require("node:http");
 
 const users = new Map([
-  ["load-manager-token", "11111111-1111-4111-8111-111111111111"],
-  ["load-resident-token", "22222222-2222-4222-8222-222222222222"],
-  ["load-security-token", "33333333-3333-4333-8333-333333333333"],
-  ["load-admin-token", "55555555-5555-4555-8555-555555555555"],
+  ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYXV0aGVudGljYXRlZCIsInN1YiI6IjExMTExMTExLTExMTEtNDExMS04MTExLTExMTExMTExMTExMSIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjQxMDI0NDQ4MDB9.x3VAd9zpiEE5xKePK7LO7aETyzK-Q1ZqroyjyUnIfw8", "11111111-1111-4111-8111-111111111111"],
+  ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYXV0aGVudGljYXRlZCIsInN1YiI6IjIyMjIyMjIyLTIyMjItNDIyMi04MjIyLTIyMjIyMjIyMjIyMiIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjQxMDI0NDQ4MDB9.S55g1jSz4SITv8_GahRllxJjEMWh00SIJLigExGhE2c", "22222222-2222-4222-8222-222222222222"],
+  ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYXV0aGVudGljYXRlZCIsInN1YiI6IjMzMzMzMzMzLTMzMzMtNDMzMy04MzMzLTMzMzMzMzMzMzMzMyIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjQxMDI0NDQ4MDB9.jHjNNdqC4sNP_Mtaj1AyvGQtpnXXgaATUh4w6q49dnw", "33333333-3333-4333-8333-333333333333"],
+  ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYXV0aGVudGljYXRlZCIsInN1YiI6IjU1NTU1NTU1LTU1NTUtNDU1NS04NTU1LTU1NTU1NTU1NTU1NSIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjQxMDI0NDQ4MDB9.HCVdw1tF-k-BCBRyRfGimnm-V65M5uUNCXUbeo2wonI", "55555555-5555-4555-8555-555555555555"],
 ]);
 
 function send(res, status, body, objectResponse = false) {
@@ -44,6 +44,7 @@ const server = http.createServer((req, res) => {
   return send(res, 404, { message: "Unknown isolated auth-stub route" });
 });
 
-server.listen(4100, "127.0.0.1", () => {
-  process.stdout.write("Isolated Supabase Auth/PostgREST stub listening on 127.0.0.1:4100\n");
+const port = Number(process.env.AUTH_STUB_PORT || 4101);
+server.listen(port, "127.0.0.1", () => {
+  process.stdout.write("Isolated Supabase Auth/PostgREST stub listening on 127.0.0.1:${port}\n");
 });
