@@ -261,7 +261,9 @@ Deno.serve(async (req: Request) => {
         amountPaid: meta.amount_paid ?? null,
       };
     } else if (nextStatus === "successful") {
-      receipt = details.token ?? details.receipt ?? row.receipt;
+      const providerReceipt = details.receipt ?? details.token;
+      receipt = providerReceipt && typeof providerReceipt === "object" && !Array.isArray(providerReceipt)
+        ? providerReceipt as Record<string, unknown> : row.receipt;
     }
 
     const { data: updated, error: updateError } = await admin.from("utility_transactions")
