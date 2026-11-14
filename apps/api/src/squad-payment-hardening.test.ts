@@ -34,8 +34,8 @@ test("resident verification rejects ambiguous references and unsafe ledger amoun
 });
 
 test("a failed verification reports the final ledger state after a concurrent callback", () => {
-  assert.match(verify, /select\("status"\).*maybeSingle\(\)/);
-  assert.match(verify, /current\.status === "failed" \|\| current\.status === "reversed"/);
+  assert.match(verify, /select\("status,verified_at"\).*maybeSingle\(\)/);
+  assert.match(verify, /current\.status === "successful" \|\| current\.status === "failed"/);
 });
 
 
