@@ -22,7 +22,9 @@ LANGUAGE sql STABLE
 AS $$ SELECT true $$;
 
 CREATE TABLE public.users (
-  id uuid PRIMARY KEY, full_name text NOT NULL, is_active boolean NOT NULL DEFAULT true
+  id uuid PRIMARY KEY, full_name text NOT NULL, phone_e164 text,
+  home_number text, street_name text, is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE public.user_roles (
   user_id uuid NOT NULL, role text NOT NULL, PRIMARY KEY (user_id, role)
@@ -37,9 +39,19 @@ CREATE TABLE public.estate_memberships (
   user_id uuid NOT NULL, membership_role text NOT NULL, status text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(), UNIQUE (estate_id, user_id)
 );
+CREATE TABLE public.buildings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
+  name text NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE public.units (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
-  unit_code text NOT NULL, status text NOT NULL
+  building_id uuid NOT NULL, unit_code text NOT NULL, unit_type text,
+  status text NOT NULL
+);
+CREATE TABLE public.resident_units (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), resident_user_id uuid NOT NULL,
+  unit_id uuid NOT NULL, start_date date NOT NULL DEFAULT CURRENT_DATE,
+  end_date date, estate_id uuid NOT NULL
 );
 CREATE TABLE public.maintenance_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
@@ -57,6 +69,34 @@ CREATE TABLE public.visitor_passes (
   access_code_hash text NOT NULL, access_code_ciphertext text,
   valid_from timestamptz NOT NULL, valid_until timestamptz NOT NULL,
   status text NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.visitor_visits (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
+  visitor_pass_id uuid NOT NULL, checked_in_by uuid NOT NULL,
+  checked_in_at timestamptz NOT NULL DEFAULT now(),
+  checked_out_by uuid, checked_out_at timestamptz
+);
+CREATE TABLE public.security_shift_handovers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
+  outgoing_officer uuid NOT NULL, shift_label text NOT NULL,
+  shift_started_at timestamptz NOT NULL, shift_ended_at timestamptz NOT NULL,
+  handover_notes text NOT NULL, pending_actions text, status text NOT NULL DEFAULT 'pending',
+  acknowledged_by uuid, acknowledged_at timestamptz, created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.security_emergency_alerts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
+  created_by uuid NOT NULL, alert_type text NOT NULL, severity text NOT NULL,
+  title text NOT NULL, message text NOT NULL, location text, status text NOT NULL DEFAULT 'active',
+  resolved_by uuid, resolved_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.security_incident_reports (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
+  reported_by uuid NOT NULL, title text NOT NULL, category text NOT NULL,
+  severity text NOT NULL DEFAULT 'medium', description text NOT NULL, location text,
+  occurred_at timestamptz NOT NULL DEFAULT now(), status text NOT NULL DEFAULT 'open',
+  reviewed_by uuid, reviewed_at timestamptz, resolution_note text,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE public.estate_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
@@ -79,6 +119,12 @@ CREATE TABLE public.estate_event_checkins (
   event_id uuid NOT NULL, guest_id uuid NOT NULL, checked_in_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE INDEX idx_load_buildings_estate ON public.buildings(estate_id, name);
+CREATE INDEX idx_load_resident_units_user ON public.resident_units(resident_user_id, end_date);
+CREATE INDEX idx_load_visits_estate_open ON public.visitor_visits(estate_id, checked_in_at DESC) WHERE checked_out_at IS NULL;
+CREATE INDEX idx_load_handovers_estate_created ON public.security_shift_handovers(estate_id, created_at DESC);
+CREATE INDEX idx_load_alerts_estate_created ON public.security_emergency_alerts(estate_id, created_at DESC);
+CREATE INDEX idx_load_incidents_estate_created ON public.security_incident_reports(estate_id, created_at DESC);
 CREATE INDEX idx_load_membership_user_estate ON public.estate_memberships(user_id, estate_id, status);
 CREATE INDEX idx_load_units_estate_status ON public.units(estate_id, status);
 CREATE INDEX idx_load_maintenance_estate_status ON public.maintenance_requests(estate_id, status);
@@ -95,6 +141,12 @@ ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.estates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.estate_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.units ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.buildings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.resident_units ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.visitor_visits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.security_shift_handovers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.security_emergency_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.security_incident_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.maintenance_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.visitor_passes ENABLE ROW LEVEL SECURITY;
@@ -150,7 +202,9 @@ GRANT USAGE ON SCHEMA public, auth TO authenticated;
 GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.current_user_has_required_legal_consent() TO authenticated;
 GRANT SELECT ON public.users, public.user_roles, public.estates, public.estate_memberships,
-  public.units, public.maintenance_requests, public.announcements, public.visitor_passes,
+  public.buildings, public.resident_units, public.units, public.visitor_visits,
+  public.security_shift_handovers, public.security_emergency_alerts, public.security_incident_reports,
+  public.maintenance_requests, public.announcements, public.visitor_passes,
   public.estate_events, public.estate_event_guests, public.estate_event_invitations,
   public.estate_event_checkins TO authenticated;
 
@@ -189,18 +243,21 @@ INSERT INTO public.users (id, full_name, is_active) VALUES
   ('11111111-1111-4111-8111-111111111111', 'Load Test Facility Manager', true),
   ('22222222-2222-4222-8222-222222222222', 'Load Test Resident', true),
   ('33333333-3333-4333-8333-333333333333', 'Load Test Security Officer', true),
-  ('44444444-4444-4444-8444-444444444444', 'Load Test Event Organiser', true);
+  ('55555555-5555-4555-8555-555555555555', 'Load Test Super Administrator', true);
 INSERT INTO public.estates (id, name, address, city, state, timezone, is_enabled)
 VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'CB Nest Load Test Estate',
         '1 Synthetic Test Road', 'Lagos', 'Lagos', 'Africa/Lagos', true);
+INSERT INTO public.user_roles (user_id, role)
+VALUES ('55555555-5555-4555-8555-555555555555', 'platform_admin');
 INSERT INTO public.estate_memberships (estate_id, user_id, membership_role, status) VALUES
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'facility_manager', 'active'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '22222222-2222-4222-8222-222222222222', 'resident', 'active'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '33333333-3333-4333-8333-333333333333', 'security', 'active'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '44444444-4444-4444-8444-444444444444', 'event_organiser', 'active');
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '33333333-3333-4333-8333-333333333333', 'security', 'active');
 
-INSERT INTO public.units (estate_id, unit_code, status)
-SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'UNIT-' || lpad(n::text, 4, '0'),
+INSERT INTO public.buildings (id, estate_id, name)
+VALUES ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Load Test Building');
+INSERT INTO public.units (estate_id, building_id, unit_code, unit_type, status)
+SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'UNIT-' || lpad(n::text, 4, '0'), 'apartment',
        CASE WHEN n <= 800 THEN 'occupied' ELSE 'available' END
 FROM generate_series(1, 1000) AS n;
 INSERT INTO public.maintenance_requests (estate_id, title, status, priority, created_at)
@@ -228,41 +285,32 @@ SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
        now() - (n || ' seconds')::interval
 FROM generate_series(1, 500) AS n;
 
-INSERT INTO public.estate_events (
-  id, estate_id, title, venue, starts_at, ends_at, status, created_by
-)
-VALUES (
-  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  'Synthetic Estate Event 1', 'Community Hall',
-  now() - interval '1 hour', now() + interval '3 hours', 'published',
-  '44444444-4444-4444-8444-444444444444'
+
+INSERT INTO public.resident_units (resident_user_id, unit_id, estate_id)
+SELECT '22222222-2222-4222-8222-222222222222', id, estate_id
+FROM public.units WHERE unit_code = 'UNIT-0001' LIMIT 1;
+INSERT INTO public.visitor_visits (estate_id, visitor_pass_id, checked_in_by, checked_in_at)
+SELECT p.estate_id, p.id, '33333333-3333-4333-8333-333333333333', now() - interval '15 minutes'
+FROM public.visitor_passes p WHERE p.visitor_name = 'Synthetic Visitor 1';
+INSERT INTO public.security_shift_handovers (
+  estate_id, outgoing_officer, shift_label, shift_started_at, shift_ended_at, handover_notes, pending_actions
+) VALUES (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '33333333-3333-4333-8333-333333333333',
+  'Day Shift', now() - interval '12 hours', now() - interval '1 hour',
+  'Synthetic handover for read-only load testing.', 'Monitor the main gate.'
 );
-INSERT INTO public.estate_events (estate_id, title, venue, starts_at, ends_at, status, created_by)
-SELECT 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-       'Synthetic Estate Event ' || n, 'Community Hall',
-       now() + (n || ' days')::interval, now() + ((n + 1) || ' days')::interval,
-       'published', '44444444-4444-4444-8444-444444444444'
-FROM generate_series(2, 50) AS n;
-
-INSERT INTO public.estate_event_guests (estate_id, event_id, guest_name, email, phone)
-SELECT e.estate_id, e.id, 'Synthetic Guest ' || n,
-       'guest-' || n || '@example.test', '08000000000'
-FROM public.estate_events e CROSS JOIN generate_series(1, 200) AS n;
-
-WITH numbered AS (
-  SELECT g.*, row_number() OVER (PARTITION BY g.event_id ORDER BY g.id) AS rn
-  FROM public.estate_event_guests g
-)
-INSERT INTO public.estate_event_invitations (estate_id, event_id, guest_id, status)
-SELECT estate_id, event_id, id, 'active' FROM numbered WHERE rn % 2 = 0;
-
-WITH numbered AS (
-  SELECT g.*, row_number() OVER (PARTITION BY g.event_id ORDER BY g.id) AS rn
-  FROM public.estate_event_guests g
-)
-INSERT INTO public.estate_event_checkins (estate_id, event_id, guest_id, checked_in_at)
-SELECT estate_id, event_id, id, now() - interval '10 minutes'
-FROM numbered WHERE rn % 5 = 0;
-
+INSERT INTO public.security_emergency_alerts (
+  estate_id, created_by, alert_type, severity, title, message, location
+) VALUES (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '33333333-3333-4333-8333-333333333333',
+  'security_threat', 'high', 'Synthetic security notice',
+  'Synthetic alert fixture for read-only load testing.', 'Main gate'
+);
+INSERT INTO public.security_incident_reports (
+  estate_id, reported_by, title, category, severity, description, location
+) VALUES (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '33333333-3333-4333-8333-333333333333',
+  'Synthetic incident record', 'other', 'low',
+  'Synthetic incident fixture for read-only load testing.', 'Main gate'
+);
 ANALYZE;
