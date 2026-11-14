@@ -36,9 +36,10 @@ export default function PaymentCheckoutScreen() {
         await supabase.functions.invoke("verify-squad-payment", { body: { transactionReference: reference } });
       }
       const table = paymentType === "rent_savings" ? "rent_savings_contributions" : "service_charge_payments";
-      const { data, error } = await supabase.from(table).select("status").eq("provider_reference", reference).maybeSingle();
+      const { data, error } = await supabase.from(table).select("status,verified_at").eq("provider_reference", reference).maybeSingle();
       if (!error && data?.status) {
-        const next = String(data.status).toLowerCase() as PaymentStatus;
+        const stored = String(data.status).toLowerCase() as PaymentStatus;
+        const next = stored === "failed" && !data.verified_at ? "pending" : stored;
         if (["pending", "successful", "failed", "reversed"].includes(next)) setStatus(next);
       }
     } finally {
