@@ -31,7 +31,7 @@ permissions:
 
 concurrency:
   group: api-realistic-load-test-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   realistic-load-test:
@@ -136,8 +136,7 @@ jobs:
           ready=0
           for attempt in $(seq 1 45); do
             code=$(curl --silent --output "$RUNNER_TEMP/ready.json" --write-out "%{http_code}" \
-              -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYXV0aGVudGljYXRlZCIsInN1YiI6IjExMTExMTExLTExMTEtNDExMS04MTExLTExMTExMTExMTExMSIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjQxMDI0NDQ4MDB9.x3VAd9zpiEE5xKePK7LO7aETyzK-Q1ZqroyjyUnIfw8" \
-              http://127.0.0.1:4000/v1/estates/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/dashboard || true)
+              http://127.0.0.1:4000/health || true)
             if [ "$code" = "200" ]; then ready=1; break; fi
             sleep 2
           done
