@@ -6,6 +6,7 @@ import test from "node:test";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../");
 const migration = readFileSync(resolve(root, "supabase/migrations/20261110190000_squad_payment_reconciliation.sql"), "utf8");
+const recoveryMigration = readFileSync(resolve(root, "supabase/migrations/20261114133000_squad_payment_timeout_recovery.sql"), "utf8");
 const reconciler = readFileSync(resolve(root, "supabase/functions/reconcile-squad-payments/index.ts"), "utf8");
 const workflow = readFileSync(resolve(root, ".github/workflows/deploy-squad-payment-webhook.yml"), "utf8");
 const config = readFileSync(resolve(root, "supabase/config.toml"), "utf8");
@@ -53,7 +54,7 @@ test("an uncreated Squad reference is only failed after the 15-minute safety win
 
 
 test("pending utility vends are reconciled through their service-specific Squad status endpoints", () => {
-  assert.match(migration, /utility_transactions_pending_reconciliation_idx/);
+  assert.match(recoveryMigration, /utility_transactions_pending_reconciliation_idx/);
   assert.match(reconciler, /from\("utility_transactions"\)/);
   assert.match(reconciler, /\/vending\/transactions\?reference=/);
   assert.match(reconciler, /\/v1\/service\/transactions\//);
