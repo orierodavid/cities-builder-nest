@@ -42,3 +42,11 @@ test("the payment deployment workflow type-checks and deploys the reconciler", (
   assert.match(workflow, /reconcile-squad-payments/);
   assert.match(config, /\[functions\.reconcile-squad-payments\][\s\S]*?verify_jwt = false/);
 });
+
+
+test("an uncreated Squad reference is only failed after the 15-minute safety window", () => {
+  assert.match(reconciler, /response\.status === 400/);
+  assert.match(reconciler, /status === "not_found"/);
+  assert.match(reconciler, /ageMs >= 15 \* 60_000/);
+  assert.match(reconciler, /status: "failed", verified_at: attemptedAt/);
+});
