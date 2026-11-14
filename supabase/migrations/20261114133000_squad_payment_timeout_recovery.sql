@@ -16,4 +16,8 @@ CREATE INDEX IF NOT EXISTS rent_savings_contributions_unverified_reconciliation_
   ON public.rent_savings_contributions (status, last_reconciled_at, created_at)
   WHERE status IN ('pending', 'failed') AND verified_at IS NULL;
 
+CREATE INDEX IF NOT EXISTS utility_transactions_pending_reconciliation_idx
+  ON public.utility_transactions (last_reconciled_at, created_at)
+  WHERE status = 'pending';
+
 COMMIT;
