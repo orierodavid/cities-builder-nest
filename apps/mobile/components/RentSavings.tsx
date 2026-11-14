@@ -124,7 +124,7 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
         paymentType: "rent_savings",
       } });
     } catch (error) {
-      setMessage("Unable to start your payment. Please try again.");
+      setMessage("We could not confirm whether the payment started. Check its status before trying again.");
     } finally { setFundingGoalId(null); }
   }
 
