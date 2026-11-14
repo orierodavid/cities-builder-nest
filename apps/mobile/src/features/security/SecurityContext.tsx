@@ -44,7 +44,9 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       await writeDashboardCache("security", activeSession.user.id, { estate: selected });
     } catch (cause) {
       if (!cached?.estate?.id) setEstate(null);
-      setError(cause instanceof Error ? cause.message : "Security services could not be loaded.");
+      setError(cause instanceof Error && cause.name === "AbortError"
+        ? "Connection is taking longer than expected. Check your internet connection and try again."
+        : cause instanceof Error ? cause.message : "Security services could not be loaded.");
     } finally { clearTimeout(requestTimeout); setLoading(false); }
   }, [apiUrl]);
 
