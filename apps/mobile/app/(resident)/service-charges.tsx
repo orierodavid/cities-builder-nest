@@ -23,6 +23,7 @@ export default function ServiceChargesScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [paidChargeIds, setPaidChargeIds] = useState<string[]>([]);
+  const [pendingPaymentRefs, setPendingPaymentRefs] = useState<Record<string, string>>({});
   const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
   const [paymentMessage, setPaymentMessage] = useState('');
 
@@ -58,10 +59,10 @@ export default function ServiceChargesScreen() {
 
     const { data: paidRows, error: paidError } = await supabase
       .from('service_charge_payments')
-      .select('charge_id')
+       .select('charge_id,status,provider_reference,verified_at,created_at')
       .eq('resident_user_id', user.id)
-      .eq('status', 'successful')
-      .in('estate_id', estateIds);
+      .in('estate_id', estateIds)
+      .order('created_at', { ascending: false });
 
     if (paidError) {
       setError('We could not verify your payment status. Please try again before making a payment.');
@@ -69,7 +70,16 @@ export default function ServiceChargesScreen() {
       setLoading(false);
       return;
     }
-    setPaidChargeIds([...new Set((paidRows || []).map((row) => row.charge_id).filter(Boolean))]);
+    const verifiedPaid = (paidRows || []).filter((row) => row.status === 'successful' && !!row.verified_at);
+    setPaidChargeIds([...new Set(verifiedPaid.map((row) => row.charge_id).filter(Boolean))]);
+    const pendingRefs: Record<string, string> = {};
+    for (const row of paidRows || []) {
+      if (!pendingRefs[row.charge_id] && row.provider_reference &&
+          (row.status === 'pending' || (row.status === 'failed' && !row.verified_at))) {
+        pendingRefs[row.charge_id] = row.provider_reference;
+      }
+    }
+    setPendingPaymentRefs(pendingRefs);
 
     const { data, error: chargesError } = await supabase
       .from('estate_service_charges')
@@ -153,6 +163,15 @@ export default function ServiceChargesScreen() {
             </Text>
             {paidChargeIds.includes(charge.id) ? (
               <Text style={{ color: '#79D6A1', fontSize: 12, fontWeight: '800', marginTop: 12 }}>PAID · CONFIRMED</Text>
+            ) : pendingPaymentRefs[charge.id] ? (
+              <>
+                <Text style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '800', marginTop: 12 }}>PAYMENT CONFIRMATION PENDING</Text>
+                <TouchableOpacity onPress={() => router.push({ pathname: "/payment-checkout", params: {
+                  checkoutUrl: "", reference: pendingPaymentRefs[charge.id], paymentType: "service_charge",
+                } })} style={{ marginTop: 12, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: theme.goldSoft, fontWeight: '900' }}>CHECK PAYMENT STATUS</Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <TouchableOpacity onPress={() => void payCharge(charge.id)} disabled={paymentBusyId === charge.id} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
                 {paymentBusyId === charge.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>Pay Now</Text>}
