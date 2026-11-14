@@ -245,6 +245,7 @@ CREATE POLICY load_checkins_member ON public.estate_event_checkins FOR SELECT TO
           WHERE m.estate_id = estate_event_checkins.estate_id AND m.user_id = auth.uid() AND m.status = 'active')
 );
 
+GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public, auth TO authenticated;
 GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
 GRANT USAGE ON SCHEMA private TO authenticated;
