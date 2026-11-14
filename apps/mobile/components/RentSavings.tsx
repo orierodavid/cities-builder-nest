@@ -111,12 +111,18 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
         body: { paymentType: "rent_savings", goalId, amountKobo: Math.round(naira * 100) },
       });
       if (error) throw error;
-      if (!data?.checkoutUrl || typeof data.checkoutUrl !== "string" || !data.checkoutUrl.startsWith("https://")) {
-        throw new Error("We could not open the payment page. Please try again.");
+      if (typeof data?.transactionReference !== "string" || !data.transactionReference) {
+        throw new Error("We could not confirm the payment attempt. Please try again.");
       }
-      if (typeof data.transactionReference !== "string" || !data.transactionReference) throw new Error("Missing payment reference.");
+      if (data.checkoutUrl && (typeof data.checkoutUrl !== "string" || !data.checkoutUrl.startsWith("https://"))) {
+        throw new Error("The payment link could not be validated.");
+      }
       setContributionAmount("");
-      router.push({ pathname: "/payment-checkout", params: { checkoutUrl: data.checkoutUrl, reference: data.transactionReference, paymentType: "rent_savings" } });
+      router.push({ pathname: "/payment-checkout", params: {
+        checkoutUrl: typeof data.checkoutUrl === "string" ? data.checkoutUrl : "",
+        reference: data.transactionReference,
+        paymentType: "rent_savings",
+      } });
     } catch (error) {
       setMessage("Unable to start your payment. Please try again.");
     } finally { setFundingGoalId(null); }
