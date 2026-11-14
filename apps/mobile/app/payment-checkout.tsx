@@ -18,6 +18,7 @@ export default function PaymentCheckoutScreen() {
   const [pageError, setPageError] = useState("");
 
   const safeCheckoutUrl = useMemo(() => {
+    if (!checkoutUrl) return true;
     try {
       const parsed = new URL(checkoutUrl);
       const host = parsed.hostname.toLowerCase();
@@ -30,23 +31,26 @@ export default function PaymentCheckoutScreen() {
   const checkPayment = useCallback(async (verifyWithSquad = false) => {
     if (!reference) return;
     setChecking(true);
-    if (verifyWithSquad) {
-      await supabase.functions.invoke("verify-squad-payment", { body: { transactionReference: reference } });
+    try {
+      if (verifyWithSquad) {
+        await supabase.functions.invoke("verify-squad-payment", { body: { transactionReference: reference } });
+      }
+      const table = paymentType === "rent_savings" ? "rent_savings_contributions" : "service_charge_payments";
+      const { data, error } = await supabase.from(table).select("status").eq("provider_reference", reference).maybeSingle();
+      if (!error && data?.status) {
+        const next = String(data.status).toLowerCase() as PaymentStatus;
+        if (["pending", "successful", "failed", "reversed"].includes(next)) setStatus(next);
+      }
+    } finally {
+      setChecking(false);
     }
-    const table = paymentType === "rent_savings" ? "rent_savings_contributions" : "service_charge_payments";
-    const { data, error } = await supabase.from(table).select("status").eq("provider_reference", reference).maybeSingle();
-    if (!error && data?.status) {
-      const next = String(data.status).toLowerCase() as PaymentStatus;
-      if (["pending", "successful", "failed", "reversed"].includes(next)) setStatus(next);
-    }
-    setChecking(false);
   }, [paymentType, reference]);
 
   useEffect(() => { void checkPayment(true); }, [checkPayment]);
 
   useEffect(() => {
     if (status !== "pending") return;
-    const timer = setInterval(() => { void checkPayment(); }, 3000);
+    const timer = setInterval(() => { void checkPayment(true); }, 5000);
     return () => clearInterval(timer);
   }, [checkPayment, status]);
 
@@ -104,7 +108,7 @@ export default function PaymentCheckoutScreen() {
         </TouchableOpacity>
       </View>
 
-      {checkoutVisible && status === "pending" ? (
+      {checkoutVisible && status === "pending" && !!checkoutUrl ? (
         <WebView
           source={{ uri: checkoutUrl }}
           originWhitelist={["https://*"]}
@@ -136,7 +140,7 @@ export default function PaymentCheckoutScreen() {
             <>
               <ActivityIndicator color="#D9A93F" size="large" />
               <Text style={{ color: "#F0C766", fontSize: 18, fontWeight: "900", marginTop: 18 }}>Checking payment status</Text>
-              <Text style={{ color: "#A8A8A8", textAlign: "center", marginTop: 9, lineHeight: 20 }}>Your payment may still be processing. CB Nest will update this screen when Squad confirms the result. Do not pay again while this transaction is pending.</Text>
+              <Text style={{ color: "#A8A8A8", textAlign: "center", marginTop: 9, lineHeight: 20 }}>{checkoutUrl ? "Your payment may still be processing. CB Nest will update this screen when Squad confirms the result." : "We found an existing payment attempt and are checking it with Squad. Do not start another payment while this transaction is pending."} Do not pay again while this transaction is pending.</Text>
             </>
           )}
           {checking && <Text style={{ color: "#777777", fontSize: 10, marginTop: 12 }}>Refreshing secure payment status…</Text>}
@@ -145,7 +149,7 @@ export default function PaymentCheckoutScreen() {
           <TouchableOpacity onPress={() => router.replace(paymentType === "rent_savings" ? "/save-for-rent" : "/service-charges")} style={{ marginTop: 24, minHeight: 48, paddingHorizontal: 24, backgroundColor: "#D9A93F", borderRadius: 10, justifyContent: "center", alignItems: "center" }}>
             <Text style={{ color: "#080808", fontWeight: "900" }}>Return to CB Nest</Text>
           </TouchableOpacity>
-          {status === "pending" && <TouchableOpacity onPress={() => { setCheckoutVisible(true); setPageError(""); }} style={{ padding: 14 }}><Text style={{ color: "#F0C766", fontWeight: "800" }}>Reopen checkout</Text></TouchableOpacity>}
+          {status === "pending" && !!checkoutUrl && <TouchableOpacity onPress={() => { setCheckoutVisible(true); setPageError(""); }} style={{ padding: 14 }}><Text style={{ color: "#F0C766", fontWeight: "800" }}>Reopen checkout</Text></TouchableOpacity>}
         </View>
       )}
     </SafeAreaView>
