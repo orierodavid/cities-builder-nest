@@ -31,8 +31,10 @@ export function SecurityProvider({ children }: PropsWithChildren) {
     if (cached?.estate?.id) { setEstate(cached.estate); setLoading(false); }
     else setLoading(true);
     setError("");
+    const controller = new AbortController();
+    const requestTimeout = setTimeout(() => controller.abort(), 12000);
     try {
-      const response = await fetch(apiUrl + "/v1/estates", { headers: { Authorization: "Bearer " + activeSession.access_token, Accept: "application/json" } });
+      const response = await fetch(apiUrl + "/v1/estates", { headers: { Authorization: "Bearer " + activeSession.access_token, Accept: "application/json" }, signal: controller.signal });
       const result = await response.json() as { estates?: SecurityEstate[]; error?: string };
       if (!response.ok) throw new Error(result.error || "Estate access could not be loaded.");
       const selected = (result.estates || []).find((item) => (item.membershipRole || "").trim().toLowerCase().replace(/[- ]/g, "_") === "security");
@@ -42,7 +44,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
     } catch (cause) {
       if (!cached?.estate?.id) setEstate(null);
       setError(cause instanceof Error ? cause.message : "Security services could not be loaded.");
-    } finally { setLoading(false); }
+    } finally { clearTimeout(requestTimeout); setLoading(false); }
   }, [apiUrl]);
 
   useEffect(() => {
