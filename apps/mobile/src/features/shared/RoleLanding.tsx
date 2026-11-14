@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { theme } from '../../theme/theme';
 import { supabase } from '../../../lib/supabase';
 import { readDashboardCache, writeDashboardCache, clearDashboardCache } from '../../lib/dashboard-cache';
+import { subscribeConnectionRestored } from '../../lib/connection-events';
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 export type Role = 'resident' | 'security';
 type Tile = {label:string;icon:IconName;route:string};
