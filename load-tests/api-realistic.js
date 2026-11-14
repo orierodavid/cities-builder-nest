@@ -1,6 +1,7 @@
 import http from "k6/http";
 import { check, group, sleep } from "k6";
 import { Counter, Trend } from "k6/metrics";
+import exec from "k6/execution";
 
 const base = (__ENV.LOAD_TEST_BASE_URL || "").replace(/\/$/, "");
 const allowed = (__ENV.LOAD_TEST_ALLOWED_HOST || "").trim();
@@ -51,6 +52,7 @@ const stages = {
 if (!stages[profile]) throw new Error("Profile must be 250, 500, 1000, or full.");
 export const options = {
   scenarios: { cb_nest_app_role_navigation: { executor:"ramping-vus", startVUs:0, stages:stages[profile], gracefulRampDown:"30s" } },
+  summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
   thresholds: { http_req_failed:["rate<0.01"], checks:["rate>0.99"] },
 };
 const screenLatency = new Trend("app_screen_api_load_ms", true);
@@ -60,6 +62,8 @@ const timeoutErrors = new Counter("app_timeout_errors");
 function openScreen(role, token, screen) {
   const [name, path, valid] = screen;
   group(`${role}/${name}`, () => {
+    const activeVUs = exec.instance.vusActive;
+    const loadLevel = activeVUs <= 250 ? "250" : activeVUs <= 500 ? "500" : "1000";
     const response = http.get(base + path, {
       headers: {
         Accept:"application/json",
@@ -67,9 +71,9 @@ function openScreen(role, token, screen) {
         "X-Forwarded-For":`10.20.${Math.floor(__VU / 250)}.${(__VU % 250) + 1}`,
       },
       timeout:"20s",
-      tags:{role, screen:name},
+      tags:{role, screen:name, load_level:loadLevel},
     });
-    screenLatency.add(response.timings.duration, {role, screen:name});
+    screenLatency.add(response.timings.duration, {role, screen:name, load_level:loadLevel});
     if (response.error_code) {
       transportErrors.add(1, {role, screen:name});
       if (response.error_code === 1050) timeoutErrors.add(1, {role, screen:name});
