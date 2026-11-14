@@ -28,6 +28,9 @@ async function verifyPayment(base: string, secret: string, reference: string) {
     `${base}/transaction/verify/${encodeURIComponent(reference)}`,
     { headers: { Authorization: `Bearer ${secret}` }, signal: AbortSignal.timeout(10_000) },
   );
+  if (response.status === 400) {
+    return { transaction_status: "not_found", transaction_ref: reference };
+  }
   if (!response.ok) throw new Error("provider_verification_unavailable");
   const payload = await response.json();
   if (!payload?.success || !payload?.data) throw new Error("provider_verification_invalid");
@@ -86,6 +89,23 @@ Deno.serve(async (req: Request) => {
       }
 
       const status = String(verified.transaction_status ?? "").toLowerCase();
+      if (status === "not_found") {
+        const ageMs = Date.now() - new Date(row.created_at).getTime();
+        if (Number.isFinite(ageMs) && ageMs >= 15 * 60_000) {
+          const { data: updated, error: updateError } = await admin.from(table)
+            .update({ status: "failed", verified_at: attemptedAt, last_reconciled_at: attemptedAt })
+            .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null)
+            .select("id").maybeSingle();
+          if (updateError) return reply(500, { error: "payment_ledger_update_failed" });
+          if (updated) totals.failed += 1;
+        } else {
+          const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt })
+            .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
+          if (markError) return reply(500, { error: "payment_reconciliation_update_failed" });
+          totals.stillPending += 1;
+        }
+        continue;
+      }
       const amount = Number(verified.transaction_amount ?? verified.amount);
       const currency = String(verified.transaction_currency_id ?? verified.currency ?? "").toUpperCase();
       const reference = String(verified.transaction_ref ?? "");
