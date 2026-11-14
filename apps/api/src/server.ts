@@ -2107,7 +2107,7 @@ app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
     try {
       const result = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => createEstateEvent(client, {
         estateId, creatorUserId: authenticated.authUser.id, title, description, venueId,
-        venueLabel: venueId === "home" ? "Home" : venue, startsAt: startDate.toISOString(), endsAt: endDate.toISOString(),
+        venueLabel: venueId === "home" ? "Home / Private Residence" : venue, startsAt: startDate.toISOString(), endsAt: endDate.toISOString(),
         status, requestedAt: new Date().toISOString(),
       }));
       if (result.kind === "venue_unavailable") { res.status(400).json({ error: "event_venue_unavailable", message: "That venue is no longer available. Refresh the venue list and choose another." }); return; }
@@ -2126,7 +2126,7 @@ app.post("/v1/estates/:estateId/events", requireAuth, async (req, res) => {
   }
   const venueLabel = selectedVenue
     ? (selectedVenue.location ? selectedVenue.name + " · " + selectedVenue.location : selectedVenue.name)
-    : "Home";
+    : "Home / Private Residence";
   const requiresVenueApproval = venueId !== "home";
   const { data, error } = await authenticated.userSupabase.from("estate_events")
     .insert({
