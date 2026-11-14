@@ -9,7 +9,7 @@ const headers = {
 const reply = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers });
 const makeRef = () =>
-  \`CBNEST\${Date.now().toString(36).toUpperCase()}\${crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}\`;
+  `CBNEST${Date.now().toString(36).toUpperCase()}${crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers });
@@ -27,7 +27,7 @@ Deno.serve(async (req: Request) => {
   if (!token) return reply(401, { error: "authentication_required" });
   const user = createClient(url, anon, {
     auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers: { Authorization: \`Bearer \${token}\` } },
+    global: { headers: { Authorization: `Bearer ${token}` } },
   });
   const { data: auth, error: authErr } = await user.auth.getUser(token);
   if (authErr || !auth.user) return reply(401, { error: "invalid_session" });
@@ -117,7 +117,7 @@ Deno.serve(async (req: Request) => {
     if (!goal || goal.status !== "active" || !goal.estate_id || !members.some((m) => m.estate_id === goal.estate_id)) {
       return reply(404, { error: "active_savings_goal_not_found" });
     }
-    if (goal.target_date && new Date(\`\${goal.target_date}T00:00:00Z\`).getTime() <= Date.now()) {
+    if (goal.target_date && new Date(`${goal.target_date}T00:00:00Z`).getTime() <= Date.now()) {
       return reply(409, { error: "savings_goal_term_ended" });
     }
 
@@ -154,9 +154,9 @@ Deno.serve(async (req: Request) => {
 
   const base = mode === "live" ? "https://api-d.squadco.com" : "https://sandbox-api-d.squadco.com";
   try {
-    const response = await fetch(\`\${base}/transaction/initiate\`, {
+    const response = await fetch(`${base}/transaction/initiate`, {
       method: "POST",
-      headers: { Authorization: \`Bearer \${secret}\`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
       signal: AbortSignal.timeout(15_000),
       body: JSON.stringify({
         email: auth.user.email, amount: amountKobo, currency: "NGN",
