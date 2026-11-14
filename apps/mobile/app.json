@@ -6,7 +6,10 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "splash": { "backgroundColor": "#050505", "resizeMode": "contain" },
+    "splash": {
+      "backgroundColor": "#050505",
+      "resizeMode": "contain"
+    },
     "plugins": [
       "expo-router",
       [
@@ -20,10 +23,16 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.citiesbuilder.nest"
+      "bundleIdentifier": "com.citiesbuilder.nest",
+      "icon": "../web/public/IMG_9873.png"
     },
     "android": {
-      "package": "com.citiesbuilder.nest"
-    }
+      "package": "com.citiesbuilder.nest",
+      "adaptiveIcon": {
+        "foregroundImage": "../web/public/IMG_9873.png",
+        "backgroundColor": "#050505"
+      }
+    },
+    "icon": "../web/public/IMG_9873.png"
   }
 }
