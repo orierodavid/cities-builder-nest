@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (status === "failed" || status === "abandoned") {
-    const { error } = await admin.from(table).update({ status: "failed" })
+    const { error } = await admin.from(table).update({ status: "failed", verified_at: new Date().toISOString() })
       .eq("id", row.id).eq("status", "pending").is("verified_at", null);
     if (error) return reply(500, { error: "payment_ledger_update_failed" });
     return reply(200, { status: "failed", verified: true });
