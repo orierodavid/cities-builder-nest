@@ -12,32 +12,33 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE SCHEMA IF NOT EXISTS auth;
+CREATE SCHEMA IF NOT EXISTS private;
 
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
 LANGUAGE sql STABLE
-AS $ SELECT COALESCE(
+AS $authuid$ SELECT COALESCE(
   NULLIF(current_setting('request.jwt.claim.sub', true), ''),
   NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')
-)::uuid $;
+)::uuid $authuid$;
 
 CREATE OR REPLACE FUNCTION public.current_user_has_required_legal_consent() RETURNS boolean
 LANGUAGE sql STABLE
-AS $ SELECT true $;
+AS $consent$ SELECT true $consent$;
 CREATE OR REPLACE FUNCTION private.is_active_estate_manager(target_estate_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
-AS $ SELECT EXISTS (
+AS $manager$ SELECT EXISTS (
   SELECT 1 FROM public.estate_memberships m
   JOIN public.estates e ON e.id = m.estate_id
   WHERE m.estate_id = target_estate_id AND m.user_id = auth.uid()
     AND m.status = 'active'
     AND m.membership_role IN ('facility_manager','estate_manager','estate_admin')
     AND e.is_enabled = true
-) $;
+) $manager$;
 CREATE OR REPLACE FUNCTION private.is_platform_admin()
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
-AS $ SELECT EXISTS (
+AS $platformadmin$ SELECT EXISTS (
   SELECT 1 FROM public.user_roles r WHERE r.user_id = auth.uid() AND r.role = 'platform_admin'
-) $;
+) $platformadmin$;
 
 CREATE TABLE public.users (
   id uuid PRIMARY KEY, full_name text NOT NULL, phone_e164 text,
