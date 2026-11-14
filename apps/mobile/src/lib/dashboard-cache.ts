@@ -13,7 +13,10 @@ export async function readDashboardCache<T>(role: "resident" | "security", userI
 
 export async function writeDashboardCache<T>(role: "resident" | "security", userId: string, value: T): Promise<void> {
   try {
-    await AsyncStorage.setItem(`${PREFIX}:${role}:${userId}`, JSON.stringify({ ...value as object, cachedAt: Date.now() }));
+    const key = `${PREFIX}:${role}:${userId}`;
+    const previous = await AsyncStorage.getItem(key);
+    const existing = previous ? JSON.parse(previous) as object : {};
+    await AsyncStorage.setItem(key, JSON.stringify({ ...existing, ...value as object, cachedAt: Date.now() }));
   } catch {
     // Cache failures must never block dashboard access.
   }
