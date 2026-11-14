@@ -105,11 +105,17 @@ export default function ServiceChargesScreen() {
         body: { paymentType: 'service_charge', chargeId },
       });
       if (invokeError) throw invokeError;
-      if (!data?.checkoutUrl || typeof data.checkoutUrl !== 'string' || !data.checkoutUrl.startsWith('https://')) {
-        throw new Error('We could not open the payment page. Please try again.');
+      if (typeof data?.transactionReference !== "string" || !data.transactionReference) {
+        throw new Error('We could not confirm the payment attempt. Please try again.');
       }
-      if (typeof data.transactionReference !== "string" || !data.transactionReference) throw new Error("Missing payment reference.");
-      router.push({ pathname: "/payment-checkout", params: { checkoutUrl: data.checkoutUrl, reference: data.transactionReference, paymentType: "service_charge" } });
+      if (data.checkoutUrl && (typeof data.checkoutUrl !== 'string' || !data.checkoutUrl.startsWith('https://'))) {
+        throw new Error('The payment link could not be validated.');
+      }
+      router.push({ pathname: "/payment-checkout", params: {
+        checkoutUrl: typeof data.checkoutUrl === "string" ? data.checkoutUrl : "",
+        reference: data.transactionReference,
+        paymentType: "service_charge",
+      } });
     } catch (e) {
       setPaymentMessage('We could not start your payment. Please try again.');
     } finally {
