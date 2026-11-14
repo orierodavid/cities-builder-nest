@@ -59,8 +59,8 @@ Deno.serve(async (req: Request) => {
   const base = mode === "live" ? "https://api-d.squadco.com" : "https://sandbox-api-d.squadco.com";
   let check: Response;
   try {
-    check = await fetch(\`\${base}/transaction/verify/\${encodeURIComponent(ref)}\`, {
-      headers: { Authorization: \`Bearer \${secret}\` },
+    check = await fetch(`${base}/transaction/verify/${encodeURIComponent(ref)}`, {
+      headers: { Authorization: `Bearer ${secret}` },
       signal: AbortSignal.timeout(10_000),
     });
   } catch {
