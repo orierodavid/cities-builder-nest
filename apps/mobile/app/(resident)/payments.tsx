@@ -21,6 +21,7 @@ const money = (kobo: number, currency: string) =>
 const statusLabel = (status: string, verifiedAt: string | null) => {
   if (status === 'successful' && verifiedAt) return 'Successful';
   if (status === 'successful' || status === 'pending') return 'Pending';
+  if (status === 'failed' && !verifiedAt) return 'Pending confirmation';
   if (status === 'failed') return 'Failed';
   if (status === 'reversed') return 'Reversed';
   return 'Processing';
