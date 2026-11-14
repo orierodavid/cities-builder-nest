@@ -50,19 +50,48 @@ const transportErrors = new Counter("app_transport_errors");
 const http4xxErrors = new Counter("app_http_4xx_errors");
 const http5xxErrors = new Counter("app_http_5xx_errors");
 const timeoutErrors = new Counter("app_timeout_errors");
+const screenLatencyByLevel = {
+  "250": new Trend("screen_data_latency_250_ms", true),
+  "500": new Trend("screen_data_latency_500_ms", true),
+  "1000": new Trend("screen_data_latency_1000_ms", true),
+};
+const roleLevelMetrics = {};
+for (const role of roles) {
+  const roleKey = role.role.replace(/-/g, "_");
+  for (const level of ["250", "500", "1000"]) {
+    const key = `${roleKey}_${level}`;
+    roleLevelMetrics[key] = {
+      requestLatency: new Trend(`request_latency_${key}_ms`, true),
+      apiLatency: new Trend(`api_latency_${key}_ms`, true),
+      supabaseLatency: new Trend(`supabase_latency_${key}_ms`, true),
+      requestCount: new Counter(`request_count_${key}`),
+      http4xx: new Counter(`http_4xx_${key}`),
+      http5xx: new Counter(`http_5xx_${key}`),
+      transportErrors: new Counter(`transport_errors_${key}`),
+      timeouts: new Counter(`timeouts_${key}`),
+    };
+  }
+}
 
 function loadTag() {
   const active = exec.instance.vusActive;
   return active <= 250 ? "250" : active <= 500 ? "500" : "1000";
 }
-function validate(response, role, screen, valid, level) {
+function validate(response, role, screen, valid, level, source) {
   screenLatency.add(response.timings.duration,{role,screen,load_level:level});
+  screenLatencyByLevel[level].add(response.timings.duration);
+  const roleMetrics = roleLevelMetrics[`${role.replace(/-/g, "_")}_${level}`];
+  roleMetrics.requestLatency.add(response.timings.duration);
+  roleMetrics.requestCount.add(1);
+  if (source === "api") roleMetrics.apiLatency.add(response.timings.duration);
+  else roleMetrics.supabaseLatency.add(response.timings.duration);
   if (response.status === 0 || (response.error_code >= 1000 && response.error_code < 1400) || (response.error_code >= 1600 && response.error_code < 1700)) {
     transportErrors.add(1,{role,screen,load_level:level});
+    roleMetrics.transportErrors.add(1);
   }
-  if (response.status >= 400 && response.status < 500) http4xxErrors.add(1,{role,screen,load_level:level});
-  if (response.status >= 500) http5xxErrors.add(1,{role,screen,load_level:level});
-  if (response.error_code === 1050 || response.status === 408 || response.status === 504) timeoutErrors.add(1,{role,screen,load_level:level});
+  if (response.status >= 400 && response.status < 500) { http4xxErrors.add(1,{role,screen,load_level:level}); roleMetrics.http4xx.add(1); }
+  if (response.status >= 500) { http5xxErrors.add(1,{role,screen,load_level:level}); roleMetrics.http5xx.add(1); }
+  if (response.error_code === 1050 || response.status === 408 || response.status === 504) { timeoutErrors.add(1,{role,screen,load_level:level}); roleMetrics.timeouts.add(1); }
   let payload = null;
   try { payload = response.json(); } catch (_) {}
   check(response,{
@@ -88,7 +117,7 @@ function restRead(user, screen, path, valid, method = "GET") {
     if ((response.status !== 200 && response.status !== 206) && __VU <= 4 && __ITER === 0) {
       console.error(`Supabase REST read failed role=${user.role} screen=${screen} status=${response.status} code=${response.error_code} error=${response.error} body=${String(response.body).slice(0,300)}`);
     }
-    payload = validate(response,user.role,screen,valid,level);
+    payload = validate(response,user.role,screen,valid,level,"supabase-rest");
   });
   return payload;
 }
@@ -103,7 +132,7 @@ function apiRead(user, screen, path, valid) {
       timeout:"20s",
       tags:{ role:user.role, screen, source:"api", load_level:level },
     });
-    validate(response,user.role,screen,valid,level);
+    validate(response,user.role,screen,valid,level,"api");
   });
 }
 function pauseBetweenScreens() { sleep(0.5); }
