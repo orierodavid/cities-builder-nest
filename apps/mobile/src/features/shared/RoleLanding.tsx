@@ -76,7 +76,7 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   }catch(e){setProfileError(e instanceof Error?e.message:'Resident details could not be loaded.');}
   finally{setProfileLoading(false);}
  };
- useEffect(()=>{void loadResidentDetails();},[role,providedName]);
+ useEffect(()=>{\n  let active=true;\n  const timeout=setTimeout(()=>{if(active&&role==='resident'){setProfileError('Connection is taking longer than expected. Check your internet connection and retry.');setProfileLoading(false);}},12000);\n  void loadResidentDetails().finally(()=>clearTimeout(timeout));\n  return ()=>{active=false;clearTimeout(timeout);};\n },[role,providedName]);
  const signOut=async()=>{if(signingOut)return;setSigningOut(true);try{const {data:{user}}=await supabase.auth.getUser();if(user)await clearDashboardCache(role,user.id);const {error}=await supabase.auth.signOut();if(error)throw error;router.replace('/' as never);}catch(error){Alert.alert('Could not log out','Please try again.');}finally{setSigningOut(false);}};
  const tileBasis=cfg.columns===3?'31%':'48%';
  if(role==='resident'&&profileLoading&&!residentName&&!residentUnit){
