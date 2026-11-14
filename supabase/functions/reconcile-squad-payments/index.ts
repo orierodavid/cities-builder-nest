@@ -11,6 +11,17 @@ type PaymentRow = {
   last_reconciled_at: string | null;
 };
 
+type UtilityRow = {
+  id: string;
+  validation_id: string;
+  service: string;
+  merchant_reference: string;
+  status: string;
+  created_at: string;
+  last_reconciled_at: string | null;
+  receipt: Record<string, unknown> | null;
+};
+
 const reply = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -159,6 +170,115 @@ Deno.serve(async (req: Request) => {
         totals.stillPending += 1;
       }
     }
+  }
+
+  const { data: utilityRows, error: utilityError } = await admin.from("utility_transactions")
+    .select("id,validation_id,service,merchant_reference,status,created_at,last_reconciled_at,receipt")
+    .eq("status", "pending")
+    .lt("created_at", staleBefore)
+    .or(`last_reconciled_at.is.null,last_reconciled_at.lt.${retryBefore}`)
+    .order("created_at", { ascending: true })
+    .limit(50);
+  if (utilityError) return reply(503, { error: "pending_utility_lookup_failed" });
+
+  for (const row of (utilityRows ?? []) as UtilityRow[]) {
+    totals.scanned += 1;
+    const { data: validation, error: validationError } = await admin.from("utility_validations")
+      .select("validation_token").eq("id", row.validation_id).maybeSingle();
+    if (validationError || !validation?.validation_token) {
+      totals.unavailable += 1;
+      const { error } = await admin.from("utility_transactions").update({ last_reconciled_at: attemptedAt })
+        .eq("id", row.id).eq("status", "pending");
+      if (error) return reply(500, { error: "utility_reconciliation_update_failed" });
+      continue;
+    }
+
+    const providerReference = row.service === "cable_tv" ? validation.validation_token : row.merchant_reference;
+    const path = row.service === "electricity"
+      ? `/vending/transactions?reference=${encodeURIComponent(validation.validation_token)}`
+      : `/v1/service/transactions/${encodeURIComponent(providerReference)}`;
+    let response: Response;
+    try {
+      response = await fetch(`${base}${path}`, {
+        headers: { Authorization: `Bearer ${squadSecret}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      totals.unavailable += 1;
+      const { error } = await admin.from("utility_transactions").update({ last_reconciled_at: attemptedAt })
+        .eq("id", row.id).eq("status", "pending");
+      if (error) return reply(500, { error: "utility_reconciliation_update_failed" });
+      continue;
+    }
+    if (!response.ok) {
+      totals.unavailable += 1;
+      const { error } = await admin.from("utility_transactions").update({ last_reconciled_at: attemptedAt })
+        .eq("id", row.id).eq("status", "pending");
+      if (error) return reply(500, { error: "utility_reconciliation_update_failed" });
+      continue;
+    }
+
+    let payload: Record<string, unknown>;
+    try { payload = await response.json(); } catch {
+      totals.unavailable += 1;
+      const { error } = await admin.from("utility_transactions").update({ last_reconciled_at: attemptedAt })
+        .eq("id", row.id).eq("status", "pending");
+      if (error) return reply(500, { error: "utility_reconciliation_update_failed" });
+      continue;
+    }
+    if (row.service === "electricity" && payload.success !== true) {
+      totals.unavailable += 1;
+      const { error } = await admin.from("utility_transactions").update({ last_reconciled_at: attemptedAt })
+        .eq("id", row.id).eq("status", "pending");
+      if (error) return reply(500, { error: "utility_reconciliation_update_failed" });
+      continue;
+    }
+
+    const details = payload.data && typeof payload.data === "object" && !Array.isArray(payload.data)
+      ? payload.data as Record<string, unknown> : payload;
+    const providerStatus = String(
+      row.service === "electricity"
+        ? details.status ?? payload.status ?? ""
+        : details.processed_status ?? details.status ?? payload.status ?? "",
+    ).toLowerCase();
+    const nextStatus = ["success", "successful"].includes(providerStatus)
+      ? "successful"
+      : ["failed", "failure", "reversed"].includes(providerStatus)
+      ? "failed"
+      : "pending";
+
+    let receipt = row.receipt;
+    if (nextStatus === "successful" && row.service === "electricity") {
+      const meta = details.meta_json && typeof details.meta_json === "object"
+        ? details.meta_json as Record<string, unknown> : {};
+      receipt = {
+        token: meta.token ?? details.value_reference ?? null,
+        units: meta.total_units ?? null,
+        receiptNumber: meta.receipt_number ?? null,
+        customerName: meta.account_name ?? null,
+        meterNumber: meta.meter_number ?? null,
+        address: meta.address ?? null,
+        amountPaid: meta.amount_paid ?? null,
+      };
+    } else if (nextStatus === "successful") {
+      receipt = details.token ?? details.receipt ?? row.receipt;
+    }
+
+    const { data: updated, error: updateError } = await admin.from("utility_transactions")
+      .update({
+        status: nextStatus,
+        provider_status: providerStatus || "PENDING",
+        provider_response: payload,
+        receipt,
+        last_reconciled_at: attemptedAt,
+        updated_at: attemptedAt,
+      })
+      .eq("id", row.id).eq("status", "pending")
+      .select("id").maybeSingle();
+    if (updateError) return reply(500, { error: "utility_reconciliation_update_failed" });
+    if (updated && nextStatus === "successful") totals.successful += 1;
+    else if (updated && nextStatus === "failed") totals.failed += 1;
+    else if (nextStatus === "pending") totals.stillPending += 1;
   }
 
   return reply(200, { received: true, ...totals });
