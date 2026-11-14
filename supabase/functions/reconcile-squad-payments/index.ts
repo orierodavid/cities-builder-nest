@@ -25,8 +25,8 @@ function safeEqual(left: string, right: string): boolean {
 
 async function verifyPayment(base: string, secret: string, reference: string) {
   const response = await fetch(
-    \`\${base}/transaction/verify/\${encodeURIComponent(reference)}\`,
-    { headers: { Authorization: \`Bearer \${secret}\` }, signal: AbortSignal.timeout(10_000) },
+    `${base}/transaction/verify/${encodeURIComponent(reference)}`,
+    { headers: { Authorization: `Bearer ${secret}` }, signal: AbortSignal.timeout(10_000) },
   );
   if (!response.ok) throw new Error("provider_verification_unavailable");
   const payload = await response.json();
@@ -67,7 +67,7 @@ Deno.serve(async (req: Request) => {
       .eq("provider", "squad")
       .not("provider_reference", "is", null)
       .lt("created_at", staleBefore)
-      .or(\`last_reconciled_at.is.null,last_reconciled_at.lt.\${retryBefore}\`)
+      .or(`last_reconciled_at.is.null,last_reconciled_at.lt.${retryBefore}`)
       .order("created_at", { ascending: true })
       .limit(50);
     if (error) return reply(503, { error: "pending_payment_lookup_failed" });
