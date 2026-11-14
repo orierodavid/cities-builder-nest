@@ -46,5 +46,5 @@ const server = http.createServer((req, res) => {
 
 const port = Number(process.env.AUTH_STUB_PORT || 4101);
 server.listen(port, "127.0.0.1", () => {
-  process.stdout.write("Isolated Supabase Auth/PostgREST stub listening on 127.0.0.1:${port}\n");
+  process.stdout.write(`Isolated Supabase Auth stub listening on 127.0.0.1:${port}\n`);
 });
