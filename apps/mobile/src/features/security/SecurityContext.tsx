@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../../lib/supabase";
 import { getApiBaseUrl } from "../../lib/api-url";
 import { readDashboardCache, writeDashboardCache } from "../../lib/dashboard-cache";
+import { subscribeConnectionRestored } from "../../lib/connection-events";
 
 export type SecurityEstate = { id: string; name: string; membershipRole?: string | null };
 type Value = {
@@ -57,7 +58,10 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       if (active) { setError(cause instanceof Error ? cause.message : "Your session could not be restored."); setLoading(false); }
     });
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => { if (active) void load(nextSession); });
-    return () => { active = false; data.subscription.unsubscribe(); };
+    const unsubscribe = subscribeConnectionRestored(() => {
+      if (active) void supabase.auth.getSession().then(({ data: sessionData }) => load(sessionData.session));
+    });
+    return () => { active = false; data.subscription.unsubscribe(); unsubscribe(); };
   }, [load]);
 
   const value = useMemo<Value>(() => ({
