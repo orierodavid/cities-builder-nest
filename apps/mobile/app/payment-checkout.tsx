@@ -115,7 +115,10 @@ export default function PaymentCheckoutScreen() {
           originWhitelist={["https://*"]}
           onShouldStartLoadWithRequest={handleNavigation}
           onNavigationStateChange={onNavigationStateChange}
-          onError={() => setPageError("The checkout page could not load. Check your connection and try again.")}
+          onError={() => {
+            setCheckoutVisible(false);
+            setPageError("The checkout page could not load. We are checking the transaction status. Do not pay again while it is pending.");
+          }}
           onHttpError={(event) => {
             if (event.nativeEvent.statusCode >= 500) setPageError("The payment provider is temporarily unavailable.");
           }}
