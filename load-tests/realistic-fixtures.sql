@@ -24,22 +24,6 @@ AS $authuid$ SELECT COALESCE(
 CREATE OR REPLACE FUNCTION public.current_user_has_required_legal_consent() RETURNS boolean
 LANGUAGE sql STABLE
 AS $consent$ SELECT true $consent$;
-CREATE OR REPLACE FUNCTION private.is_active_estate_manager(target_estate_id uuid)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
-AS $manager$ SELECT EXISTS (
-  SELECT 1 FROM public.estate_memberships m
-  JOIN public.estates e ON e.id = m.estate_id
-  WHERE m.estate_id = target_estate_id AND m.user_id = auth.uid()
-    AND m.status = 'active'
-    AND m.membership_role IN ('facility_manager','estate_manager','estate_admin')
-    AND e.is_enabled = true
-) $manager$;
-CREATE OR REPLACE FUNCTION private.is_platform_admin()
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
-AS $platformadmin$ SELECT EXISTS (
-  SELECT 1 FROM public.user_roles r WHERE r.user_id = auth.uid() AND r.role = 'platform_admin'
-) $platformadmin$;
-
 CREATE TABLE public.users (
   id uuid PRIMARY KEY, full_name text NOT NULL, phone_e164 text,
   home_number text, street_name text, is_active boolean NOT NULL DEFAULT true,
@@ -162,6 +146,23 @@ CREATE TABLE public.estate_event_checkins (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
   event_id uuid NOT NULL, guest_id uuid NOT NULL, checked_in_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE OR REPLACE FUNCTION private.is_active_estate_manager(target_estate_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $manager$ SELECT EXISTS (
+  SELECT 1 FROM public.estate_memberships m
+  JOIN public.estates e ON e.id = m.estate_id
+  WHERE m.estate_id = target_estate_id AND m.user_id = auth.uid()
+    AND m.status = 'active'
+    AND m.membership_role IN ('facility_manager','estate_manager','estate_admin')
+    AND e.is_enabled = true
+) $manager$;
+CREATE OR REPLACE FUNCTION private.is_platform_admin()
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $platformadmin$ SELECT EXISTS (
+  SELECT 1 FROM public.user_roles r WHERE r.user_id = auth.uid() AND r.role = 'platform_admin'
+) $platformadmin$;
+
 
 CREATE INDEX idx_load_buildings_estate ON public.buildings(estate_id, name);
 CREATE INDEX idx_load_resident_units_user ON public.resident_units(resident_user_id, end_date);
