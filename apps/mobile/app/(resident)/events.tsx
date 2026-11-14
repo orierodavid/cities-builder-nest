@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { Screen, SectionTitle, EmptyState, Card } from '../../src/components/ui';
 import { theme } from '../../src/theme/theme';
 import { supabase } from '../../lib/supabase';
@@ -20,6 +20,103 @@ type EstateEvent = {
 };
 const apiUrl = getApiBaseUrl();
 
+type DateTimeFieldProps = { label: string; value: Date | null; onChange: (value: Date) => void };
+
+function DateTimeField({ label, value, onChange }: DateTimeFieldProps) {
+  const [mode, setMode] = useState<'date' | 'time' | null>(null);
+  const [visibleMonth, setVisibleMonth] = useState(() => value ? new Date(value.getFullYear(), value.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [hour, setHour] = useState(() => value ? (value.getHours() % 12 || 12) : 9);
+  const [minute, setMinute] = useState(() => value ? value.getMinutes() : 0);
+  const [period, setPeriod] = useState<'AM' | 'PM'>(() => value && value.getHours() >= 12 ? 'PM' : 'AM');
+  const calendarDays = useMemo(() => {
+    const offset = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1).getDay();
+    const count = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
+    return [...Array(offset).fill(null), ...Array.from({ length: count }, (_, index) => index + 1)];
+  }, [visibleMonth]);
+  function openTimePicker() {
+    if (value) { setHour(value.getHours() % 12 || 12); setMinute(value.getMinutes()); setPeriod(value.getHours() >= 12 ? 'PM' : 'AM'); }
+    setMode('time');
+  }
+  function chooseDate(day: number) {
+    const next = value ? new Date(value) : new Date();
+    next.setFullYear(visibleMonth.getFullYear(), visibleMonth.getMonth(), day);
+    onChange(next); setMode(null);
+  }
+  function saveTime() {
+    const next = value ? new Date(value) : new Date();
+    next.setHours((hour % 12) + (period === 'PM' ? 12 : 0), minute, 0, 0);
+    onChange(next); setMode(null);
+  }
+  function shift(current: number, delta: number, min: number, max: number, setter: (value: number) => void) {
+    const next = current + delta;
+    setter(next < min ? max : next > max ? min : next);
+  }
+  return (
+    <View style={{ marginBottom: 12 }}>
+      <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>{label}</Text>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={label + ' calendar date'} onPress={() => { setVisibleMonth(value ? new Date(value.getFullYear(), value.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1)); setMode('date'); }} style={{ flex: 1.25, borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 13 }}>
+          <Text style={{ color: theme.muted, fontSize: 10, marginBottom: 4 }}>DATE</Text>
+          <Text style={{ color: value ? theme.text : theme.muted, fontSize: 13 }}>{value ? value.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : 'Choose date'}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={label + ' clock time'} onPress={openTimePicker} style={{ flex: 1, borderColor: theme.border, borderWidth: 1, borderRadius: 10, padding: 13 }}>
+          <Text style={{ color: theme.muted, fontSize: 10, marginBottom: 4 }}>TIME</Text>
+          <Text style={{ color: value ? theme.text : theme.muted, fontSize: 13 }}>{value ? value.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Choose time'}</Text>
+        </Pressable>
+      </View>
+      <Modal transparent visible={mode !== null} animationType="fade" onRequestClose={() => setMode(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.78)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, borderRadius: 16, padding: 16 }}>
+            {mode === 'date' ? <>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Pressable accessibilityLabel="Previous month" onPress={() => setVisibleMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))} style={{ padding: 8 }}><Text style={{ color: theme.gold, fontSize: 20 }}>‹</Text></Pressable>
+                <Text style={{ color: theme.text, fontWeight: '800', fontSize: 16 }}>{visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</Text>
+                <Pressable accessibilityLabel="Next month" onPress={() => setVisibleMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))} style={{ padding: 8 }}><Text style={{ color: theme.gold, fontSize: 20 }}>›</Text></Pressable>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <View key={day} style={{ width: '14.285%', alignItems: 'center', paddingVertical: 8 }}><Text style={{ color: theme.muted, fontSize: 11, fontWeight: '700' }}>{day}</Text></View>)}
+                {calendarDays.map((day, index) => day === null
+                  ? <View key={'blank-' + index} style={{ width: '14.285%', height: 42 }} />
+                  : <Pressable key={day} accessibilityRole="button" accessibilityLabel={'Choose ' + visibleMonth.toLocaleDateString(undefined, { month: 'long' }) + ' ' + day} onPress={() => chooseDate(day)} style={{ width: '14.285%', height: 42, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: value && value.getFullYear() === visibleMonth.getFullYear() && value.getMonth() === visibleMonth.getMonth() && value.getDate() === day ? theme.gold : 'transparent' }}>
+                      <Text style={{ color: value && value.getFullYear() === visibleMonth.getFullYear() && value.getMonth() === visibleMonth.getMonth() && value.getDate() === day ? '#080808' : theme.text, fontWeight: '700' }}>{day}</Text>
+                    </View>
+                  </Pressable>)}
+              </View>
+            </> : <>
+              <Text style={{ color: theme.text, fontWeight: '800', fontSize: 16, textAlign: 'center', marginBottom: 18 }}>Choose time</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Pressable accessibilityLabel="Increase hour" onPress={() => shift(hour, 1, 1, 12, setHour)} style={timeAdjustButton}><Text style={timeAdjustText}>＋</Text></Pressable>
+                  <Text style={timeValueText}>{String(hour).padStart(2, '0')}</Text>
+                  <Pressable accessibilityLabel="Decrease hour" onPress={() => shift(hour, -1, 1, 12, setHour)} style={timeAdjustButton}><Text style={timeAdjustText}>−</Text></Pressable>
+                </View>
+                <Text style={{ color: theme.text, fontSize: 26, fontWeight: '800' }}>:</Text>
+                <View style={{ alignItems: 'center' }}>
+                  <Pressable accessibilityLabel="Increase minute" onPress={() => shift(minute, 5, 0, 55, setMinute)} style={timeAdjustButton}><Text style={timeAdjustText}>＋</Text></Pressable>
+                  <Text style={timeValueText}>{String(minute).padStart(2, '0')}</Text>
+                  <Pressable accessibilityLabel="Decrease minute" onPress={() => shift(minute, -5, 0, 55, setMinute)} style={timeAdjustButton}><Text style={timeAdjustText}>−</Text></Pressable>
+                </View>
+                <View style={{ gap: 8 }}>
+                  {(['AM', 'PM'] as const).map(item => <Pressable key={item} onPress={() => setPeriod(item)} style={{ paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: period === item ? theme.gold : '#080808' }}><Text style={{ color: period === item ? '#080808' : theme.text, fontWeight: '800' }}>{item}</Text></Pressable>)}
+                </View>
+              </View>
+            </>}
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+              <Pressable onPress={() => setMode(null)} style={{ padding: 11 }}><Text style={{ color: theme.muted, fontWeight: '700' }}>CANCEL</Text></Pressable>
+              {mode === 'time' ? <Pressable onPress={saveTime} style={{ backgroundColor: theme.gold, borderRadius: 8, padding: 11 }}><Text style={{ color: '#080808', fontWeight: '800' }}>SET TIME</Text></Pressable> : null}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const timeAdjustButton = { width: 48, height: 34, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: '#080808', borderRadius: 8 };
+const timeAdjustText = { color: theme.gold, fontSize: 18, fontWeight: '800' as const };
+const timeValueText = { color: theme.text, fontSize: 26, fontWeight: '800' as const, paddingVertical: 5 };
+
 export default function ResidentEventsRoute() {
   const [estateId, setEstateId] = useState('');
   const [events, setEvents] = useState<EstateEvent[]>([]);
@@ -31,8 +128,8 @@ export default function ResidentEventsRoute() {
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [startsAt, setStartsAt] = useState('');
-  const [endsAt, setEndsAt] = useState('');
+  const [startsAt, setStartsAt] = useState<Date | null>(null);
+  const [endsAt, setEndsAt] = useState<Date | null>(null);
   const [message, setMessage] = useState('');
 
   const request = useCallback(async (path: string, token: string, method: 'GET' | 'POST' = 'GET', body?: unknown) => {
@@ -94,9 +191,9 @@ export default function ResidentEventsRoute() {
       setMessage('That venue is no longer available. Refresh the venue list and choose another.');
       return;
     }
-    const start = new Date(startsAt);
-    const end = new Date(endsAt);
-    if (!startsAt.trim() || !endsAt.trim() || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    const start = startsAt;
+    const end = endsAt;
+    if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
       setMessage('Enter valid start and end date/time values. The end must be after the start.');
       return;
     }
@@ -116,8 +213,8 @@ export default function ResidentEventsRoute() {
       });
       setTitle('');
       setDescription('');
-      setStartsAt('');
-      setEndsAt('');
+      setStartsAt(null);
+      setEndsAt(null);
       setShowCreate(false);
       setMessage('Your event has been created.');
       await loadEvents(estateId, session.access_token);
@@ -153,8 +250,8 @@ export default function ResidentEventsRoute() {
           </Pressable>)}
           {!venues.length ? <Text style={{ color: theme.muted, fontSize: 12, padding: 13 }}>No other venues are currently available in this estate.</Text> : null}
         </View> : null}
-        <TextInput value={startsAt} onChangeText={setStartsAt} placeholder="Start date/time (e.g. 2026-12-20T15:00)" placeholderTextColor={theme.muted} autoCapitalize="none" style={fieldStyle} />
-        <TextInput value={endsAt} onChangeText={setEndsAt} placeholder="End date/time (e.g. 2026-12-20T18:00)" placeholderTextColor={theme.muted} autoCapitalize="none" style={fieldStyle} />
+        <DateTimeField label="Start date and time" value={startsAt} onChange={setStartsAt} />
+        <DateTimeField label="End date and time" value={endsAt} onChange={setEndsAt} />
         <Pressable disabled={saving} onPress={() => void createEvent()} style={{ backgroundColor: theme.gold, borderRadius: 10, padding: 14, alignItems: 'center', opacity: saving ? 0.6 : 1 }}>
           {saving ? <ActivityIndicator color="#080808" /> : <Text style={{ color: '#080808', fontWeight: '800' }}>CREATE EVENT</Text>}
         </Pressable>
