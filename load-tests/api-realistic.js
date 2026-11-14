@@ -83,7 +83,7 @@ function restRead(user, screen, path, valid, method = "GET") {
     };
     // The app calls Supabase at /rest/v1; the local PostgREST container serves
     // the same schema directly at its root, so strip only that local prefix.
-    const localPath = path.replace(/^\/rest\/v1(?=\/)/, "");
+    const localPath = path.indexOf("/rest/v1") === 0 ? path.slice(8) : path;
     const response = method === "HEAD" ? http.head(restBase + localPath,params) : http.get(restBase + localPath,params);
     if ((response.status !== 200 && response.status !== 206) && __VU <= 4 && __ITER === 0) {
       console.error(`Supabase REST read failed role=${user.role} screen=${screen} status=${response.status} code=${response.error_code} error=${response.error} body=${String(response.body).slice(0,300)}`);
