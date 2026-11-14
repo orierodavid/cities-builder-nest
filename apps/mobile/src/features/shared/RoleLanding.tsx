@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { theme } from '../../theme/theme';
 import { supabase } from '../../../lib/supabase';
+import { readDashboardCache, writeDashboardCache, clearDashboardCache } from '../../lib/dashboard-cache';
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 export type Role = 'resident' | 'security';
 type Tile = {label:string;icon:IconName;route:string};
@@ -22,7 +23,7 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
  const go=(route:string)=>router.push(route as never);
  const loadResidentDetails=async()=>{
   if(role!=='resident')return;
-  setProfileLoading(true);setProfileError('');
+  setProfileError('');
   try{
    // The cached session is sufficient for the profile query; avoid an extra
    // auth network round trip on every dashboard mount.
@@ -30,6 +31,12 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
    if(sessionError)throw sessionError;
    const user=session?.user;
    if(!user)throw new Error('Your session has expired. Please sign in again.');
+   const cached=await readDashboardCache<{name?:string;unit?:string}>('resident',user.id);
+   if(cached){
+    setResidentName(cached.name||providedName||'');
+    setResidentUnit(cached.unit||providedUnit||'');
+    setProfileLoading(false);
+   }
    const {data:profile,error:profileQueryError}=await supabase.from('users')
     .select('full_name,home_number,street_name').eq('id',user.id).maybeSingle();
    if(profileQueryError)throw profileQueryError;
@@ -37,7 +44,9 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
    const streetName=String(profile?.street_name||'').trim();
    if(homeNumber||streetName){
     setResidentName(profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
-    setResidentUnit([homeNumber,streetName].filter(Boolean).join(' · ')||providedUnit||'');
+    const unitLabel=[homeNumber,streetName].filter(Boolean).join(' · ')||providedUnit||'';
+    setResidentUnit(unitLabel);
+    await writeDashboardCache('resident',user.id,{name:profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim(),unit:unitLabel});
     return;
    }
    // Legacy residents without self-reported home details retain their existing
@@ -63,11 +72,12 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
    }
    setResidentName(profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
    setResidentUnit(unitLabel||providedUnit||'');
+   await writeDashboardCache('resident',user.id,{name:profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim(),unit:unitLabel||providedUnit||''});
   }catch(e){setProfileError(e instanceof Error?e.message:'Resident details could not be loaded.');}
   finally{setProfileLoading(false);}
  };
  useEffect(()=>{void loadResidentDetails();},[role,providedName]);
- const signOut=async()=>{if(signingOut)return;setSigningOut(true);try{const {error}=await supabase.auth.signOut();if(error)throw error;router.replace('/' as never);}catch(error){Alert.alert('Could not log out','Please try again.');}finally{setSigningOut(false);}};
+ const signOut=async()=>{if(signingOut)return;setSigningOut(true);try{const {data:{user}}=await supabase.auth.getUser();if(user)await clearDashboardCache(role,user.id);const {error}=await supabase.auth.signOut();if(error)throw error;router.replace('/' as never);}catch(error){Alert.alert('Could not log out','Please try again.');}finally{setSigningOut(false);}};
  const tileBasis=cfg.columns===3?'31%':'48%';
  return <SafeAreaView style={s.safe} edges={['top']}><ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
  <View style={s.brandRow}><MaterialCommunityIcons name="home-city" size={26} color={C.gold}/><Text style={s.brand}>CB NEST</Text></View>
