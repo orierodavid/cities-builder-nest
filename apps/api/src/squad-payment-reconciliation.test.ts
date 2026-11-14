@@ -50,3 +50,12 @@ test("an uncreated Squad reference is only failed after the 15-minute safety win
   assert.match(reconciler, /ageMs >= 15 \* 60_000/);
   assert.match(reconciler, /status: "failed", verified_at: attemptedAt/);
 });
+
+
+test("pending utility vends are reconciled through their service-specific Squad status endpoints", () => {
+  assert.match(migration, /utility_transactions_pending_reconciliation_idx/);
+  assert.match(reconciler, /from\("utility_transactions"\)/);
+  assert.match(reconciler, /\/vending\/transactions\?reference=/);
+  assert.match(reconciler, /\/v1\/service\/transactions\//);
+  assert.match(reconciler, /status: nextStatus/);
+});
