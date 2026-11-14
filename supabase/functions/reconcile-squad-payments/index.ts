@@ -25,11 +25,8 @@ function safeEqual(left: string, right: string): boolean {
 
 async function verifyPayment(base: string, secret: string, reference: string) {
   const response = await fetch(
-    `${base}/transaction/verify/${encodeURIComponent(reference)}`,
-    {
-      headers: { Authorization: `Bearer ${secret}` },
-      signal: AbortSignal.timeout(10_000),
-    },
+    \`\${base}/transaction/verify/\${encodeURIComponent(reference)}\`,
+    { headers: { Authorization: \`Bearer \${secret}\` }, signal: AbortSignal.timeout(10_000) },
   );
   if (!response.ok) throw new Error("provider_verification_unavailable");
   const payload = await response.json();
@@ -59,22 +56,20 @@ Deno.serve(async (req: Request) => {
   const staleBefore = new Date(now.getTime() - 5 * 60_000).toISOString();
   const retryBefore = new Date(now.getTime() - 15 * 60_000).toISOString();
   const attemptedAt = now.toISOString();
-
   const tables = ["service_charge_payments", "rent_savings_contributions"] as const;
   const totals = { scanned: 0, successful: 0, failed: 0, stillPending: 0, mismatched: 0, unavailable: 0 };
 
   for (const table of tables) {
-    const { data, error } = await admin
-      .from(table)
+    const { data, error } = await admin.from(table)
       .select("id,amount_kobo,currency,status,resident_user_id,provider_reference,created_at,last_reconciled_at")
-      .eq("status", "pending")
+      .in("status", ["pending", "failed"])
+      .is("verified_at", null)
       .eq("provider", "squad")
       .not("provider_reference", "is", null)
       .lt("created_at", staleBefore)
-      .or(`last_reconciled_at.is.null,last_reconciled_at.lt.${retryBefore}`)
+      .or(\`last_reconciled_at.is.null,last_reconciled_at.lt.\${retryBefore}\`)
       .order("created_at", { ascending: true })
       .limit(50);
-
     if (error) return reply(503, { error: "pending_payment_lookup_failed" });
 
     for (const row of (data ?? []) as PaymentRow[]) {
@@ -84,7 +79,8 @@ Deno.serve(async (req: Request) => {
         verified = await verifyPayment(base, squadSecret, row.provider_reference);
       } catch {
         totals.unavailable += 1;
-        const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt }).eq("id", row.id).eq("status", "pending");
+        const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt })
+          .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
         if (markError) return reply(500, { error: "payment_reconciliation_update_failed" });
         continue;
       }
@@ -94,11 +90,11 @@ Deno.serve(async (req: Request) => {
       const currency = String(verified.transaction_currency_id ?? verified.currency ?? "").toUpperCase();
       const reference = String(verified.transaction_ref ?? "");
       const ledgerAmount = Number(row.amount_kobo);
-
       const { data: authUser, error: userError } = await admin.auth.admin.getUserById(row.resident_user_id);
       if (userError) {
         totals.unavailable += 1;
-        const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt }).eq("id", row.id).eq("status", "pending");
+        const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt })
+          .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
         if (markError) return reply(500, { error: "payment_reconciliation_update_failed" });
         continue;
       }
@@ -111,38 +107,35 @@ Deno.serve(async (req: Request) => {
           reference !== row.provider_reference || !emailMatches ||
           !["success", "failed", "abandoned", "pending"].includes(status)) {
         totals.mismatched += 1;
-        const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt }).eq("id", row.id).eq("status", "pending");
+        const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt })
+          .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
         if (markError) return reply(500, { error: "payment_reconciliation_update_failed" });
         continue;
       }
 
       if (status === "success") {
-        const { data: updated, error: updateError } = await admin
-          .from(table)
+        const { data: updated, error: updateError } = await admin.from(table)
           .update({ status: "successful", provider: "squad", verified_at: attemptedAt, last_reconciled_at: attemptedAt })
-          .eq("id", row.id)
-          .eq("status", "pending")
-          .select("id")
-          .maybeSingle();
+          .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null)
+          .select("id").maybeSingle();
         if (updateError) return reply(500, { error: "payment_ledger_update_failed" });
         if (updated) totals.successful += 1;
       } else if (status === "failed" || status === "abandoned") {
-        const { data: updated, error: updateError } = await admin
-          .from(table)
+        const { data: updated, error: updateError } = await admin.from(table)
           .update({ status: "failed", last_reconciled_at: attemptedAt })
-          .eq("id", row.id)
-          .eq("status", "pending")
-          .select("id")
-          .maybeSingle();
+          .eq("id", row.id).eq("status", "pending").is("verified_at", null)
+          .select("id").maybeSingle();
         if (updateError) return reply(500, { error: "payment_ledger_update_failed" });
         if (updated) totals.failed += 1;
+        else {
+          const { error: markError } = await admin.from(table).update({ last_reconciled_at: attemptedAt })
+            .eq("id", row.id).eq("status", "failed").is("verified_at", null);
+          if (markError) return reply(500, { error: "payment_reconciliation_update_failed" });
+        }
       } else {
-        const { error: updateError } = await admin
-          .from(table)
-          .update({ last_reconciled_at: attemptedAt })
-          .eq("id", row.id)
-          .eq("status", "pending");
-        if (updateError) return reply(500, { error: "payment_ledger_update_failed" });
+        const { error: updateError } = await admin.from(table).update({ last_reconciled_at: attemptedAt })
+          .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
+        if (updateError) return reply(500, { error: "payment_reconciliation_update_failed" });
         totals.stillPending += 1;
       }
     }
