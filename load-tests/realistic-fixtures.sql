@@ -85,6 +85,31 @@ CREATE TABLE public.visitor_passes (
   valid_from timestamptz NOT NULL, valid_until timestamptz NOT NULL,
   status text NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE public.estate_service_charges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
+  title text NOT NULL, description text, amount_kobo bigint NOT NULL,
+  due_date date, is_active boolean NOT NULL DEFAULT true, created_by uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.service_charge_payments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), charge_id uuid NOT NULL REFERENCES public.estate_service_charges(id),
+  estate_id uuid NOT NULL, resident_user_id uuid NOT NULL, amount_kobo bigint NOT NULL,
+  currency char(3) NOT NULL DEFAULT 'NGN', status text NOT NULL DEFAULT 'pending',
+  provider text, provider_reference text, verified_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.rent_savings_contributions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), resident_user_id uuid NOT NULL,
+  estate_id uuid NOT NULL, amount_kobo bigint NOT NULL, currency char(3) NOT NULL DEFAULT 'NGN',
+  status text NOT NULL DEFAULT 'pending', provider_reference text, verified_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.electricity_recharge_orders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), resident_user_id uuid NOT NULL,
+  estate_id uuid NOT NULL, amount_kobo bigint NOT NULL, currency char(3) NOT NULL DEFAULT 'NGN',
+  status text NOT NULL DEFAULT 'pending', units_purchased numeric(14,4), verified_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE public.visitor_visits (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), estate_id uuid NOT NULL,
   visitor_pass_id uuid NOT NULL, checked_in_by uuid NOT NULL,
@@ -159,6 +184,10 @@ ALTER TABLE public.units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.buildings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.resident_units ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.visitor_visits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.estate_service_charges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.service_charge_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rent_savings_contributions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.electricity_recharge_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.security_shift_handovers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.security_emergency_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.security_incident_reports ENABLE ROW LEVEL SECURITY;
@@ -222,7 +251,8 @@ GRANT EXECUTE ON FUNCTION public.current_user_has_required_legal_consent() TO au
 GRANT SELECT ON public.users, public.user_roles, public.estates, public.estate_memberships,
   public.buildings, public.resident_units, public.units, public.visitor_visits,
   public.security_shift_handovers, public.security_emergency_alerts, public.security_incident_reports,
-  public.maintenance_requests, public.announcements, public.visitor_passes,
+  public.estate_service_charges, public.service_charge_payments, public.rent_savings_contributions,
+  public.electricity_recharge_orders, public.maintenance_requests, public.announcements, public.visitor_passes,
   public.estate_events, public.estate_event_guests, public.estate_event_invitations,
   public.estate_event_checkins TO authenticated;
 
@@ -307,6 +337,29 @@ FROM generate_series(1, 500) AS n;
 INSERT INTO public.resident_units (resident_user_id, unit_id, estate_id)
 SELECT '22222222-2222-4222-8222-222222222222', id, estate_id
 FROM public.units WHERE unit_code = 'UNIT-0001' LIMIT 1;
+INSERT INTO public.estate_service_charges (id, estate_id, title, description, amount_kobo, due_date, is_active, created_by)
+VALUES ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        'Synthetic Estate Service Charge', 'Read-only load fixture', 2500000,
+        CURRENT_DATE + 14, true, '11111111-1111-4111-8111-111111111111');
+INSERT INTO public.service_charge_payments (
+  charge_id, estate_id, resident_user_id, amount_kobo, status, provider_reference, verified_at
+) VALUES (
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '22222222-2222-4222-8222-222222222222', 2500000, 'successful',
+  'LOAD-TEST-VERIFIED-CHARGE', now() - interval '1 day'
+);
+INSERT INTO public.rent_savings_contributions (
+  resident_user_id, estate_id, amount_kobo, status, provider_reference, verified_at
+) VALUES (
+  '22222222-2222-4222-8222-222222222222', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  500000, 'successful', 'LOAD-TEST-RENT-CONTRIBUTION', now() - interval '2 days'
+);
+INSERT INTO public.electricity_recharge_orders (
+  resident_user_id, estate_id, amount_kobo, status, units_purchased, verified_at
+) VALUES (
+  '22222222-2222-4222-8222-222222222222', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  1000000, 'successful', 75.0, now() - interval '3 days'
+);
 INSERT INTO public.visitor_visits (estate_id, visitor_pass_id, checked_in_by, checked_in_at)
 SELECT p.estate_id, p.id, '33333333-3333-4333-8333-333333333333', now() - interval '15 minutes'
 FROM public.visitor_passes p WHERE p.visitor_name = 'Synthetic Visitor 1';
