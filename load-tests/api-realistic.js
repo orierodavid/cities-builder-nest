@@ -56,8 +56,8 @@ function loadTag() {
 function validate(response, role, screen, valid, level) {
   screenLatency.add(response.timings.duration,{role,screen,load_level:level});
   if (response.error_code) {
-    transportErrors.add(1,{role,screen});
-    if (response.error_code === 1050) timeoutErrors.add(1,{role,screen});
+    transportErrors.add(1,{role,screen,load_level:level});
+    if (response.error_code === 1050) timeoutErrors.add(1,{role,screen,load_level:level});
   }
   let payload = null;
   try { payload = response.json(); } catch (_) {}
@@ -72,11 +72,15 @@ function restRead(user, screen, path, valid, method = "GET") {
   let payload = null;
   group(`${user.role}/${screen}`,() => {
     const level = loadTag();
-    const response = http.request(method,restBase + path,null,{
+    const params = {
       headers:{ Authorization:`Bearer ${user.token}`, apikey:anonKey, Accept:"application/json", Prefer:"count=exact" },
       timeout:"20s",
       tags:{ role:user.role, screen, source:"supabase-rest", load_level:level },
-    });
+    };
+    const response = method === "HEAD" ? http.head(restBase + path,params) : http.get(restBase + path,params);
+    if (response.error_code && __VU <= 4 && __ITER === 0) {
+      console.error(`Supabase REST transport failure role=${user.role} screen=${screen} code=${response.error_code} error=${response.error}`);
+    }
     payload = validate(response,user.role,screen,valid,level);
   });
   return payload;
