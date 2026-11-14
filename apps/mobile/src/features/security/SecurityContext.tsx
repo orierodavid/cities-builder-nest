@@ -40,7 +40,8 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       setEstate(selected);
       await writeDashboardCache("security", activeSession.user.id, { estate: selected });
     } catch (cause) {
-      setEstate(null); setError(cause instanceof Error ? cause.message : "Security services could not be loaded.");
+      if (!cached?.estate?.id) setEstate(null);
+      setError(cause instanceof Error ? cause.message : "Security services could not be loaded.");
     } finally { setLoading(false); }
   }, [apiUrl]);
 
