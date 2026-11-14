@@ -26,7 +26,7 @@ Deno.serve(async (req: Request) => {
   if (!token) return reply(401, { error: "authentication_required" });
   const user = createClient(url, anon, {
     auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers: { Authorization: \`Bearer \${token}\` } },
+    global: { headers: { Authorization: `Bearer ${token}` } },
   });
   const { data: auth, error: authError } = await user.auth.getUser(token);
   if (authError || !auth.user) return reply(401, { error: "invalid_session" });
@@ -60,8 +60,8 @@ Deno.serve(async (req: Request) => {
   const base = mode === "live" ? "https://api-d.squadco.com" : "https://sandbox-api-d.squadco.com";
   let response: Response;
   try {
-    response = await fetch(\`\${base}/transaction/verify/\${encodeURIComponent(ref)}\`, {
-      headers: { Authorization: \`Bearer \${secret}\` },
+    response = await fetch(`${base}/transaction/verify/${encodeURIComponent(ref)}`, {
+      headers: { Authorization: `Bearer ${secret}` },
       signal: AbortSignal.timeout(10_000),
     });
   } catch {
