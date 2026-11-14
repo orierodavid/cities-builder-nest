@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
   const [{ data: serviceRow, error: serviceError }, { data: rentRow, error: rentError }] = await Promise.all([
     admin.from("service_charge_payments")
-      .select("id,amount_kobo,currency,status,resident_user_id,verified_at")
+      .select("id,amount_kobo,currency,status,resident_user_id,verified_at,created_at")
       .eq("provider_reference", ref).eq("resident_user_id", auth.user.id).maybeSingle(),
     admin.from("rent_savings_contributions")
       .select("id,amount_kobo,currency,status,resident_user_id,verified_at")
@@ -67,10 +67,18 @@ Deno.serve(async (req: Request) => {
   } catch {
     return reply(202, { status: "pending", verified: false, retry: true });
   }
-  if (!response.ok) {
-    if (response.status >= 500 || response.status === 408) {
-      return reply(202, { status: "pending", verified: false, retry: true });
+  if (response.status === 400) {
+    const ageMs = Date.now() - new Date(row.created_at).getTime();
+    if (Number.isFinite(ageMs) && ageMs >= 15 * 60_000) {
+      const { error } = await admin.from(table).update({
+        status: "failed", verified_at: new Date().toISOString(),
+      }).eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
+      if (error) return reply(500, { error: "payment_ledger_update_failed" });
+      return reply(200, { status: "failed", verified: true });
     }
+    return reply(202, { status: "pending", verified: false, retry: true });
+  }
+  if (!response.ok) {
     return reply(202, { status: "pending", verified: false, retry: true });
   }
   let verified: Record<string, unknown>;
