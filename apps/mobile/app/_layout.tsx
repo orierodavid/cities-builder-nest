@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import MobileConsentGate from "../components/MobileConsentGate";
 import { theme } from "../src/theme/theme";
+import ConnectionStatusBanner from "../src/components/ConnectionStatusBanner";
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -24,6 +25,7 @@ export default function RootLayout() {
           <ActivityIndicator color="#D4A84B" />
         </View>
       )}
+      <ConnectionStatusBanner />
     </>
   );
 }
