@@ -19,7 +19,22 @@ AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$
 
 CREATE OR REPLACE FUNCTION public.current_user_has_required_legal_consent() RETURNS boolean
 LANGUAGE sql STABLE
-AS $$ SELECT true $$;
+AS $ SELECT true $;
+CREATE OR REPLACE FUNCTION private.is_active_estate_manager(target_estate_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $ SELECT EXISTS (
+  SELECT 1 FROM public.estate_memberships m
+  JOIN public.estates e ON e.id = m.estate_id
+  WHERE m.estate_id = target_estate_id AND m.user_id = auth.uid()
+    AND m.status = 'active'
+    AND m.membership_role IN ('facility_manager','estate_manager','estate_admin')
+    AND e.is_enabled = true
+) $;
+CREATE OR REPLACE FUNCTION private.is_platform_admin()
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $ SELECT EXISTS (
+  SELECT 1 FROM public.user_roles r WHERE r.user_id = auth.uid() AND r.role = 'platform_admin'
+) $;
 
 CREATE TABLE public.users (
   id uuid PRIMARY KEY, full_name text NOT NULL, phone_e164 text,
@@ -200,6 +215,9 @@ CREATE POLICY load_checkins_member ON public.estate_event_checkins FOR SELECT TO
 
 GRANT USAGE ON SCHEMA public, auth TO authenticated;
 GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
+GRANT USAGE ON SCHEMA private TO authenticated;
+GRANT EXECUTE ON FUNCTION private.is_active_estate_manager(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION private.is_platform_admin() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.current_user_has_required_legal_consent() TO authenticated;
 GRANT SELECT ON public.users, public.user_roles, public.estates, public.estate_memberships,
   public.buildings, public.resident_units, public.units, public.visitor_visits,
