@@ -7,5 +7,5 @@ export function emitConnectionRestored() {
 
 export function subscribeConnectionRestored(listener: RestoreListener) {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => { listeners.delete(listener); };
 }
