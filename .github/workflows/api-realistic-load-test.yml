@@ -19,8 +19,9 @@ on:
         description: "Concurrency profile; review each result before selecting the next level"
         required: true
         type: choice
-        default: "250"
+        default: "full"
         options:
+          - "full"
           - "250"
           - "500"
           - "1000"
@@ -34,7 +35,7 @@ concurrency:
 
 jobs:
   realistic-load-test:
-    name: Real API read workload (250 / 500 / 1,000 VUs)
+    name: App-role read navigation (250 / 500 / 1,000 VUs)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -64,7 +65,7 @@ jobs:
       VISITOR_PASS_ENCRYPTION_KEY: isolated-load-test-encryption-secret
       PORT: "4000"
       TRUST_PROXY_HOPS: "1"
-      LOAD_TEST_PROFILE: ${{ inputs.profile || '250' }}
+      LOAD_TEST_PROFILE: ${{ inputs.profile || 'full' }}
     steps:
       - name: Check out main commit
         uses: actions/checkout@v4
@@ -135,7 +136,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/k6-output"
           chmod 777 "$RUNNER_TEMP/k6-output"
 
-      - name: Run realistic read-only endpoint workload
+      - name: Run four-role app navigation workload (read-only)
         run: |
           docker run --rm --network host \
             -v "$GITHUB_WORKSPACE:/work" -w /work \
