@@ -15,7 +15,10 @@ CREATE SCHEMA IF NOT EXISTS auth;
 
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
 LANGUAGE sql STABLE
-AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+AS $ SELECT COALESCE(
+  NULLIF(current_setting('request.jwt.claim.sub', true), ''),
+  NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')
+)::uuid $;
 
 CREATE OR REPLACE FUNCTION public.current_user_has_required_legal_consent() RETURNS boolean
 LANGUAGE sql STABLE
@@ -384,4 +387,52 @@ INSERT INTO public.security_incident_reports (
   'Synthetic incident record', 'other', 'low',
   'Synthetic incident fixture for read-only load testing.', 'Main gate'
 );
+
+CREATE OR REPLACE FUNCTION public.get_platform_dashboard_metrics()
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $
+BEGIN
+  IF NOT private.is_platform_admin() THEN RAISE EXCEPTION 'not_authorized' USING ERRCODE = '42501'; END IF;
+  RETURN jsonb_build_object(
+    'estates', (SELECT count(*) FROM public.estates),
+    'users', (SELECT count(*) FROM public.users),
+    'properties', (SELECT count(*) FROM public.units),
+    'residents', (SELECT count(DISTINCT user_id) FROM public.estate_memberships WHERE status='active' AND membership_role='resident'),
+    'charges', (SELECT count(*) FROM public.estate_service_charges),
+    'payments', (SELECT count(*) FROM public.service_charge_payments WHERE status='successful'),
+    'outstanding_kobo', (SELECT COALESCE(sum(GREATEST(c.amount_kobo - COALESCE(p.paid,0),0)),0)
+      FROM public.estate_service_charges c
+      JOIN public.estate_memberships m ON m.estate_id=c.estate_id AND m.status='active' AND m.membership_role='resident'
+      LEFT JOIN (SELECT charge_id,resident_user_id,sum(amount_kobo) AS paid FROM public.service_charge_payments WHERE status='successful' GROUP BY charge_id,resident_user_id) p
+      ON p.charge_id=c.id AND p.resident_user_id=m.user_id
+      WHERE c.is_active=true),
+    'maintenance', (SELECT count(*) FROM public.maintenance_requests)
+  );
+END;
+$;
+CREATE OR REPLACE FUNCTION public.get_platform_growth_analytics()
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $
+BEGIN
+  IF NOT private.is_platform_admin() THEN RAISE EXCEPTION 'not_authorized' USING ERRCODE = '42501'; END IF;
+  RETURN jsonb_build_object(
+    'summary', jsonb_build_object(
+      'verified_payments', (SELECT count(*) FROM public.service_charge_payments WHERE status='successful'),
+      'active_charges', (SELECT count(*) FROM public.estate_service_charges WHERE is_active=true),
+      'outstanding_kobo', (SELECT COALESCE(sum(amount_kobo),0) FROM public.estate_service_charges WHERE is_active=true),
+      'collected_kobo', (SELECT COALESCE(sum(amount_kobo),0) FROM public.service_charge_payments WHERE status='successful')
+    ),
+    'trend', COALESCE((SELECT jsonb_agg(jsonb_build_object(
+      'month', to_char(month_start,'YYYY-MM'), 'label', to_char(month_start,'Mon'),
+      'payment_count', 0, 'collected_kobo', 0
+    ) ORDER BY month_start) FROM generate_series(date_trunc('month',now())-interval '11 months',date_trunc('month',now()),interval '1 month') month_start),'[]'::jsonb),
+    'estates', COALESCE((SELECT jsonb_agg(jsonb_build_object(
+      'estate_id', e.id, 'estate_name', e.name, 'payment_count', 0,
+      'collected_kobo', 0, 'outstanding_kobo', 0, 'active_charges', 0
+    )) FROM public.estates e),'[]'::jsonb)
+  );
+END;
+$;
+GRANT EXECUTE ON FUNCTION public.get_platform_dashboard_metrics() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_platform_growth_analytics() TO authenticated;
 ANALYZE;
