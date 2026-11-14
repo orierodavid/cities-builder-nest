@@ -136,7 +136,7 @@ jobs:
           ready=0
           for attempt in $(seq 1 45); do
             code=$(curl --silent --output "$RUNNER_TEMP/ready.json" --write-out "%{http_code}" \
-              -H "Authorization: Bearer load-manager-token" \
+              -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYXV0aGVudGljYXRlZCIsInN1YiI6IjExMTExMTExLTExMTEtNDExMS04MTExLTExMTExMTExMTExMSIsImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJleHAiOjQxMDI0NDQ4MDB9.x3VAd9zpiEE5xKePK7LO7aETyzK-Q1ZqroyjyUnIfw8" \
               http://127.0.0.1:4000/v1/estates/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/dashboard || true)
             if [ "$code" = "200" ]; then ready=1; break; fi
             sleep 2
@@ -178,6 +178,7 @@ jobs:
       - name: Stop isolated services
         if: always()
         run: |
+          docker logs cbnest-load-postgrest > "$RUNNER_TEMP/cbnest-postgrest.log" 2>&1 || true
           docker rm -f cbnest-load-postgrest >/dev/null 2>&1 || true
           for file in "$RUNNER_TEMP/cbnest-realistic-api.pid" "$RUNNER_TEMP/cbnest-auth-stub.pid"; do
             if [ -f "$file" ]; then kill -TERM "$(cat "$file")" 2>/dev/null || true; fi
@@ -192,5 +193,6 @@ jobs:
             ${{ runner.temp }}/k6-output/realistic-load-test-summary.json
             ${{ runner.temp }}/cbnest-realistic-api.log
             ${{ runner.temp }}/cbnest-auth-stub.log
+            ${{ runner.temp }}/cbnest-postgrest.log
           if-no-files-found: warn
           retention-days: 14
