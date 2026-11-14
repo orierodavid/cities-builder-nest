@@ -389,7 +389,7 @@ INSERT INTO public.security_incident_reports (
 );
 
 CREATE OR REPLACE FUNCTION public.get_platform_dashboard_metrics()
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = ''
 AS $
 BEGIN
   IF NOT private.is_platform_admin() THEN RAISE EXCEPTION 'not_authorized' USING ERRCODE = '42501'; END IF;
@@ -411,7 +411,7 @@ BEGIN
 END;
 $;
 CREATE OR REPLACE FUNCTION public.get_platform_growth_analytics()
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = ''
 AS $
 BEGIN
   IF NOT private.is_platform_admin() THEN RAISE EXCEPTION 'not_authorized' USING ERRCODE = '42501'; END IF;
