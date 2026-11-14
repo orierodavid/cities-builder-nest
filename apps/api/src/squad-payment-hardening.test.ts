@@ -20,11 +20,11 @@ test("service charges serialize payment attempts and reject a second active reco
 });
 
 test("service charge initiation rejects unsafe database amounts", () => {
-  assert.match(initiate, /Number\.isSafeInteger\(amountKobo\).*amountKobo<=0/);
+  assert.match(initiate, /Number\.isSafeInteger\(amountKobo\)[\s\S]*?amountKobo <= 0/);
 });
 
 test("webhook rejects ambiguous references and unsafe ledger amounts", () => {
-  assert.match(webhook, /if\(serviceRow&&rentRow\)return reply\(409/);
+  assert.match(webhook, /if \(serviceRow && rentRow\) return reply\(409/);
   assert.match(webhook, /Number\.isSafeInteger\(Number\(row\.amount_kobo\)\)/);
 });
 
