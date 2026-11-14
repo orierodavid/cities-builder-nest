@@ -117,7 +117,7 @@ export default function ServiceChargesScreen() {
         paymentType: "service_charge",
       } });
     } catch (e) {
-      setPaymentMessage('We could not start your payment. Please try again.');
+      setPaymentMessage('We could not confirm whether the payment started. Check its status before trying again.');
     } finally {
       setPaymentBusyId(null);
     }
