@@ -116,6 +116,13 @@ Deno.serve(async (req: Request) => {
     // authenticated administrator who initiated the request.
     global: { headers: { "x-cb-actor-id": authData.user.id } },
   });
+  const { data: accountStatus, error: accountStatusError } = await admin.from("users")
+    .select("is_active,is_disabled,deleted_at").eq("id", authData.user.id).maybeSingle();
+  if (accountStatusError) return json(503, { error: "account_status_check_unavailable" });
+  if (!accountStatus || accountStatus.is_disabled === true || accountStatus.deleted_at) {
+    return json(403, { error: "account_disabled", message: "This CB Nest account is disabled." });
+  }
+  if (accountStatus.is_active !== true) return json(403, { error: "account_pending_approval" });
   let input: Record<string, unknown>;
   try {
     input = await req.json();
