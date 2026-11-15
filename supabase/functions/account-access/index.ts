@@ -53,8 +53,11 @@ Deno.serve(async (req: Request) => {
   const { data: actorStatus, error: actorStatusError } = await admin.from("users")
     .select("is_active,is_disabled,deleted_at").eq("id", actor.id).maybeSingle();
   if (actorStatusError) return reply(503, { error: "account_status_check_unavailable" });
-  if (!actorStatus || actorStatus.is_active !== true || actorStatus.is_disabled === true || actorStatus.deleted_at) {
+  if (!actorStatus || actorStatus.is_disabled === true || actorStatus.deleted_at) {
     return reply(403, { error: "account_disabled", message: "This CB Nest account is disabled." });
+  }
+  if (body.action !== "delete_self" && actorStatus.is_active !== true) {
+    return reply(403, { error: "account_pending_approval" });
   }
 
   if (body.action === "disable" || body.action === "reactivate") {
