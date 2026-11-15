@@ -3,6 +3,7 @@ import { ActivityIndicator, Text, View, TouchableOpacity } from 'react-native';
 import { Screen, Card, SectionTitle, ListRow } from '../../src/components/ui';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import AccountDeletionCard from '../../src/components/AccountDeletionCard';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -70,6 +71,9 @@ export default function ProfileScreen() {
         }} style={{ minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: '#74403A', backgroundColor: '#241615', alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: '#F28B82', fontSize: 12, fontWeight: '900' }}>{signingOut ? 'SIGNING OUT…' : 'SIGN OUT'}</Text>
         </TouchableOpacity>
+      </Card>
+      <Card>
+        <AccountDeletionCard />
       </Card>
     </Screen>
   );
