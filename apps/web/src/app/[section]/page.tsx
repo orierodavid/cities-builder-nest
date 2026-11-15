@@ -79,7 +79,7 @@ function EstatesPage() {
   setLoading(true);setError("");
   const {data:{user}}=await supabase.auth.getUser();
   if(!user){setError("Your session has expired. Sign in again.");setLoading(false);return;}
-  setCurrentUserId(user.id);
+  
   const {data:locationData,error:locationError}=await supabase.functions.invoke("resident-registration",{body:{action:"options"}});
   if(!locationError&&locationData?.states&&locationData?.lgas)setLocationOptions({states:locationData.states as string[],lgas:locationData.lgas as Record<string,string[]>});
   const {data:roles,error:roleError}=await supabase.from("user_roles").select("role").eq("user_id",user.id);
@@ -187,6 +187,7 @@ function UsersPage() {
   setLoading(true); setError("");
   const {data:{user}}=await supabase.auth.getUser();
   if(!user){setError("Your session has expired. Sign in again.");setLoading(false);return;}
+  setCurrentUserId(user.id);
   const [{data:globalRoles,error:roleError},{data:ownMemberships,error:ownError}] = await Promise.all([
    supabase.from("user_roles").select("role").eq("user_id",user.id),
    supabase.from("estate_memberships").select("estate_id,membership_role,status").eq("user_id",user.id).eq("status","active")
