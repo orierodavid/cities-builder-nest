@@ -96,8 +96,8 @@ export function createRequireAuth(dependencies: AuthMiddlewareDependencies = {})
       // The verified access token is forwarded to Supabase PostgREST so RLS
       // continues to execute as the authenticated user, never service_role.
       const userSupabase = createUserClient(token);
-      // Read account state with service credentials so RLS cannot hide a disabled
-      // profile and turn a deliberate 403 into an ambiguous missing-profile result.
+      // If RLS hides a disabled account's profile, a missing row is denied below.
+      // A service-role reader is used only when the API environment explicitly has one.
       const accountStatusClient = createAccountStatusClient(token);
       const { data: accountProfile, error: accountProfileError } = await accountStatusClient
         .from("users")
