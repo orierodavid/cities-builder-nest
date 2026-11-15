@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import AccountDeletionCard from "../../src/components/AccountDeletionCard";
 
 export default function SecurityProfileRoute() {
   const insets = useSafeAreaInsets();
@@ -30,6 +31,7 @@ export default function SecurityProfileRoute() {
         {busy ? <ActivityIndicator color="#F2B5B0" /> : <Ionicons name="log-out-outline" size={18} color="#F2B5B0" />}
         <Text style={s.signOutText}>{busy ? "SIGNING OUT…" : "SIGN OUT"}</Text>
       </TouchableOpacity>
+      <AccountDeletionCard />
     </View>
   </SafeAreaView>;
 }
