@@ -22,6 +22,7 @@ export interface AuthenticatedRequest extends Request {
 export interface AuthMiddlewareDependencies {
   authProvider?: AuthProvider;
   createUserClient?: (accessToken: string) => SupabaseClient;
+  createAccountStatusClient?: (accessToken: string) => SupabaseClient;
 }
 
 function createSupabaseUserClient(accessToken: string): SupabaseClient {
@@ -46,6 +47,16 @@ function createSupabaseUserClient(accessToken: string): SupabaseClient {
 export function createRequireAuth(dependencies: AuthMiddlewareDependencies = {}) {
   const authProvider = dependencies.authProvider ?? supabaseAuthProvider;
   const createUserClient = dependencies.createUserClient ?? createSupabaseUserClient;
+  const createAccountStatusClient = dependencies.createAccountStatusClient ?? ((accessToken: string) => {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (serviceRoleKey) {
+      return createClient(process.env.SUPABASE_URL!, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        global: { fetch: timeoutFetch },
+      });
+    }
+    return createUserClient(accessToken);
+  });
 
   return async function requireAuth(
     req: Request,
@@ -85,7 +96,10 @@ export function createRequireAuth(dependencies: AuthMiddlewareDependencies = {})
       // The verified access token is forwarded to Supabase PostgREST so RLS
       // continues to execute as the authenticated user, never service_role.
       const userSupabase = createUserClient(token);
-      const { data: accountProfile, error: accountProfileError } = await userSupabase
+      // Read account state with service credentials so RLS cannot hide a disabled
+      // profile and turn a deliberate 403 into an ambiguous missing-profile result.
+      const accountStatusClient = createAccountStatusClient(token);
+      const { data: accountProfile, error: accountProfileError } = await accountStatusClient
         .from("users")
         .select("is_active,is_disabled,deleted_at")
         .eq("id", verification.user.id)
@@ -94,7 +108,11 @@ export function createRequireAuth(dependencies: AuthMiddlewareDependencies = {})
         res.status(503).json({ error: "account_status_check_unavailable" });
         return;
       }
-      if (accountProfile && (accountProfile.is_disabled === true || accountProfile.deleted_at)) {
+      if (!accountProfile) {
+        res.status(403).json({ error: "account_profile_not_found" });
+        return;
+      }
+      if (accountProfile.is_disabled === true || accountProfile.deleted_at) {
         res.status(403).json({
           error: accountProfile.deleted_at ? "account_deleted" : "account_disabled",
           message: "This CB Nest account is disabled. Contact support if you believe this is an error.",
