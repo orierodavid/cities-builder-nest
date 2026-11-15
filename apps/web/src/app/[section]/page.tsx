@@ -15,7 +15,7 @@ type Estate = { id: string; name: string; address?: string; city?: string; lga?:
 type Membership = {
   id: string; estate_id: string; user_id: string; membership_role: string;
   status: string; created_at: string;
-  users: { full_name: string; phone_e164: string | null; home_number?: string | null; street_name?: string | null } | null;
+  users: { full_name: string; phone_e164: string | null; home_number?: string | null; street_name?: string | null; is_active?: boolean; is_disabled?: boolean; deleted_at?: string | null } | null;
 };
 type PendingResident = { membershipId: string; userId: string; name: string; email: string; phone: string; homeNumber?: string; streetName?: string; submittedAt: string };
 type Role = "facility_manager" | "resident" | "security";
@@ -171,6 +171,7 @@ function UsersPage() {
  const [success,setSuccess]=useState("");
  const [inviteCredentials,setInviteCredentials]=useState<{email:string;password:string}|null>(null);
  const [sendingPasswordUserId,setSendingPasswordUserId]=useState<string|null>(null);
+ const [changingAccessUserId,setChangingAccessUserId]=useState<string|null>(null);
  const [fullName,setFullName]=useState("");
  const [email,setEmail]=useState("");
  const [password,setPassword]=useState("");
@@ -213,7 +214,7 @@ function UsersPage() {
    if(venueApprovalError){setPendingVenueEvents([]);setError("Pending venue approvals could not be loaded. Please refresh.");}
    else setPendingVenueEvents((venueApprovalData||[]) as typeof pendingVenueEvents);
    const {data:memberData,error:memberError}=await supabase.from("estate_memberships")
-    .select("id,estate_id,user_id,membership_role,status,created_at,users(full_name,phone_e164,home_number,street_name)")
+    .select("id,estate_id,user_id,membership_role,status,created_at,users(full_name,phone_e164,home_number,street_name,is_active,is_disabled,deleted_at)")
     .in("estate_id",admin?list.map(x=>x.id):list.map(x=>x.id)).order("created_at",{ascending:false});
    if(memberError)setError("Estate access was verified, but user records could not be loaded.");
    else setMemberships((memberData||[]) as unknown as Membership[]);
@@ -280,6 +281,27 @@ function UsersPage() {
   }
   setSendingPasswordUserId(null);
  }
+ async function changeUserAccess(membership:Membership){
+  const deleted=Boolean(membership.users?.deleted_at);
+  if(deleted){setError("Deleted accounts cannot be reactivated.");return;}
+  const disabling=membership.users?.is_disabled!==true;
+  let reason="";
+  if(disabling){
+   const entered=window.prompt("Reason for disabling this user (optional, up to 500 characters).");
+   if(entered===null)return;
+   reason=entered.trim();
+   if(reason.length>500){setError("The reason must be 500 characters or fewer.");return;}
+   if(!window.confirm("Disable this account now? The user will immediately lose access on CB Nest."))return;
+  }else if(!window.confirm("Reactivate this account? The user will be able to sign in again."))return;
+  setError("");setSuccess("");setChangingAccessUserId(membership.user_id);
+  const {data,error:invokeError}=await supabase.functions.invoke("account-access",{body:{action:disabling?"disable":"reactivate",userId:membership.user_id,reason}});
+  if(invokeError||data?.error){
+   setError(data?.message|| (disabling?"The account could not be disabled. Please try again.":"The account could not be reactivated. Please try again."));
+   setChangingAccessUserId(null);return;
+  }
+  setSuccess(disabling?"User account disabled. Access has been blocked.":"User account reactivated.");
+  await load();setChangingAccessUserId(null);
+ }
  async function createUser(e:FormEvent){
   e.preventDefault();setSaving(true);setError("");setSuccess("");
   const payload:Record<string,string>={estateId:selectedEstate,fullName:fullName.trim(),email:email.trim().toLowerCase(),password,role};
@@ -336,7 +358,7 @@ function UsersPage() {
    </form>}
    <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, role or phone…" aria-label="Search users"/></div>
    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Name</th><th>Role</th><th>Estate</th><th>Unit details</th><th>Phone</th><th>Status</th><th>Date added</th><th>Actions</th></tr></thead><tbody>
-    {loading?<tr><td colSpan={8} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{[m.users?.home_number,m.users?.street_name].filter(Boolean).join(" · ")||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}>{m.membership_role==="resident"&&<button type="button" className="secondary-action" onClick={()=>void editResidentAddress(m)}>Edit resident</button>}<button type="button" className="secondary-action" disabled={sendingPasswordUserId===m.user_id} onClick={()=>void updateUserPassword(m)}>{sendingPasswordUserId===m.user_id?"Updating…":"Update password"}</button><a className="secondary-action" href={`/welcome-email?userId=${encodeURIComponent(m.user_id)}&estateId=${encodeURIComponent(m.estate_id)}`}>Send welcome email</a></td></tr>):<tr><td colSpan={8} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Users will appear here once their accounts are created.</small></td></tr>}
+    {loading?<tr><td colSpan={8} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{[m.users?.home_number,m.users?.street_name].filter(Boolean).join(" · ")||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span><small style={{display:"block",marginTop:4}}>{m.users?.deleted_at?"Deleted":m.users?.is_disabled?"Disabled":m.users?.is_active===false?"Pending approval":"Active"}</small></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}>{m.membership_role==="resident"&&<button type="button" className="secondary-action" onClick={()=>void editResidentAddress(m)}>Edit resident</button>}{isAdmin&&!m.users?.deleted_at&&<button type="button" className="secondary-action" disabled={changingAccessUserId===m.user_id} onClick={()=>void changeUserAccess(m)}>{changingAccessUserId===m.user_id?"Updating…":m.users?.is_disabled?"Reactivate account":"Disable account"}</button>}<button type="button" className="secondary-action" disabled={sendingPasswordUserId===m.user_id||Boolean(m.users?.deleted_at)} onClick={()=>void updateUserPassword(m)}>{sendingPasswordUserId===m.user_id?"Updating…":"Update password"}</button>{!m.users?.deleted_at&&<a className="secondary-action" href={`/welcome-email?userId=${encodeURIComponent(m.user_id)}&estateId=${encodeURIComponent(m.estate_id)}`}>Send welcome email</a>}</td></tr>):<tr><td colSpan={8} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Users will appear here once their accounts are created.</small></td></tr>}
    </tbody></table></div>
   </section>
  </PortalFrame>;
