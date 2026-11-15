@@ -40,7 +40,7 @@ function request(authorization?: string): Request {
 }
 
 function fakeDataClient(options: {
-  profile?: { is_active: boolean } | null;
+  profile?: { is_active: boolean; is_disabled?: boolean; deleted_at?: string | null } | null;
   profileError?: unknown;
   legalStatus?: { requiresAcceptance?: boolean };
   legalError?: unknown;
@@ -160,6 +160,38 @@ test("blocks accounts that have not been activated", async () => {
   assert.deepEqual(result.body, {
     error: "account_pending_approval",
     message: "Your account is awaiting administrator approval. We will email you when it becomes active.",
+  });
+  assert.equal(nextCalled, false);
+});
+
+test("blocks accounts disabled by a Super Admin", async () => {
+  const { deps } = dependencies({ user: identity }, fakeDataClient({ profile: { is_active: true, is_disabled: true, deleted_at: null } }));
+  const middleware = createRequireAuth(deps);
+  const { response, result } = responseRecorder();
+  let nextCalled = false;
+
+  await middleware(request("Bearer valid-token"), response, (() => { nextCalled = true; }) as NextFunction);
+
+  assert.equal(result.statusCode, 403);
+  assert.deepEqual(result.body, {
+    error: "account_disabled",
+    message: "This CB Nest account is disabled. Contact support if you believe this is an error.",
+  });
+  assert.equal(nextCalled, false);
+});
+
+test("blocks accounts that have completed account deletion", async () => {
+  const { deps } = dependencies({ user: identity }, fakeDataClient({ profile: { is_active: true, is_disabled: true, deleted_at: "2026-11-15T00:00:00.000Z" } }));
+  const middleware = createRequireAuth(deps);
+  const { response, result } = responseRecorder();
+  let nextCalled = false;
+
+  await middleware(request("Bearer valid-token"), response, (() => { nextCalled = true; }) as NextFunction);
+
+  assert.equal(result.statusCode, 403);
+  assert.deepEqual(result.body, {
+    error: "account_deleted",
+    message: "This CB Nest account is disabled. Contact support if you believe this is an error.",
   });
   assert.equal(nextCalled, false);
 });
