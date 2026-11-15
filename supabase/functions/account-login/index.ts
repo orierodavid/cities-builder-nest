@@ -94,10 +94,17 @@ Deno.serve(async (req: Request) => {
   }
 
   const { data: profile, error: profileError } = await admin.from("users")
-    .select("is_active").eq("id", data.user.id).maybeSingle();
+    .select("is_active,is_disabled,deleted_at").eq("id", data.user.id).maybeSingle();
   if (profileError || !profile) {
     await publicClient.auth.signOut({ scope: "local" });
     return reply(503, { error: "account_status_check_unavailable", message: "Sign-in could not be completed. Please try again." });
+  }
+  if (profile.is_disabled === true || profile.deleted_at) {
+    await publicClient.auth.signOut({ scope: "local" });
+    return reply(403, {
+      error: profile.deleted_at ? "account_deleted" : "account_disabled",
+      message: "This CB Nest account is disabled. Contact support if you believe this is an error.",
+    });
   }
   if (profile.is_active !== true) {
     await publicClient.auth.signOut({ scope: "local" });
