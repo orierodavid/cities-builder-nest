@@ -142,7 +142,16 @@ Deno.serve(async (req: Request) => {
       email_confirm: true,
       password: replacementPassword,
       ban_duration: "876000h",
-      user_metadata: { account_deleted: true },
+      user_metadata: {
+        account_deleted: true,
+        email: null,
+        full_name: null,
+        name: null,
+        first_name: null,
+        last_name: null,
+        phone: null,
+        avatar_url: null,
+      },
     });
     if (authUpdateError) {
       return reply(503, { error: "account_deleted_auth_cleanup_incomplete", message: "Your CB Nest profile is anonymised and access is blocked. Auth cleanup needs to be retried by support." });
