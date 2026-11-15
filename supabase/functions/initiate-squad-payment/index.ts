@@ -49,6 +49,13 @@ Deno.serve(async (req: Request) => {
   }
 
   const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: accountStatus, error: accountStatusError } = await admin.from("users")
+    .select("is_active,is_disabled,deleted_at").eq("id", auth.user.id).maybeSingle();
+  if (accountStatusError) return reply(503, { error: "account_status_check_unavailable" });
+  if (!accountStatus || accountStatus.is_disabled === true || accountStatus.deleted_at) {
+    return reply(403, { error: "account_disabled", message: "This CB Nest account is disabled." });
+  }
+  if (accountStatus.is_active !== true) return reply(403, { error: "account_pending_approval" });
   const [{ data: profile, error: pe }, { data: members, error: me }] = await Promise.all([
     admin.from("users").select("full_name").eq("id", auth.user.id).maybeSingle(),
     admin.from("estate_memberships").select("estate_id").eq("user_id", auth.user.id)
