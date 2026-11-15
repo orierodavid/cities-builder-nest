@@ -42,6 +42,11 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const { data: accountStatus, error: accountStatusError } = await admin.from("users")
+    .select("is_active,is_disabled,deleted_at").eq("id", auth.user.id).maybeSingle();
+  if (accountStatusError) return reply(503, { error: "account_status_check_unavailable" });
+  if (!accountStatus || accountStatus.is_disabled === true || accountStatus.deleted_at) return reply(403, { error: "account_disabled", message: "This CB Nest account is disabled." });
+  if (accountStatus.is_active !== true) return reply(403, { error: "account_pending_approval" });
   const { data: memberships, error: membershipError } = await admin
     .from("estate_memberships").select("estate_id")
     .eq("user_id", auth.user.id).eq("membership_role", "resident").eq("status", "active");
