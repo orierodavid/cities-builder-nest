@@ -30,6 +30,13 @@ Deno.serve(async (req: Request) => {
   if (actorError || !actorData.user) return json(401, { error: "invalid_session" });
 
   const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: accountStatus, error: accountStatusError } = await admin.from("users")
+    .select("is_active,is_disabled,deleted_at").eq("id", actorData.user.id).maybeSingle();
+  if (accountStatusError) return json(503, { error: "account_status_check_unavailable" });
+  if (!accountStatus || accountStatus.is_disabled === true || accountStatus.deleted_at) {
+    return json(403, { error: "account_disabled", message: "This CB Nest account is disabled." });
+  }
+  if (accountStatus.is_active !== true) return json(403, { error: "account_pending_approval" });
   let body: { estateId?: string; userId?: string; delivery?: "invitation" | "password_setup" };
   try { body = await req.json(); } catch { return json(400, { error: "invalid_json" }); }
   const estateId = body.estateId?.trim() ?? "";
