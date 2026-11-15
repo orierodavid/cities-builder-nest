@@ -89,6 +89,7 @@ function dependencies(
       createdToken = token;
       return dataClient as never;
     },
+    createAccountStatusClient: () => dataClient as never,
   };
   return { deps, getVerifiedToken: () => verifiedToken, getCreatedToken: () => createdToken };
 }
