@@ -24,6 +24,10 @@ Deno.serve(async(req:Request)=>{
  const {data:auth,error:authError}=await userClient.auth.getUser(jwt);
  if(authError||!auth.user)return reply(401,{error:"invalid_session"});
  const admin=createClient(url,serviceKey,{auth:{autoRefreshToken:false,persistSession:false}});
+ const {data:accountStatus,error:accountStatusError}=await admin.from("users").select("is_active,is_disabled,deleted_at").eq("id",auth.user.id).maybeSingle();
+ if(accountStatusError)return reply(503,{error:"account_status_check_unavailable"});
+ if(!accountStatus||accountStatus.is_disabled===true||accountStatus.deleted_at)return reply(403,{error:"account_disabled",message:"This CB Nest account is disabled."});
+ if(accountStatus.is_active!==true)return reply(403,{error:"account_pending_approval"});
  const {data:members,error:memberError}=await admin.from("estate_memberships").select("estate_id").eq("user_id",auth.user.id).eq("membership_role","resident").eq("status","active");
  if(memberError)return reply(503,{error:"membership_lookup_failed"});
  const estates=(members??[]).map(x=>x.estate_id);
