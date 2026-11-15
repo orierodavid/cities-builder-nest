@@ -87,11 +87,18 @@ export function createRequireAuth(dependencies: AuthMiddlewareDependencies = {})
       const userSupabase = createUserClient(token);
       const { data: accountProfile, error: accountProfileError } = await userSupabase
         .from("users")
-        .select("is_active")
+        .select("is_active,is_disabled,deleted_at")
         .eq("id", verification.user.id)
         .maybeSingle();
       if (accountProfileError) {
         res.status(503).json({ error: "account_status_check_unavailable" });
+        return;
+      }
+      if (accountProfile && (accountProfile.is_disabled === true || accountProfile.deleted_at)) {
+        res.status(403).json({
+          error: accountProfile.deleted_at ? "account_deleted" : "account_disabled",
+          message: "This CB Nest account is disabled. Contact support if you believe this is an error.",
+        });
         return;
       }
       if (accountProfile && accountProfile.is_active !== true) {
