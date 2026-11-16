@@ -60,7 +60,10 @@ function parseEstateCsv(source:string):string[][] {
 }
 
 function EstatesPage() {
+ const PAGE_SIZE=10;
  const [rows,setRows]=useState<EstateRecord[]>([]);
+ const [page,setPage]=useState(0);
+ const [totalCount,setTotalCount]=useState(0);
  const [loading,setLoading]=useState(true);
  const [saving,setSaving]=useState(false);
  const [showForm,setShowForm]=useState(false);
@@ -86,11 +89,15 @@ function EstatesPage() {
   if(roleError||!(roles||[]).some((r:{role:string})=>r.role==="platform_admin")){
    setError("Only Super Administrators can create and manage estates.");setLoading(false);return;
   }
-  const {data,error:queryError}=await supabase.from("estates").select("id,name,address,city,lga,state,country_code,is_enabled,created_at").order("created_at",{ascending:false});
+  const from=page*PAGE_SIZE;
+  const {data,error:queryError,count}=await supabase.from("estates")
+   .select("id,name,address,city,lga,state,country_code,is_enabled,created_at",{count:"exact"})
+   .order("created_at",{ascending:false})
+   .range(from,from+PAGE_SIZE-1);
   if(queryError)setError("Estates could not be loaded. Please refresh and try again.");
-  else setRows((data||[]) as EstateRecord[]);
+  else {setRows((data||[]) as EstateRecord[]);setTotalCount(count||0);}
   setLoading(false);
- },[]);
+ },[page]);
  useEffect(()=>{void load();},[load]);
 
  async function createEstate(e:FormEvent){
@@ -107,7 +114,8 @@ function EstatesPage() {
    name:name.trim(),address:address.trim(),city:city.trim(),lga:city.trim(),state:state.trim(),country_code:country.trim().toUpperCase(),is_enabled:true
   }).select("id,name,address,city,lga,state,country_code,is_enabled,created_at").single();
   if(insertError){setError(insertError.message.includes("duplicate")?"An estate with these details may already exist. Please check the estate list.":"The estate could not be created. Please check the details and try again.");setSaving(false);return;}
-  setRows(current=>[insertedEstate(data),...current]);
+  setPage(0);
+  if(page===0)void load();
   setSuccess("Estate created successfully. You can now open User Management and assign its Facility Manager.");
   setName("");setAddress("");setCity("");setState("");setCountry("NG");setShowForm(false);setSaving(false);
  }
@@ -126,7 +134,9 @@ function EstatesPage() {
    const payload=rows.slice(1).map((r,i)=>{const [n,a,s,l]=indexes.map(ix=>r[ix]||"");if(n.length<2||n.length>160||a.length<4||!((locationOptions.lgas[s]||[]).includes(l)))throw new Error(`Row ${i+2}: check estate name, address, State and matching LGA.`);return {name:n,address:a,city:l,lga:l,state:s,country_code:"NG",is_enabled:true};});
    const {data,error:insertError}=await supabase.from("estates").insert(payload).select("id,name,address,city,lga,state,country_code,is_enabled,created_at");
    if(insertError)throw new Error(insertError.message.includes("duplicate")?"One or more estates already exist. Check the CSV for duplicates and existing estates.":"The bulk upload was rejected. Check the CSV rows and try again.");
-   setRows(current=>[...((data||[]) as EstateRecord[]),...current]);setBulkResult(`${data?.length||0} estates uploaded successfully.`);setSuccess("Bulk estate upload completed.");
+   setPage(0);
+   if(page===0)void load();
+   setBulkResult(String(data?.length||0)+" estates uploaded successfully.");setSuccess("Bulk estate upload completed.");
   }catch(error){setError(error instanceof Error?error.message:"The CSV could not be processed.");}
   finally{setBulkBusy(false);}
  }
@@ -151,6 +161,16 @@ function EstatesPage() {
    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Address</th><th>LGA</th><th>State</th><th>Status</th><th>Created</th></tr></thead><tbody>
     {loading?<tr><td colSpan={7} className="empty-cell">Loading estates…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.address}</td><td>{x.lga||x.city||"—"}</td><td>{x.state}</td><td><span className={"status-pill "+(x.is_enabled?"status-active":"status-suspended")}>{x.is_enabled?"Enabled":"Disabled"}</span></td><td>{new Date(x.created_at).toLocaleDateString()}</td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">▦</span><strong>No estates created yet</strong><small>Create your first estate, then add its Facility Manager under User Management.</small></td></tr>}
    </tbody></table></div>
+   <div className="module-toolbar" style={{marginTop:16,alignItems:"center"}}>
+    <p className="notice-line" style={{margin:0}}>
+     {totalCount===0?"No estates":"Showing "+(page*PAGE_SIZE+1)+"–"+Math.min((page+1)*PAGE_SIZE,totalCount)+" of "+totalCount+" estates"}
+    </p>
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+     <button type="button" className="secondary-action" disabled={page===0||loading} onClick={()=>setPage(current=>Math.max(0,current-1))}>Previous</button>
+     <span aria-live="polite" style={{fontSize:13,color:"var(--muted,#9A9A9A)"}}>Page {page+1} of {Math.max(1,Math.ceil(totalCount/PAGE_SIZE))}</span>
+     <button type="button" className="secondary-action" disabled={loading||page+1>=Math.ceil(totalCount/PAGE_SIZE)} onClick={()=>setPage(current=>current+1)}>Next</button>
+    </div>
+   </div>
   </section>
  </PortalFrame>;
 }
