@@ -25,7 +25,7 @@ export default function SuperAdminsPage() {
         setError(data?.message || data?.error || invokeError?.message || "The Super Admin account could not be created.");
         return;
       }
-      setSuccess(fullName.trim() + " has been added as a Super Admin. Existing Super Admins will be notified by email.");
+      setSuccess(fullName.trim() + " has been added as a Super Admin. An email notification is queued for existing Super Admins and will be delivered when Resend is configured.");
       setFullName("");
       setEmail("");
       setPassword("");
