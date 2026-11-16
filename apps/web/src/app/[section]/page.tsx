@@ -225,7 +225,9 @@ function UsersPage() {
   if(estateError){setError("Unable to load estates available to your account.");setLoading(false);return;}
   const list=(estateData||[]) as Estate[];
   setEstates(list);
-  const estateId=selectedEstate&&list.some(x=>x.id===selectedEstate)?selectedEstate:(list[0]?.id||"");
+  const {data:membershipEstateRows}=list.length?await supabase.from("estate_memberships").select("estate_id").in("estate_id",list.map(x=>x.id)).limit(1):{data:[]};
+  const estateWithUsers=(membershipEstateRows||[])[0]?.estate_id||"";
+  const estateId=selectedEstate&&list.some(x=>x.id===selectedEstate)?selectedEstate:(admin?(estateWithUsers||list[0]?.id||""):(list[0]?.id||""));
   setSelectedEstate(estateId);
   if(estateId){
    const {data:pendingData,error:pendingError}=await supabase.functions.invoke("resident-approval",{body:{action:"list",estateId}});
