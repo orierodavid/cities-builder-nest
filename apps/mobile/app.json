@@ -31,8 +31,17 @@
       "adaptiveIcon": {
         "foregroundImage": "../web/public/IMG_9873.png",
         "backgroundColor": "#050505"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
-    "icon": "../web/public/IMG_9873.png"
+    "icon": "../web/public/IMG_9873.png",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cff1ab38-ecdc-40e8-bdc7-3bcaded37a32"
+      }
+    }
   }
 }
