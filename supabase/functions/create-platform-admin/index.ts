@@ -11,6 +11,67 @@ function reply(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+function escapeEmailHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[character] ?? character);
+}
+
+async function sendImmediateAccountAlert(
+  recipientEmail: string,
+  recipientName: string,
+  account: { fullName: string; email: string; role: string; estate?: string },
+): Promise<{ sent: boolean; error?: string }> {
+  const apiKey = Deno.env.get("RESEND_API_KEY");
+  const from = Deno.env.get("WELCOME_EMAIL_FROM");
+  if (!apiKey || !from) return { sent: false, error: "email_delivery_not_configured" };
+  const subject = "New CB Nest account created";
+  const text = [
+    "A new CB Nest account has been created.",
+    "",
+    `Name: ${account.fullName}`,
+    `Email: ${account.email}`,
+    `Role: ${account.role}`,
+    `Estate: ${account.estate || "Platform-wide"}`,
+  ].join("\n");
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><p>Hello ${escapeEmailHtml(recipientName)},</p><p>A new CB Nest account has been created.</p><p><strong>Name:</strong> ${escapeEmailHtml(account.fullName)}<br/><strong>Email:</strong> ${escapeEmailHtml(account.email)}<br/><strong>Role:</strong> ${escapeEmailHtml(account.role)}<br/><strong>Estate:</strong> ${escapeEmailHtml(account.estate || "Platform-wide")}</p><p>Cities Builder Nest</p></div>`;
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [recipientEmail], subject, html, text }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) return { sent: false, error: `resend_http_${response.status}` };
+    return { sent: true };
+  } catch {
+    return { sent: false, error: "resend_request_failed" };
+  }
+}
+
+async function notifyExistingSuperAdmins(
+  admin: any,
+  newUserId: string,
+  account: { fullName: string; email: string; role: string; estate?: string },
+): Promise<{ sent: number; failed: number }> {
+  const { data: recipients, error } = await admin.from("user_roles")
+    .select("user_id, users!inner(full_name,is_active,is_disabled,deleted_at)")
+    .eq("role", "platform_admin")
+    .neq("user_id", newUserId);
+  if (error) return { sent: 0, failed: 1 };
+  let sent = 0;
+  let failed = 0;
+  for (const recipient of recipients ?? []) {
+    const profile = Array.isArray(recipient.users) ? recipient.users[0] : recipient.users;
+    if (!profile || profile.is_active === false || profile.is_disabled === true || profile.deleted_at) continue;
+    const { data: authUser, error: authError } = await admin.auth.admin.getUserById(recipient.user_id);
+    if (authError || !authUser.user?.email) { failed++; continue; }
+    const result = await sendImmediateAccountAlert(authUser.user.email, profile.full_name || "Super Admin", account);
+    if (result.sent) sent++; else failed++;
+  }
+  return { sent, failed };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers });
   if (req.method !== "POST") return reply(405, { error: "method_not_allowed" });
@@ -99,9 +160,12 @@ Deno.serve(async (req: Request) => {
     return reply(500, { error: "admin_role_setup_failed", message: "The new account was rolled back because platform access could not be assigned." });
   }
 
+  const notifications = await notifyExistingSuperAdmins(admin, newUserId, {
+    fullName, email, role: "Super Admin", estate: "Platform-wide",
+  });
   return reply(201, {
     success: true,
     account: { id: newUserId, fullName, email, role: "platform_admin" },
-    notificationQueued: true,
+    notifications: { sent: notifications.sent, failed: notifications.failed },
   });
 });
