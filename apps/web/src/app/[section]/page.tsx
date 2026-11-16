@@ -10,6 +10,7 @@ import LegalDocumentsPage from "./LegalDocumentsPage";
 import AuditLogsPage from "../AuditLogsPage";
 import AdminAlertsPage from "../AdminAlertsPage";
 import VenueCapacityPage from "./VenueCapacityPage";
+import VenueRequestsPage from "./VenueRequestsPage";
 
 type Estate = { id: string; name: string; address?: string; city?: string; lga?: string; state?: string; country_code?: string };
 type Membership = {
@@ -745,6 +746,7 @@ export default function SectionPage(){
  if(section==="payments")return <ManagementPaymentsPage/>;
  if(section==="maintenance")return <MaintenancePage/>;
  if(section==="venues")return <VenueCapacityPage/>;
+ if(section==="venue-requests")return <VenueRequestsPage/>;
  if(section==="residents")return <ResidentsPage/>;
  if(section==="settings")return <SettingsPage/>;
  if(section==="profile")return <ProfilePage/>;
