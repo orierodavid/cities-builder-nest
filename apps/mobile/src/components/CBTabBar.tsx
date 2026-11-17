@@ -20,7 +20,9 @@ type ResidentTabState = { routes: Array<{ name: string; key: string; params?: ob
 // A per-effect topic prevents channel() from returning that already-subscribed instance.
 let residentBadgeChannelSequence = 0;
 
-type TabBarProps = { state: ResidentTabState; emitter: any; navigateToTab: (routeKey: string) => void; };\n\nexport default function CBTabBar({ state, emitter, navigateToTab }: TabBarProps) {
+type TabBarProps = { state: ResidentTabState; emitter: any; navigateToTab: (routeKey: string) => void; };
+
+export default function CBTabBar({ state, emitter, navigateToTab }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -86,8 +88,8 @@ type TabBarProps = { state: ResidentTabState; emitter: any; navigateToTab: (rout
     const activeRoute = state.routes[state.index]?.name;
     const focused = activeRoute === route.name || (!TABS[activeRoute] && route.name === 'index');
     const onPress = () => {
-      const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-      if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+      const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+      if (!focused && !event.defaultPrevented) navigateToTab(route.key);
     };
     return (
       <TouchableOpacity key={route.key} style={s.item} onPress={onPress} activeOpacity={0.7} accessibilityRole="tab" accessibilityLabel={meta.label} accessibilityState={{ selected: focused }}>
