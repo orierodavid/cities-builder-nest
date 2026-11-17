@@ -133,8 +133,6 @@ Deno.serve(async (req: Request) => {
     const { error: roleDeleteError } = await admin.from("user_roles").delete().eq("user_id", userId);
     if (roleDeleteError) return json(500, { error: "role_cleanup_failed" });
 
-    try { await admin.auth.admin.signOut(userId, "global"); } catch { /* ban and credential rotation already revoke access */ }
-
     return json(200, {
       success: true,
       message: "The account has been deleted, personal details anonymized, and estate access revoked. Audit and historical transaction records were retained.",
