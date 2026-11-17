@@ -48,7 +48,15 @@ export default function ResidentEditPage() {
 
       if (!active) return;
       if (profileError || !profile || accountError) {
-        setError(accountError?.message || "Resident details could not be loaded. Check your access and try again.");
+        let accountMessage = accountError?.message || "";
+        const errorContext = (accountError as any)?.context;
+        if (errorContext && typeof errorContext.clone === "function") {
+          try {
+            const payload = await errorContext.clone().json();
+            accountMessage = payload?.message || payload?.error || accountMessage;
+          } catch { /* retain the original function error */ }
+        }
+        setError(accountMessage || profileError?.message || "Resident details could not be loaded. Check your access and try again.");
         setLoading(false);
         return;
       }
