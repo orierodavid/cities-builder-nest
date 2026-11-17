@@ -23,7 +23,7 @@ export default function SecurityVerify({ onBack, onCodeSubmit, onSwitchCamera, c
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={t.bg} />
+      <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <Pressable onPress={onBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={21} color={t.goldSoft} />
