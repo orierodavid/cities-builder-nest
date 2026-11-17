@@ -24,7 +24,7 @@ export function Screen({ title, subtitle, back = true, right, scroll = true, chi
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: insets.top }}>
-      <StatusBar barStyle="light-content" backgroundColor={t.bg} />
+      <StatusBar barStyle="light-content" />
 
       {!!title && (
         <View style={s.header}>
