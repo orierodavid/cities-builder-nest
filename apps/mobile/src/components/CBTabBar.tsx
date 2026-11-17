@@ -20,7 +20,7 @@ type ResidentTabState = { routes: Array<{ name: string; key: string; params?: ob
 // A per-effect topic prevents channel() from returning that already-subscribed instance.
 let residentBadgeChannelSequence = 0;
 
-export default function CBTabBar({ state, navigation }: { state: ResidentTabState; navigation: any }) {
+type TabBarProps = { state: ResidentTabState; emitter: any; navigateToTab: (routeKey: string) => void; };\n\nexport default function CBTabBar({ state, emitter, navigateToTab }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -104,7 +104,7 @@ export default function CBTabBar({ state, navigation }: { state: ResidentTabStat
   return (
     <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {left.map(renderTab)}
-      <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('visitors')} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Generate visitor access code">
+      <TouchableOpacity style={s.fab} onPress={() => { const visitorsRoute = state.routes.find((route) => route.name === 'visitors'); if (visitorsRoute) navigateToTab(visitorsRoute.key); }} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Generate visitor access code">
         <Ionicons name="add" size={32} color="#000" />
       </TouchableOpacity>
       {right.map(renderTab)}
