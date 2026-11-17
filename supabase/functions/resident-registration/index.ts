@@ -42,7 +42,7 @@ async function cleanupIncompleteUser(admin: any, userId: string) {
 }
 async function sendEmail(admin: any, userId: string, estateId: string, email: string, name: string) {
   const apiKey = Deno.env.get("RESEND_API_KEY");
-  const from = Deno.env.get("WELCOME_EMAIL_FROM");
+  const from = "CB Nest <noreply@mail.cbnestltd.com>";
   const eventType = "account_pending_approval";
   const { data: log } = await admin.from("resident_email_notifications").insert({
     user_id: userId, estate_id: estateId, event_type: eventType,
@@ -50,7 +50,7 @@ async function sendEmail(admin: any, userId: string, estateId: string, email: st
   }).select("id").single();
   if (!apiKey || !from) {
     if (log?.id) await admin.from("resident_email_notifications").update({
-      delivery_status: "failed", last_error: "RESEND_API_KEY or WELCOME_EMAIL_FROM is not configured",
+      delivery_status: "failed", last_error: "RESEND_API_KEY is not configured",
     }).eq("id", log.id);
     return { sent: false, error: "email_delivery_not_configured" };
   }
@@ -105,7 +105,7 @@ async function sendImmediateAccountAlert(
   account: { fullName: string; email: string; role: string; estate?: string },
 ): Promise<{ sent: boolean; error?: string }> {
   const apiKey = Deno.env.get("RESEND_API_KEY");
-  const from = Deno.env.get("WELCOME_EMAIL_FROM");
+  const from = "CB Nest <noreply@mail.cbnestltd.com>";
   if (!apiKey || !from) return { sent: false, error: "email_delivery_not_configured" };
   const subject = "New CB Nest account created";
   const text = [
