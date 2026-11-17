@@ -37,29 +37,25 @@ export default function ResidentEditPage() {
         setLoading(false);
         return;
       }
-      const [{ data: profile, error: profileError }, { data: account, error: accountError }] = await Promise.all([
-        supabase.from("users")
-          .select("first_name,last_name,full_name,phone_e164,home_number,street_name,building_name,unit_number")
-          .eq("id", userId).maybeSingle(),
-        supabase.functions.invoke("management-update-resident", {
-          body: { action: "load", estateId, userId },
-        }),
-      ]);
+      const { data: account, error: accountError } = await supabase.functions.invoke("management-update-resident", {
+        body: { action: "load", estateId, userId },
+      });
 
       if (!active) return;
-      if (profileError || !profile || accountError) {
-        let accountMessage = accountError?.message || "";
+      if (accountError || !account?.profile) {
+        let accountMessage = account?.message || account?.detail || account?.error || accountError?.message || "";
         const errorContext = (accountError as any)?.context;
         if (errorContext && typeof errorContext.clone === "function") {
           try {
             const payload = await errorContext.clone().json();
-            accountMessage = payload?.message || payload?.error || accountMessage;
-          } catch { /* retain the original function error */ }
+            accountMessage = payload?.message || payload?.detail || payload?.error || accountMessage;
+          } catch { /* retain the response message */ }
         }
-        setError(accountMessage || profileError?.message || "Resident details could not be loaded. Check your access and try again.");
+        setError(accountMessage || "Resident details could not be loaded. Check your access and try again.");
         setLoading(false);
         return;
       }
+      const profile = account.profile;
       const nameParts = (profile.full_name || "").trim().split(/\s+/);
       setFirstName(profile.first_name || nameParts.shift() || "");
       setLastName(profile.last_name || nameParts.join(" "));
