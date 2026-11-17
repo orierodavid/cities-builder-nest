@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
     // Keep the referenced user row as a non-identifying tombstone so immutable
     // financial, security and operational records retain referential integrity.
     const replacementEmail = `deleted+${userId}@deleted.invalid`;
-    const randomPassword = crypto.randomUUID() + crypto.randomUUID() + "Aa1!";
+    const randomPassword = crypto.randomUUID() + "Aa1!";
     const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, {
       email: replacementEmail,
       email_confirm: true,
@@ -99,8 +99,13 @@ Deno.serve(async (req: Request) => {
       user_metadata: {},
     });
     if (authUpdateError) {
-      await admin.from("audit_logs").update({ outcome: "failed", changes: { action: "account_deletion_failed", reason: "auth_account_revoke_failed" } })
-        .eq("resource_type", "user").eq("resource_id", userId).eq("action", "resident_account_deleted");
+      // Audit logs are append-only. Never attempt to mutate the request record
+      // when the Auth provider rejects revocation; record the provider failure
+      // in function logs without exposing credentials or personal data.
+      console.error("management-delete-resident auth revocation failed", {
+        code: authUpdateError.status ?? null,
+        message: authUpdateError.message,
+      });
       return json(500, { error: "auth_account_revoke_failed", message: "The account could not be securely revoked. No profile data was removed." });
     }
 
