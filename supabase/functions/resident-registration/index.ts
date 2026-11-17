@@ -193,7 +193,8 @@ Deno.serve(async (req: Request) => {
   if (firstName.length < 2 || firstName.length > 60 || lastName.length < 2 || lastName.length > 60 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !phone ||
       password.length < 8 || password.length > 128 || !estateId || !state || !lga ||
-      homeNumber.length < 1 || homeNumber.length > 80) {
+      homeNumber.length < 1 || homeNumber.length > 80 ||
+      streetName.length < 2 || streetName.length > 160) {
     return reply(400, { error: "invalid_registration_details", message: "Complete all fields and use a valid Nigerian phone number and a password of at least 8 characters." });
   }
 
@@ -241,7 +242,7 @@ Deno.serve(async (req: Request) => {
   const userId = created.user.id;
   const { error: profileError } = await admin.from("users").upsert({
     id: userId, full_name: fullName, first_name: firstName, last_name: lastName,
-    phone_e164: phone, home_number: homeNumber, street_name: estate.address, is_active: false,
+    phone_e164: phone, home_number: homeNumber, street_name: streetName, is_active: false,
   }, { onConflict: "id" });
   if (profileError) {
     const duplicatePhone = profileError.code === "23505" &&
