@@ -266,6 +266,8 @@ function UsersPage() {
 
  useEffect(()=>{void load();},[load]);
  const visible=useMemo(()=>memberships.filter(m=>{
+  // Deleted accounts are retained for audit/history, never shown as active directory entries.
+  if(m.users?.deleted_at)return false;
   const estate=estates.find(e=>e.id===m.estate_id)?.name||"";
   const q=search.toLowerCase();
   return (!filterEstate||m.estate_id===filterEstate) && (!q||[m.users?.full_name||"",roleLabels[m.membership_role]||m.membership_role,estate,m.users?.phone_e164||"",m.users?.home_number||"",m.users?.street_name||""].join(" ").toLowerCase().includes(q));
