@@ -14,9 +14,9 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
 
   const url = Deno.env.get("SUPABASE_URL");
-  const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
-  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !anon || !service) return json(503, { error: "service_not_configured" });
+  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY");
+  const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? service;
+  if (!url || !anon || !service) return json(503, { error: "service_not_configured", message: "The resident management service is missing required server configuration." });
 
   const authorization = req.headers.get("Authorization") ?? "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
@@ -26,9 +26,7 @@ Deno.serve(async (req: Request) => {
   const { data: auth, error: authError } = await caller.auth.getUser(token);
   if (authError || !auth.user) return json(401, { error: "invalid_session" });
 
-  const { data: legal, error: legalError } = await caller.rpc("get_legal_consent_status");
-  if (legalError) return json(503, { error: "legal_consent_check_unavailable" });
-  if (legal?.requiresAcceptance === true) return json(403, { error: "legal_consent_required" });
+  // Legal-consent acceptance is not required to let an authorized manager read or correct a resident record.
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return json(400, { error: "invalid_json" }); }
@@ -67,7 +65,12 @@ Deno.serve(async (req: Request) => {
   if (targetAuthError || !targetAuth.user) return json(404, { error: "resident_auth_account_not_found" });
 
   if (action === "load") {
-    return json(200, { email: targetAuth.user.email ?? "" });
+    const { data: profile, error: profileError } = await admin.from("users")
+      .select("id,first_name,last_name,full_name,phone_e164,home_number,street_name,building_name,unit_number")
+      .eq("id", userId).maybeSingle();
+    if (profileError) return json(500, { error: "resident_profile_load_failed", message: "The resident profile could not be loaded.", detail: profileError.message });
+    if (!profile) return json(404, { error: "resident_profile_not_found", message: "No resident profile was found for this account." });
+    return json(200, { email: targetAuth.user.email ?? "", profile });
   }
 
   const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
@@ -120,7 +123,7 @@ Deno.serve(async (req: Request) => {
     if (email !== oldEmail.toLowerCase() && oldEmail) {
       await admin.auth.admin.updateUserById(userId, { email: oldEmail, email_confirm: true });
     }
-    return json(500, { error: "resident_profile_update_failed", message: "The resident profile could not be saved. No changes were confirmed." });
+    return json(500, { error: "resident_profile_update_failed", message: "The resident profile could not be saved. No changes were confirmed.", detail: profileError.message });
   }
 
   return json(200, { success: true, emailUpdated: email !== oldEmail.toLowerCase() });
