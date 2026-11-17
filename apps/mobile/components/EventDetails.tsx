@@ -50,7 +50,7 @@ export default function EventDetails({ event: e, onBack, onNavigate = () => {} }
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={t.bg} />
+      <StatusBar barStyle="light-content" />
       <View style={s.header}>
         <TouchableOpacity onPress={onBack} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="chevron-back" size={26} color={t.text} />
