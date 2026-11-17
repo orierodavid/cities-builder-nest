@@ -66,7 +66,7 @@ export default function ResidentHome({
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={BG} />
+      <StatusBar barStyle="light-content" />
 
       <ScrollView
         contentContainerStyle={{
