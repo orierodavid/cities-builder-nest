@@ -124,6 +124,28 @@ Deno.serve(async (req: Request) => {
     }).eq("id", userId);
     if (profileError) return json(500, { error: "profile_anonymization_failed", message: "Login was revoked, but profile anonymization needs administrator follow-up." });
 
+    // Close active property assignments and release units only when no other
+    // resident assignment remains active for the same unit.
+    const { data: activeAssignments, error: assignmentLookupError } = await admin.from("resident_units")
+      .select("id,unit_id").eq("resident_user_id", userId).eq("estate_id", estateId).is("end_date", null);
+    if (assignmentLookupError) return json(500, { error: "resident_assignment_lookup_failed" });
+    if (activeAssignments?.length) {
+      const closedAt = new Date().toISOString();
+      const { error: closeAssignmentsError } = await admin.from("resident_units")
+        .update({ end_date: closedAt }).eq("resident_user_id", userId).eq("estate_id", estateId).is("end_date", null);
+      if (closeAssignmentsError) return json(500, { error: "resident_assignment_close_failed" });
+      for (const assignment of activeAssignments) {
+        const { data: remaining, error: remainingError } = await admin.from("resident_units")
+          .select("id").eq("unit_id", assignment.unit_id).eq("estate_id", estateId).is("end_date", null).limit(1);
+        if (remainingError) return json(500, { error: "unit_availability_check_failed" });
+        if (!remaining?.length) {
+          const { error: unitUpdateError } = await admin.from("units").update({ status: "available" })
+            .eq("id", assignment.unit_id).eq("estate_id", estateId);
+          if (unitUpdateError) return json(500, { error: "unit_release_failed" });
+        }
+      }
+    }
+
     // Remove access and role grants; retain audit logs and historical transaction
     // records in anonymized form for accounting, security and legal traceability.
     const { error: grantError } = await admin.from("user_roles").update({ assigned_by: null }).eq("assigned_by", userId);
