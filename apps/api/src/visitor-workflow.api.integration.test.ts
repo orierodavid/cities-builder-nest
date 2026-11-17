@@ -160,9 +160,13 @@ const mockSupabase = createServer(async (req, res) => {
   const objectResponse = (req.headers.accept ?? "").includes("application/vnd.pgrst.object+json");
 
   if (req.method === "GET" && table === "users") {
+    // The API uses a service-role client for account-status reads when configured.
+    // In that case the bearer header is the service key, so resolve the requested
+    // synthetic profile from PostgREST's id=eq.<user-id> filter instead.
+    const requestedId = url.searchParams.get("id")?.replace(/^eq\./, "");
     const token = req.headers.authorization?.replace(/^Bearer\s+/i, "") ?? "";
-    const userId = userIdsByToken[token];
-    return sendJson(res, 200, userId ? [{ id: userId, is_active: true }] : [], objectResponse);
+    const userId = requestedId || userIdsByToken[token];
+    return sendJson(res, 200, userId ? [{ id: userId, is_active: true, is_disabled: false, deleted_at: null }] : [], objectResponse);
   }
   if (req.method === "GET" && table === "security_shift_handovers") {
     return sendJson(res, 200, shiftHandoverRecords.filter(matches).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, Number(url.searchParams.get("limit") ?? 100)), objectResponse);
