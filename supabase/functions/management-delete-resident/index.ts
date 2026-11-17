@@ -158,8 +158,9 @@ Deno.serve(async (req: Request) => {
     // records in anonymized form for accounting, security and legal traceability.
     const { error: grantError } = await admin.from("user_roles").update({ assigned_by: null }).eq("assigned_by", userId);
     if (grantError) return json(500, { error: "role_grant_cleanup_failed" });
-    const { error: membershipDeleteError } = await admin.from("estate_memberships").delete().eq("user_id", userId);
-    if (membershipDeleteError) return json(500, { error: "membership_cleanup_failed" });
+    const { error: membershipEndError } = await admin.from("estate_memberships")
+      .update({ status: "ended" }).eq("user_id", userId).in("status", ["active", "invited"]);
+    if (membershipEndError) return json(500, { error: "membership_cleanup_failed" });
     const { error: roleDeleteError } = await admin.from("user_roles").delete().eq("user_id", userId);
     if (roleDeleteError) return json(500, { error: "role_cleanup_failed" });
 
