@@ -41,7 +41,7 @@ export default function AccountDeletionCard() {
           <Text style={{ color: "#F2B5B0", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 }}>DELETE MY ACCOUNT</Text>
         </TouchableOpacity>
       </View>
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => !busy && setVisible(false)}>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => { if (!busy) setVisible(false); }}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.78)", justifyContent: "center", padding: 22 }}>
           <View style={{ backgroundColor: "#121212", borderWidth: 1, borderColor: "#6C2924", borderRadius: 16, padding: 20, gap: 12 }}>
             <Text style={{ color: "#FFFFFF", fontSize: 17, fontWeight: "900" }}>Confirm account deletion</Text>
