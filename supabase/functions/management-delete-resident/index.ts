@@ -123,7 +123,6 @@ Deno.serve(async (req: Request) => {
     }).eq("id", userId);
     if (profileError) return json(500, { error: "profile_anonymization_failed", message: "Login was revoked, but profile anonymization needs administrator follow-up." });
 
-    const replacementEmail = `deleted+${userId}@deleted.invalid`;
     const { error: notificationScrubError } = await admin.from("resident_email_notifications")
       .update({ recipient_email: replacementEmail, last_error: null }).eq("user_id", userId);
     if (notificationScrubError) return json(500, { error: "resident_notification_anonymization_failed" });
