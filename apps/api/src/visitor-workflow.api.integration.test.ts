@@ -160,7 +160,7 @@ const mockSupabase = createServer(async (req, res) => {
   const objectResponse = (req.headers.accept ?? "").includes("application/vnd.pgrst.object+json");
 
   if (req.method === "GET" && table === "users") {
-    const token = req.headers.authorization?.replace(/^Bearer\\s+/i, "") ?? "";
+    const token = req.headers.authorization?.replace(/^Bearer\s+/i, "") ?? "";
     const userId = userIdsByToken[token];
     return sendJson(res, 200, userId ? [{ id: userId, is_active: true }] : [], objectResponse);
   }
