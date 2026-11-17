@@ -185,6 +185,7 @@ function UsersPage() {
  const [pendingVenueEvents,setPendingVenueEvents]=useState<Array<{id:string;title:string;venue:string;starts_at:string;created_at:string;venue_approval_publish_requested:boolean}>>([]);
  const [approvingUserId,setApprovingUserId]=useState<string|null>(null);
  const [selectedEstate,setSelectedEstate]=useState("");
+ const [filterEstate,setFilterEstate]=useState("");
  const [isAdmin,setIsAdmin]=useState(false);
  const [currentUserId,setCurrentUserId]=useState<string|null>(null);
  const [loading,setLoading]=useState(true);
@@ -240,10 +241,25 @@ function UsersPage() {
    if(venueApprovalError){setPendingVenueEvents([]);setError("Pending venue approvals could not be loaded. Please refresh.");}
    else setPendingVenueEvents((venueApprovalData||[]) as typeof pendingVenueEvents);
    const {data:memberData,error:memberError}=await supabase.from("estate_memberships")
-    .select("id,estate_id,user_id,membership_role,status,created_at,users(full_name,phone_e164,home_number,street_name,is_active,is_disabled,deleted_at)")
-    .in("estate_id",admin?list.map(x=>x.id):list.map(x=>x.id)).order("created_at",{ascending:false});
-   if(memberError)setError("Estate access was verified, but user records could not be loaded.");
-   else setMemberships((memberData||[]) as unknown as Membership[]);
+    .select("id,estate_id,user_id,membership_role,status,created_at")
+    .in("estate_id",list.map(x=>x.id)).order("created_at",{ascending:false});
+   if(memberError){
+    setMemberships([]);
+    setError("Estate access was verified, but user memberships could not be loaded.");
+   }else{
+    const memberRows=(memberData||[]) as Array<Omit<Membership,"users">>;
+    const userIds=[...new Set(memberRows.map(x=>x.user_id))];
+    const {data:profiles,error:profileError}=userIds.length
+     ?await supabase.from("users").select("id,full_name,phone_e164,home_number,street_name,is_active,is_disabled,deleted_at").in("id",userIds)
+     :{data:[],error:null};
+    if(profileError){
+     setMemberships([]);
+     setError("Memberships loaded, but user profiles could not be loaded.");
+    }else{
+     const profileMap=new Map((profiles||[]).map((profile:{id:string;full_name:string;phone_e164:string|null;home_number?:string|null;street_name?:string|null;is_active?:boolean;is_disabled?:boolean;deleted_at?:string|null})=>[profile.id,profile]));
+     setMemberships(memberRows.map(row=>({...row,users:profileMap.get(row.user_id)||null})));
+    }
+   }
   } else { setMemberships([]); setPendingResidents([]); setPendingVenueEvents([]); }
   setLoading(false);
  },[selectedEstate]);
@@ -252,8 +268,8 @@ function UsersPage() {
  const visible=useMemo(()=>memberships.filter(m=>{
   const estate=estates.find(e=>e.id===m.estate_id)?.name||"";
   const q=search.toLowerCase();
-  return (!selectedEstate||m.estate_id===selectedEstate) && (!q||[m.users?.full_name||"",roleLabels[m.membership_role]||m.membership_role,estate,m.users?.phone_e164||"",m.users?.home_number||"",m.users?.street_name||""].join(" ").toLowerCase().includes(q));
- }),[memberships,estates,selectedEstate,search]);
+  return (!filterEstate||m.estate_id===filterEstate) && (!q||[m.users?.full_name||"",roleLabels[m.membership_role]||m.membership_role,estate,m.users?.phone_e164||"",m.users?.home_number||"",m.users?.street_name||""].join(" ").toLowerCase().includes(q));
+ }),[memberships,estates,filterEstate,search]);
  const allowedRoles:Role[]=isAdmin?["facility_manager","resident","security"]:["resident","security"];
  async function approveResident(userId:string){
   setApprovingUserId(userId);setError("");setSuccess("");
@@ -382,7 +398,7 @@ function UsersPage() {
     </div>
     <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving||!selectedEstate}>{saving?"Creating account…":"Create account"}</button></div>
    </form>}
-   <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selectedEstate} onChange={e=>setSelectedEstate(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, role or phone…" aria-label="Search users"/></div>
+   <div className="user-list-toolbar"><select aria-label="Filter by estate" value={filterEstate} onChange={e=>setFilterEstate(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, role or phone…" aria-label="Search users"/></div>
    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Name</th><th>Role</th><th>Estate</th><th>Unit details</th><th>Phone</th><th>Status</th><th>Date added</th><th>Actions</th></tr></thead><tbody>
     {loading?<tr><td colSpan={8} className="empty-cell">Loading estate users…</td></tr>:visible.length?visible.map(m=><tr key={m.id}><td><strong>{m.users?.full_name||"Unnamed user"}</strong></td><td>{roleLabels[m.membership_role]||m.membership_role}</td><td>{estates.find(x=>x.id===m.estate_id)?.name||"—"}</td><td>{[m.users?.home_number,m.users?.street_name].filter(Boolean).join(" · ")||"—"}</td><td>{m.users?.phone_e164||"—"}</td><td><span className={"status-pill status-"+m.status}>{m.status}</span><small style={{display:"block",marginTop:4}}>{m.users?.deleted_at?"Deleted":m.users?.is_disabled?"Disabled":m.users?.is_active===false?"Pending approval":"Active"}</small></td><td>{new Date(m.created_at).toLocaleDateString()}</td><td style={{display:"flex",gap:8,flexWrap:"wrap"}}>{m.membership_role==="resident"&&<button type="button" className="secondary-action" onClick={()=>void editResidentAddress(m)}>Edit resident</button>}{isAdmin&&m.user_id!==currentUserId&&!m.users?.deleted_at&&<button type="button" className="secondary-action" disabled={changingAccessUserId===m.user_id} onClick={()=>void changeUserAccess(m)}>{changingAccessUserId===m.user_id?"Updating…":m.users?.is_disabled?"Reactivate account":"Disable account"}</button>}<button type="button" className="secondary-action" disabled={sendingPasswordUserId===m.user_id||Boolean(m.users?.deleted_at)} onClick={()=>void updateUserPassword(m)}>{sendingPasswordUserId===m.user_id?"Updating…":"Update password"}</button>{!m.users?.deleted_at&&!m.users?.is_disabled&&<a className="secondary-action" href={`/welcome-email?userId=${encodeURIComponent(m.user_id)}&estateId=${encodeURIComponent(m.estate_id)}`}>Send welcome email</a>}</td></tr>):<tr><td colSpan={8} className="empty-cell"><span className="empty-mark">♙</span><strong>No estate users found</strong><small>Users will appear here once their accounts are created.</small></td></tr>}
    </tbody></table></div>
