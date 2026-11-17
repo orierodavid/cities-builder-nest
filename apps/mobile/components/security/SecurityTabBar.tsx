@@ -11,7 +11,9 @@ const items = [
   { name: "profile", label: "Profile", icon: "person-circle-outline" as const },
 ];
 
-type SecurityTabBarProps = { state: any; descriptors: any; emitter: any; navigateToTab: (routeKey: string) => void; };\n\nexport default function SecurityTabBar({ state, descriptors, emitter, navigateToTab }: SecurityTabBarProps) {
+type SecurityTabBarProps = { state: any; descriptors: any; emitter: any; navigateToTab: (routeKey: string) => void; };
+
+export default function SecurityTabBar({ state, descriptors, emitter, navigateToTab }: SecurityTabBarProps) {
   const insets = useSafeAreaInsets();
   return <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
     {items.map((item) => {
@@ -21,8 +23,8 @@ type SecurityTabBarProps = { state: any; descriptors: any; emitter: any; navigat
       const focused = state.index === routeIndex;
       const options = descriptors[route.key]?.options;
       const onPress = () => {
-        const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
-        if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+        const event = emitter.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+        if (!focused && !event.defaultPrevented) navigateToTab(route.key);
       };
       return <Pressable key={item.name} accessibilityRole="button" accessibilityState={focused ? { selected: true } : {}}
         accessibilityLabel={options?.tabBarAccessibilityLabel || item.label} onPress={onPress}
