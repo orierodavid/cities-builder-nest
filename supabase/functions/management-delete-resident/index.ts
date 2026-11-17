@@ -80,7 +80,6 @@ Deno.serve(async (req: Request) => {
       severity: "warning",
       changes: {
         action: "account_deleted_and_personal_data_anonymized",
-        target_name: target.full_name || [target.first_name, target.last_name].filter(Boolean).join(" "),
         estate_name: estate?.name || null,
         historical_records_retained_anonymously: true,
       },
@@ -123,6 +122,11 @@ Deno.serve(async (req: Request) => {
       updated_at: new Date().toISOString(),
     }).eq("id", userId);
     if (profileError) return json(500, { error: "profile_anonymization_failed", message: "Login was revoked, but profile anonymization needs administrator follow-up." });
+
+    const replacementEmail = `deleted+${userId}@deleted.invalid`;
+    const { error: notificationScrubError } = await admin.from("resident_email_notifications")
+      .update({ recipient_email: replacementEmail, last_error: null }).eq("user_id", userId);
+    if (notificationScrubError) return json(500, { error: "resident_notification_anonymization_failed" });
 
     // Close active property assignments and release units only when no other
     // resident assignment remains active for the same unit.
