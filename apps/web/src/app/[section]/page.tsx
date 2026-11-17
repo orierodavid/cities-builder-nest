@@ -18,7 +18,7 @@ type Membership = {
   status: string; created_at: string;
   users: { full_name: string; phone_e164: string | null; home_number?: string | null; street_name?: string | null; is_active?: boolean; is_disabled?: boolean; deleted_at?: string | null } | null;
 };
-type PendingResident = { membershipId: string; userId: string; name: string; email: string; phone: string; homeNumber?: string; streetName?: string; submittedAt: string };
+type PendingResident = { membershipId: string; userId: string; name: string; email: string; phone: string; homeNumber?: string; streetName?: string; submittedAt: string; estateId: string; estateName: string };
 type Role = "facility_manager" | "resident" | "security";
 function editResidentProfilePrompt(estateId:string,userId:string):Promise<string|null>{
  window.location.assign(`/users/resident-edit?estateId=${encodeURIComponent(estateId)}&userId=${encodeURIComponent(userId)}`);
@@ -232,9 +232,14 @@ function UsersPage() {
   const estateId=selectedEstate&&list.some(x=>x.id===selectedEstate)?selectedEstate:(admin?(estateWithUsers||list[0]?.id||""):(list[0]?.id||""));
   setSelectedEstate(estateId);
   if(estateId){
-   const {data:pendingData,error:pendingError}=await supabase.functions.invoke("resident-approval",{body:{action:"list",estateId}});
-   if(pendingError||pendingData?.error){setPendingResidents([]);setError("Pending resident approvals could not be loaded. Please refresh.");}
-   else setPendingResidents((pendingData?.pending||[]) as PendingResident[]);
+   const approvalEstateIds=admin?list.map(x=>x.id):[...new Set((ownMemberships||[]).filter((x:{membership_role:string})=>x.membership_role==="facility_manager").map((x:{estate_id:string})=>x.estate_id))].filter(id=>list.some(x=>x.id===id));
+   const pendingResults=await Promise.all(approvalEstateIds.map(async id=>{
+    const estate=list.find(x=>x.id===id);
+    const {data,error}=await supabase.functions.invoke("resident-approval",{body:{action:"list",estateId:id}});
+    return {error:Boolean(error||data?.error),pending:((data?.pending||[]) as Omit<PendingResident,"estateId"|"estateName">[]).map(person=>({...person,estateId:id,estateName:estate?.name||"Estate"}))};
+   }));
+   if(pendingResults.some(result=>result.error)){setPendingResidents(pendingResults.flatMap(result=>result.pending));setError("Some pending resident approvals could not be loaded. Please refresh.");}
+   else setPendingResidents(pendingResults.flatMap(result=>result.pending));
    const {data:venueApprovalData,error:venueApprovalError}=await supabase.from("estate_events")
     .select("id,title,venue,starts_at,created_at,venue_approval_publish_requested")
     .eq("estate_id",estateId).eq("venue_approval_status","pending").order("venue_approval_requested_at",{ascending:true});
@@ -273,9 +278,9 @@ function UsersPage() {
   return (!filterEstate||m.estate_id===filterEstate) && (!q||[m.users?.full_name||"",roleLabels[m.membership_role]||m.membership_role,estate,m.users?.phone_e164||"",m.users?.home_number||"",m.users?.street_name||""].join(" ").toLowerCase().includes(q));
  }),[memberships,estates,filterEstate,search]);
  const allowedRoles:Role[]=isAdmin?["facility_manager","resident","security"]:["resident","security"];
- async function approveResident(userId:string){
-  setApprovingUserId(userId);setError("");setSuccess("");
-  const {data,error:invokeError}=await supabase.functions.invoke("resident-approval",{body:{action:"approve",estateId:selectedEstate,userId}});
+ async function approveResident(person:PendingResident){
+  setApprovingUserId(person.userId);setError("");setSuccess("");
+  const {data,error:invokeError}=await supabase.functions.invoke("resident-approval",{body:{action:"approve",estateId:person.estateId,userId:person.userId}});
   if(invokeError||data?.error){
    setError(data?.error==="resident_already_approved"?"This resident has already been approved. Refresh the list.":"The resident account could not be approved. Please try again.");
    setApprovingUserId(null);return;
@@ -400,8 +405,8 @@ function UsersPage() {
    </section>
    <section style={{marginTop:18}}>
     <div className="module-toolbar"><div><h3>Pending resident approvals</h3><p>Review new resident registrations and activate accounts with one click.</p></div><span className="status-pill status-invited">{pendingResidents.length} awaiting approval</span></div>
-    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Email</th><th>Phone</th><th>Home / Apartment</th><th>Street</th><th>Submitted</th><th>Action</th></tr></thead><tbody>
-     {loading?<tr><td colSpan={7} className="empty-cell">Loading pending registrations…</td></tr>:pendingResidents.length?pendingResidents.map(person=><tr key={person.membershipId}><td><strong>{person.name}</strong></td><td>{person.email||"—"}</td><td>{person.phone||"—"}</td><td>{person.homeNumber||"—"}</td><td>{person.streetName||"—"}</td><td>{new Date(person.submittedAt).toLocaleDateString("en-NG")}</td><td><button type="button" className="primary-action" disabled={approvingUserId===person.userId} onClick={()=>void approveResident(person.userId)}>{approvingUserId===person.userId?"Approving…":"Approve account"}</button></td></tr>):<tr><td colSpan={7} className="empty-cell"><strong>No pending resident registrations</strong><small>New self-registered residents will appear here.</small></td></tr>}
+    <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Estate</th><th>Email</th><th>Phone</th><th>Home / Apartment</th><th>Street</th><th>Submitted</th><th>Action</th></tr></thead><tbody>
+     {loading?<tr><td colSpan={8} className="empty-cell">Loading pending registrations…</td></tr>:pendingResidents.length?pendingResidents.map(person=><tr key={person.membershipId}><td><strong>{person.name}</strong></td><td>{person.estateName}</td><td>{person.email||"—"}</td><td>{person.phone||"—"}</td><td>{person.homeNumber||"—"}</td><td>{person.streetName||"—"}</td><td>{new Date(person.submittedAt).toLocaleDateString("en-NG")}</td><td><button type="button" className="primary-action" disabled={approvingUserId===person.userId} onClick={()=>void approveResident(person)}>{approvingUserId===person.userId?"Approving…":"Approve account"}</button></td></tr>):<tr><td colSpan={8} className="empty-cell"><strong>No pending resident registrations</strong><small>New self-registered residents will appear here.</small></td></tr>}
     </tbody></table></div>
    </section>
    {showForm&&<form className="user-form" onSubmit={createUser}>
