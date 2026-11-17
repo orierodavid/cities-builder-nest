@@ -19,7 +19,7 @@ Deno.serve(async (req: Request) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? service;
     if (!url || !service || !anon) return json(503, { error: "service_not_configured" });
 
-    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\\s+/i, "").trim();
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
     if (!token) return json(401, { error: "authentication_required" });
 
     const caller = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
