@@ -11,7 +11,7 @@ const items = [
   { name: "profile", label: "Profile", icon: "person-circle-outline" as const },
 ];
 
-export default function SecurityTabBar({ state, descriptors, navigation }: { state: any; descriptors: any; navigation: any }) {
+type SecurityTabBarProps = { state: any; descriptors: any; emitter: any; navigateToTab: (routeKey: string) => void; };\n\nexport default function SecurityTabBar({ state, descriptors, emitter, navigateToTab }: SecurityTabBarProps) {
   const insets = useSafeAreaInsets();
   return <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
     {items.map((item) => {
@@ -26,7 +26,7 @@ export default function SecurityTabBar({ state, descriptors, navigation }: { sta
       };
       return <Pressable key={item.name} accessibilityRole="button" accessibilityState={focused ? { selected: true } : {}}
         accessibilityLabel={options?.tabBarAccessibilityLabel || item.label} onPress={onPress}
-        onLongPress={() => navigation.emit({ type: "tabLongPress", target: route.key })} style={s.item}>
+        onLongPress={() => emitter.emit({ type: "tabLongPress", target: route.key })} style={s.item}>
         {item.name === "verify" ? <View style={[s.verifyButton, focused && s.verifyActive]}><Ionicons name={item.icon} size={23} color="#0A0A0A" /></View>
           : <Ionicons name={item.icon} size={21} color={focused ? "#D9A93F" : "#8E8E8E"} />}
         <Text style={[s.label, focused && s.labelActive]}>{item.label}</Text>
