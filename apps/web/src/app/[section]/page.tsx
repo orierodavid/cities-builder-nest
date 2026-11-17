@@ -356,6 +356,7 @@ function UsersPage() {
   }
   if(data?.error){setError("The account could not be created. Please check the details and try again.");setSaving(false);return;}
   setInviteCredentials({email:email.trim().toLowerCase(),password});
+  setFilterEstate(selectedEstate);
   setSuccess("Account created successfully. No email was sent. Copy the initial password below and share it securely with the user.");
   setFullName("");setEmail("");setPassword("");setBuildingName("");setUnitCode("");setUnitType("");setShowForm(false);
   await load();setSaving(false);
