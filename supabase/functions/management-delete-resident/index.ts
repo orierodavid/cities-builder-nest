@@ -56,12 +56,12 @@ Deno.serve(async (req: Request) => {
 
     const [{ data: membership, error: membershipError }, { data: protectedRole, error: protectedRoleError }] = await Promise.all([
       admin.from("estate_memberships").select("id,membership_role")
-        .eq("estate_id", estateId).eq("user_id", userId).eq("membership_role", "resident")
+        .eq("estate_id", estateId).eq("user_id", userId)
         .in("status", ["active", "invited"]).maybeSingle(),
       admin.from("user_roles").select("role").eq("user_id", userId).eq("role", "platform_admin").maybeSingle(),
     ]);
     if (membershipError || protectedRoleError) return json(500, { error: "target_access_check_failed" });
-    if (!membership) return json(404, { error: "resident_not_found_in_estate" });
+    if (!membership) return json(404, { error: "user_not_found_in_estate" });
     if (protectedRole) return json(409, { error: "protected_platform_admin", message: "A platform administrator cannot be deleted from the resident directory." });
 
     const { data: estate } = await admin.from("estates").select("name").eq("id", estateId).maybeSingle();
