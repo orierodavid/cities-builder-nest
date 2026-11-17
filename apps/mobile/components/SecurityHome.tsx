@@ -72,7 +72,7 @@ export default function SecurityHome({
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={t.bg} />
+      <StatusBar barStyle="light-content" />
       <ScrollView
         contentContainerStyle={[
           styles.content,
