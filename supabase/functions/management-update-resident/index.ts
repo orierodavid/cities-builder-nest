@@ -12,6 +12,7 @@ const json = (status: number, body: Record<string, unknown>) =>
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
+  try {
 
   const url = Deno.env.get("SUPABASE_URL");
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY");
@@ -127,4 +128,8 @@ Deno.serve(async (req: Request) => {
   }
 
   return json(200, { success: true, emailUpdated: email !== oldEmail.toLowerCase() });
+  } catch (error) {
+    console.error("management-update-resident failed", error);
+    return json(500, { error: "resident_management_failed", message: "Resident details could not be loaded or saved. Please retry, and contact support if the issue continues." });
+  }
 });
