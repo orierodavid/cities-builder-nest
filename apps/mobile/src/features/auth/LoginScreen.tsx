@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import BrandMark from '../shared/BrandMark';
+import BrandMark from '../shared/AppLogo';
 
 const C = {
   bg: '#080808', panel: '#121212', field: '#0B0B0B', gold: '#D4A84B',
@@ -35,7 +35,7 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Pro
     <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-          <View style={s.brand}><BrandMark size={104} /></View>
+          <View style={s.brand}><AppLogo size={104} /></View>
           <View style={s.card}>
             <Text style={s.eyebrow}>YOUR COMMUNITY, CONNECTED</Text>
             <Text style={s.title}>Welcome home.</Text>
