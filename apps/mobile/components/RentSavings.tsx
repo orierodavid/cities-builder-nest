@@ -14,7 +14,7 @@ type Goal = {
   created_at: string;
 };
 
-type Props = { residentUserId: string; estateId: string | null; onBack: () => void };
+type Props = { residentUserId: string; estateId: string };
 
 const money = (kobo: number) => new Intl.NumberFormat("en-NG", {
   style: "currency", currency: "NGN", maximumFractionDigits: 0,
@@ -38,12 +38,13 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
     const goalsQuery = supabase.from("rent_savings_goals")
       .select("id,name,target_amount_kobo,target_date,duration_months,status,created_at")
       .eq("resident_user_id", residentUserId)
+      .eq("estate_id", estateId)
       .order("created_at", { ascending: false });
     let contributionsQuery = supabase.from("rent_savings_contributions")
       .select("id,goal_id,amount_kobo,status,created_at,provider_reference,verified_at")
       .eq("resident_user_id", residentUserId)
       .order("created_at", { ascending: false });
-    if (estateId) contributionsQuery = contributionsQuery.eq("estate_id", estateId);
+    contributionsQuery = contributionsQuery.eq("estate_id", estateId);
     const [goalsResult, contributionsResult] = await Promise.all([goalsQuery, contributionsQuery]);
     if (goalsResult.error) {
       setMessage("Your savings goals could not be loaded. Please try again.");
@@ -74,29 +75,33 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
   }, [loadGoals]);
 
   async function createGoal() {
+    if (!estateId) { setMessage("An active Resident estate membership is required before creating a rent savings goal."); return; }
     const naira = Number(amount.replace(/,/g, ""));
     if (name.trim().length < 2) { setMessage("Give your savings goal a name."); return; }
     if (!Number.isFinite(naira) || naira <= 0 || naira > 100000000) { setMessage("Enter a valid rent target amount."); return; }
     setSaving(true);
     setMessage("");
-    const { error } = await supabase.from("rent_savings_goals").insert({
-      resident_user_id: residentUserId,
-      estate_id: estateId,
-      name: name.trim(),
-      target_amount_kobo: Math.round(naira * 100),
-      currency: "NGN",
-      duration_months: durationMonths,
-      status: "active",
-    });
-    if (error) setMessage("Your savings goal could not be saved. Please check the details and try again.");
-    else {
+    try {
+      const { error } = await supabase.from("rent_savings_goals").insert({
+        resident_user_id: residentUserId,
+        estate_id: estateId,
+        name: name.trim(),
+        target_amount_kobo: Math.round(naira * 100),
+        currency: "NGN",
+        duration_months: durationMonths,
+        status: "active",
+      });
+      if (error) throw error;
       setName("My Rent");
       setAmount("");
       setDurationMonths(3);
       setMessage("Your rent-saving goal has been created.");
       await loadGoals();
+    } catch {
+      setMessage("Your savings goal could not be saved. Check your active estate membership and try again.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function fundGoal(goalId: string) {
@@ -131,7 +136,6 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
   const visibleGoals = goals;
   return (
     <View style={styles.page}>
-      <TouchableOpacity onPress={onBack} style={styles.back}><Ionicons name="arrow-back" size={17} color="#D4A84B"/><Text style={styles.backText}>BACK TO HOME</Text></TouchableOpacity>
       <Text style={styles.eyebrow}>PLAN AHEAD</Text>
       <Text style={styles.title}>Save for Rent</Text>
       <Text style={styles.subtitle}>Choose a fixed savings period and set the amount you want to build towards.</Text>
@@ -220,8 +224,6 @@ export default function RentSavings({ residentUserId, estateId, onBack }: Props)
 
 const styles = StyleSheet.create({
   page:{gap:13,padding:16,paddingBottom:28,backgroundColor:"#080808",width:"100%"},
-  back:{flexDirection:"row",alignItems:"center",gap:8,alignSelf:"flex-start",paddingVertical:5},
-  backText:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1},
   eyebrow:{fontSize:10,color:"#D4A84B",fontWeight:"900",letterSpacing:1.8,marginTop:5},
   title:{fontSize:28,color:"#FFFFFF",fontWeight:"900",letterSpacing:-.5},
   subtitle:{fontSize:13,lineHeight:20,color:"#B9B9B9"},
