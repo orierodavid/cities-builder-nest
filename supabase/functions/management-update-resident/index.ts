@@ -67,7 +67,7 @@ Deno.serve(async (req: Request) => {
 
   if (action === "load") {
     const { data: profile, error: profileError } = await admin.from("users")
-      .select("id,first_name,last_name,full_name,phone_e164,home_number,street_name,building_name,unit_number")
+      .select("id,first_name,last_name,full_name,phone_e164,home_number,house_number,street_name,building_name,unit_number")
       .eq("id", userId).maybeSingle();
     if (profileError) return json(500, { error: "resident_profile_load_failed", message: "The resident profile could not be loaded.", detail: profileError.message });
     if (!profile) return json(404, { error: "resident_profile_not_found", message: "No resident profile was found for this account." });
@@ -79,6 +79,7 @@ Deno.serve(async (req: Request) => {
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
   const homeNumber = typeof body.homeNumber === "string" ? body.homeNumber.trim() : "";
+  const houseNumber = typeof body.houseNumber === "string" ? body.houseNumber.trim() : "";
   const streetName = typeof body.streetName === "string" ? body.streetName.trim() : "";
   const buildingName = typeof body.buildingName === "string" ? body.buildingName.trim() : "";
   const unitNumber = typeof body.unitNumber === "string" ? body.unitNumber.trim() : "";
@@ -88,7 +89,7 @@ Deno.serve(async (req: Request) => {
       fullName.length < 2 || fullName.length > 120 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
       (phone && (phone.length < 7 || phone.length > 20)) ||
-      homeNumber.length > 80 || streetName.length > 160 ||
+      homeNumber.length > 80 || houseNumber.length > 80 || streetName.length > 160 ||
       buildingName.length > 120 || unitNumber.length > 80) {
     return json(400, { error: "invalid_resident_details", message: "Check the name, email, phone number and address fields." });
   }
@@ -114,6 +115,7 @@ Deno.serve(async (req: Request) => {
     last_name: lastName || null,
     phone_e164: phone || null,
     home_number: homeNumber || null,
+    house_number: houseNumber || null,
     street_name: streetName || null,
     building_name: buildingName || null,
     unit_number: unitNumber || null,
