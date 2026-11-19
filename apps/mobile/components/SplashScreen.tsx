@@ -19,8 +19,6 @@ export default function SplashScreen() {
       <View style={s.glowTop} />
       <Animated.View style={[s.brand, { opacity: fade, transform: [{ scale: pulse }] }]}>
         <Image source={require('../IMG_9873.png')} style={s.logo} resizeMode="contain" accessibilityLabel="CB Nest Ltd logo" />
-        <Text style={s.name}>CB NEST LTD</Text>
-        <Text style={s.tag}>...BUILDING YOUR FUTURE</Text>
         <View style={s.rule} />
         <Text style={s.promise}>A better way to live, manage and belong.</Text>
       </Animated.View>
@@ -32,9 +30,7 @@ const s = StyleSheet.create({
   root:{flex:1,backgroundColor:theme.bg,alignItems:'center',justifyContent:'center',padding:28,overflow:'hidden'},
   glowTop:{position:'absolute',width:310,height:310,borderRadius:155,borderWidth:1,borderColor:theme.border,top:-190,alignSelf:'center'},
   brand:{alignItems:'center'},
-  logo:{width:76,height:76,maxWidth:'100%',alignSelf:'center',marginBottom:4},
-  name:{color:theme.text,fontSize:31,fontWeight:'900',letterSpacing:5,marginTop:22},
-  tag:{color:theme.goldSoft,fontSize:10,fontWeight:'900',letterSpacing:4,marginTop:7},
+  logo:{width:112,height:112,maxWidth:'100%',alignSelf:'center',marginBottom:4},
   rule:{width:54,height:2,backgroundColor:theme.gold,marginTop:24,marginBottom:17},
   promise:{color:theme.muted,fontSize:12,letterSpacing:.3,textAlign:'center'},
   bottom:{position:'absolute',bottom:54,alignItems:'center',gap:10},
