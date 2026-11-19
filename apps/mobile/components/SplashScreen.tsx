@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../src/theme/theme';
-import BrandMark from '../src/features/shared/AppLogo';
+import AppLogo from '../src/features/shared/AppLogo';
 
 export default function SplashScreen() {
   const insets = useSafeAreaInsets();
