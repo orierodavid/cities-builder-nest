@@ -37,7 +37,7 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Pro
           <View style={s.brand}>
             <Image source={require('../../../IMG_9873.png')} style={s.logoImage} resizeMode="contain" accessibilityLabel="CB Nest Ltd logo" />
             <Text style={s.wordmark}>CB NEST</Text>
-            <Text style={s.kicker}>CITIES BUILDER</Text>
+            <Text style={s.kicker}>ESTATE MANAGEMENT</Text>
           </View>
           <View style={s.card}>
             <Text style={s.eyebrow}>YOUR COMMUNITY, CONNECTED</Text>
