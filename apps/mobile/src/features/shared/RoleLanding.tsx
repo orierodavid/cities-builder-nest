@@ -40,13 +40,14 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
     setProfileLoading(false);
    }
    const {data:profile,error:profileQueryError}=await supabase.from('users')
-    .select('full_name,home_number,street_name').eq('id',user.id).maybeSingle();
+    .select('full_name,home_number,house_number,street_name').eq('id',user.id).maybeSingle();
    if(profileQueryError)throw profileQueryError;
    const homeNumber=String(profile?.home_number||'').trim();
+    const houseNumber=String(profile?.house_number||'').trim();
    const streetName=String(profile?.street_name||'').trim();
-   if(homeNumber||streetName){
+   if(homeNumber||houseNumber||streetName){
     setResidentName(profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
-    const unitLabel=[homeNumber,streetName].filter(Boolean).join(' · ')||providedUnit||'';
+    const unitLabel=[homeNumber,houseNumber,streetName].filter(Boolean).join(' · ')||providedUnit||'';
     setResidentUnit(unitLabel);
     await writeDashboardCache('resident',user.id,{name:profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim(),unit:unitLabel});
     return;
