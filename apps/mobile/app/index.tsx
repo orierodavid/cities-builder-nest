@@ -8,6 +8,7 @@ import LoginScreen from "../src/features/auth/LoginScreen";
 import ResidentRegistrationScreen from "../src/features/auth/ResidentRegistrationScreen";
 import SplashScreen from "../components/SplashScreen";
 import { getApiBaseUrl } from "../src/lib/api-url";
+import * as ExpoSplashScreen from "expo-splash-screen";
 import AppLogo from "../src/features/shared/AppLogo";
 type Role = "resident" | "security";
 type Membership = { estate_id: string; membership_role: string; status: string };
@@ -62,6 +63,14 @@ export default function MobileEntryRoute() {
   const roleCheckInFlight = useRef<{ token: string; promise: Promise<Role> } | null>(null);
   const [message, setMessage] = useState("");
   const [registration, setRegistration] = useState(false);
+
+  useEffect(() => {
+    if (!restoring) {
+      void ExpoSplashScreen.hideAsync().catch((error) => {
+        console.warn("[CB Nest splash] Could not hide native splash:", error);
+      });
+    }
+  }, [restoring]);
 
   useEffect(() => {
     let active = true;

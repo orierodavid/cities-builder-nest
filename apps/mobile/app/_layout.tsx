@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as SplashScreen from "expo-splash-screen";
 import MobileConsentGate from "../components/MobileConsentGate";
-import { theme } from "../src/theme/theme";
 import ConnectionStatusBanner from "../src/components/ConnectionStatusBanner";
+
+void SplashScreen.preventAutoHideAsync().catch((error) => {
+  console.warn("[CB Nest splash] Could not hold native splash:", error);
+});
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -14,18 +18,20 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#000000" }}>
+      <StatusBar style="light" backgroundColor="#000000" />
       {ready ? (
         <MobileConsentGate>
-          <Stack screenOptions={{ headerShown: false, gestureEnabled: true, contentStyle: { backgroundColor: theme.bg } }} />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              gestureEnabled: true,
+              contentStyle: { backgroundColor: "#000000" },
+            }}
+          />
         </MobileConsentGate>
-      ) : (
-        <View style={{ flex: 1, backgroundColor: theme.bg, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color="#D4A84B" />
-        </View>
-      )}
+      ) : null}
       <ConnectionStatusBanner />
-    </>
+    </View>
   );
 }

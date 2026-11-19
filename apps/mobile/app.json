@@ -8,8 +8,8 @@
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/cb-nest-logo.png",
-      "imageWidth": 72,
-      "backgroundColor": "#050505",
+      "imageWidth": 132,
+      "backgroundColor": "#000000",
       "resizeMode": "contain"
     },
     "plugins": [
@@ -26,9 +26,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/cb-nest-logo.png",
-          "imageWidth": 72,
+          "imageWidth": 132,
           "resizeMode": "contain",
-          "backgroundColor": "#050505"
+          "backgroundColor": "#000000"
         }
       ]
     ],
@@ -41,7 +41,7 @@
       "package": "com.citiesbuilder.nest",
       "adaptiveIcon": {
         "foregroundImage": "./assets/cb-nest-logo.png",
-        "backgroundColor": "#050505"
+        "backgroundColor": "#000000"
       },
       "permissions": [
         "android.permission.CAMERA"
