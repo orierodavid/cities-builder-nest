@@ -151,7 +151,7 @@ function EstatesPage() {
    {showForm&&<form className="user-form" onSubmit={createEstate}>
     <div className="user-form-heading"><strong>New estate details</strong><span>Enter the estate's official name and location. It will be enabled immediately.</span></div>
     <div className="user-form-grid">
-     <label>Estate name<input required minLength={2} maxLength={160} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Cities Builders Estate"/></label>
+     <label>Estate name<input required minLength={2} maxLength={160} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. CB Nest Estate"/></label>
      <label>Street address<input required minLength={3} maxLength={240} value={address} onChange={e=>setAddress(e.target.value)} placeholder="Estate street address"/></label>
      <label>State<select required value={state} onChange={e=>{setState(e.target.value);setCity("");}}><option value="">Select State</option>{locationOptions.states.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
      <label>LGA<select required value={city} disabled={!state} onChange={e=>setCity(e.target.value)}><option value="">Select LGA</option>{(locationOptions.lgas[state]||[]).map(x=><option key={x} value={x}>{x}</option>)}</select></label>
