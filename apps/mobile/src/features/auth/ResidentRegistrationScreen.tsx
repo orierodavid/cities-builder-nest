@@ -30,9 +30,10 @@ function SelectField({
         <Text numberOfLines={1} style={[s.selectText, !value && s.placeholder]}>{value || placeholder}</Text>
         <MaterialCommunityIcons name="chevron-down" size={21} color={C.gold} />
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => { setOpen(false); setSearch(""); }}>
-        <Pressable style={s.modalBackdrop} onPress={() => { setOpen(false); setSearch(""); }}>
-          <Pressable style={s.modalCard} onPress={() => undefined}>
+      <Modal visible={open} transparent animationType="fade" statusBarTranslucent onRequestClose={() => { setOpen(false); setSearch(""); }}>
+        <View style={s.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setOpen(false); setSearch(""); }} />
+          <View style={s.modalCard}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Select {label.toLowerCase()}</Text>
               <Pressable onPress={() => { setOpen(false); setSearch(""); }} hitSlop={10}><MaterialCommunityIcons name="close" size={22} color={C.text}/></Pressable>
@@ -61,8 +62,8 @@ function SelectField({
                 </Pressable>
               )) : <Text style={s.noResults}>No matching estates found.</Text>}
             </ScrollView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </>
   );
