@@ -18,6 +18,7 @@ export default function ResidentEditPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [homeNumber, setHomeNumber] = useState("");
+  const [houseNumber, setHouseNumber] = useState("");
   const [streetName, setStreetName] = useState("");
   const [buildingName, setBuildingName] = useState("");
   const [unitNumber, setUnitNumber] = useState("");
@@ -62,6 +63,7 @@ export default function ResidentEditPage() {
       setEmail(account?.email || "");
       setPhone(profile.phone_e164 || "");
       setHomeNumber(profile.home_number || "");
+      setHouseNumber(profile.house_number || "");
       setStreetName(profile.street_name || "");
       setBuildingName(profile.building_name || "");
       setUnitNumber(profile.unit_number || "");
@@ -98,6 +100,7 @@ export default function ResidentEditPage() {
         email: email.trim(),
         phone: phone.trim(),
         homeNumber: homeNumber.trim(),
+        houseNumber: houseNumber.trim(),
         streetName: streetName.trim(),
         buildingName: buildingName.trim(),
         unitNumber: unitNumber.trim(),
@@ -134,8 +137,9 @@ export default function ResidentEditPage() {
             </div>
             <div className="user-form-heading"><strong>Home address</strong><span>Type the address manually, even if the building or unit is not already in the estate records.</span></div>
             <div className="user-form-grid">
-              <label>Home number / Apartment<input maxLength={80} value={homeNumber} onChange={(event) => setHomeNumber(event.target.value)} placeholder="e.g. House 12 or Flat 3B" /></label>
-              <label>Street name<input maxLength={160} value={streetName} onChange={(event) => setStreetName(event.target.value)} placeholder="Type street name" /></label>
+              <label>Apartment / Suite<input maxLength={80} value={homeNumber} onChange={(event) => setHomeNumber(event.target.value)} placeholder="e.g. Flat 3B" /></label>
+              <label>House number<input maxLength={80} value={houseNumber} onChange={(event) => setHouseNumber(event.target.value)} placeholder="e.g. 12" /></label>
+              <label>Street address<input maxLength={160} value={streetName} onChange={(event) => setStreetName(event.target.value)} placeholder="Type street name" /></label>
               <label>Building name<input maxLength={120} value={buildingName} onChange={(event) => setBuildingName(event.target.value)} placeholder="e.g. Block B" /></label>
               <label>Unit number<input maxLength={80} value={unitNumber} onChange={(event) => setUnitNumber(event.target.value)} placeholder="Type unit number" /></label>
             </div>
