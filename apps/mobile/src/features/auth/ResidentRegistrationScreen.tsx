@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import BrandMark from "../shared/AppLogo";
+import AppLogo from "../shared/AppLogo";
 import { supabase } from "../../lib/supabase";
 
 type EstateOption = { id: string; name: string; address: string; city: string; state: string; lga: string; country_code: string };
