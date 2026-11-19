@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import BrandMark from '../shared/AppLogo';
+import AppLogo from '../shared/AppLogo';
 
 const C = {
   bg: '#080808', panel: '#121212', field: '#0B0B0B', gold: '#D4A84B',
