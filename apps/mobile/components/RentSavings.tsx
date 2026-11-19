@@ -20,7 +20,7 @@ const money = (kobo: number) => new Intl.NumberFormat("en-NG", {
   style: "currency", currency: "NGN", maximumFractionDigits: 0,
 }).format(kobo / 100);
 
-export default function RentSavings({ residentUserId, estateId, onBack }: Props) {
+export default function RentSavings({ residentUserId, estateId }: Props) {
   const router = useRouter();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [name, setName] = useState("My Rent");
