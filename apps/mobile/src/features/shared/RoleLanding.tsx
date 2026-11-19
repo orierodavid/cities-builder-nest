@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { theme } from '../../theme/theme';
-import BrandMark from './BrandMark';
+import BrandMark from './AppLogo';
 import { supabase } from '../../../lib/supabase';
 import { readDashboardCache, writeDashboardCache, clearDashboardCache } from '../../lib/dashboard-cache';
 import { subscribeConnectionRestored } from '../../lib/connection-events';
@@ -89,7 +89,7 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
  const tileBasis=cfg.columns===3?'31%':'48%';
  if(role==='resident'&&profileLoading&&!residentName&&!residentUnit){
   return <SafeAreaView style={s.safe} edges={['top']}><ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-   <BrandMark size={34} compact />
+   <AppLogo size={34} compact />
    <View style={s.skeletonTagline}/>
    <View style={s.greetRow}><View style={s.avatar}><View style={s.skeletonAvatarInner}/></View><View style={{flex:1,gap:7}}><View style={[s.skeletonLine,{width:'22%'}]}/><View style={[s.skeletonLine,{width:'58%',height:16}]}/><View style={[s.skeletonLine,{width:'43%'}]}/></View><MaterialCommunityIcons name="bell-outline" size={24} color={C.text}/></View>
    <View style={s.banner}><View style={[s.skeletonLine,{width:'62%',height:20,marginBottom:9}]}/><View style={[s.skeletonLine,{width:'88%'}]}/><View style={[s.skeletonLine,{width:'65%',marginTop:6}]}/></View>
@@ -99,7 +99,7 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   </ScrollView></SafeAreaView>;
  }
  return <SafeAreaView style={s.safe} edges={['top']}><ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
- <BrandMark size={34} compact />
+ <AppLogo size={34} compact />
  {cfg.tagline?<Text style={s.tagline}>{cfg.tagline}</Text>:null}{cfg.badge?<View style={s.badge}><Text style={s.badgeText}>{cfg.badge}</Text></View>:null}
  <View style={s.greetRow}><View style={s.avatar}><MaterialCommunityIcons name="account" size={28} color={C.gold}/></View><View style={{flex:1}}><Text style={s.greet}>{cfg.greeting}</Text>{role==='resident'&&profileLoading?<ActivityIndicator color={C.gold} size="small"/>:null}{(residentName||providedName)?<Text style={s.name}>{residentName||providedName}</Text>:role==='resident'&&!profileLoading?<Text style={s.name}>Name unavailable</Text>:null}{(residentUnit||providedUnit)?<Text style={s.unit}>{residentUnit||providedUnit}</Text>:role==='resident'&&!profileLoading?<Text style={s.unit}>Apartment assignment not found</Text>:null}{!!profileError&&<Pressable onPress={()=>void loadResidentDetails()}><Text style={s.error}>{profileError.includes('Connection is taking longer')?profileError:'Resident details could not be loaded. Tap to retry.'}</Text></Pressable>}</View><Pressable onPress={()=>go('/notifications')} hitSlop={10}><MaterialCommunityIcons name="bell-outline" size={24} color={C.text}/>{hasUnread?<View style={s.dot}/>:null}</Pressable></View>
  {cfg.welcomeTitle?<View style={s.banner}><Text style={s.bannerTitle}>{cfg.welcomeTitle}</Text><Text style={s.bannerText}>{cfg.welcomeText}</Text></View>:null}
