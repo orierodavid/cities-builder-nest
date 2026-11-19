@@ -1,5 +1,5 @@
 {
-  "name": "@cities-builder-nest/mobile",
+  "name": "@cb-nest/mobile",
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
