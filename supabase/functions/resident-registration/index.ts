@@ -116,7 +116,7 @@ async function sendImmediateAccountAlert(
     `Role: ${account.role}`,
     `Estate: ${account.estate || "Platform-wide"}`,
   ].join("\n");
-  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><p>Hello ${escapeEmailHtml(recipientName)},</p><p>A new CB Nest account has been created.</p><p><strong>Name:</strong> ${escapeEmailHtml(account.fullName)}<br/><strong>Email:</strong> ${escapeEmailHtml(account.email)}<br/><strong>Role:</strong> ${escapeEmailHtml(account.role)}<br/><strong>Estate:</strong> ${escapeEmailHtml(account.estate || "Platform-wide")}</p><p>Cities Builder Nest</p></div>`;
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><p>Hello ${escapeEmailHtml(recipientName)},</p><p>A new CB Nest account has been created.</p><p><strong>Name:</strong> ${escapeEmailHtml(account.fullName)}<br/><strong>Email:</strong> ${escapeEmailHtml(account.email)}<br/><strong>Role:</strong> ${escapeEmailHtml(account.role)}<br/><strong>Estate:</strong> ${escapeEmailHtml(account.estate || "Platform-wide")}</p><p>CB Nest</p></div>`;
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
