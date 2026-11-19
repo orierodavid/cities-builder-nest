@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { StatusBar, View } from "react-native";
 import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import MobileConsentGate from "../components/MobileConsentGate";
 import ConnectionStatusBanner from "../src/components/ConnectionStatusBanner";
@@ -19,7 +18,7 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000000" }}>
-      <StatusBar style="light" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" translucent={false} />
       {ready ? (
         <MobileConsentGate>
           <Stack
