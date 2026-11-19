@@ -8,6 +8,7 @@ import LoginScreen from "../src/features/auth/LoginScreen";
 import ResidentRegistrationScreen from "../src/features/auth/ResidentRegistrationScreen";
 import SplashScreen from "../components/SplashScreen";
 import { getApiBaseUrl } from "../src/lib/api-url";
+import AppLogo from "../src/features/shared/AppLogo";
 type Role = "resident" | "security";
 type Membership = { estate_id: string; membership_role: string; status: string };
 type ProfileResponse = {
@@ -239,7 +240,7 @@ export default function MobileEntryRoute() {
   if (session && roleError) return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.center}>
-        <Text style={styles.brand}>CB NEST</Text>
+        <AppLogo size={72} />
         <Text style={styles.heading}>{roleErrorKind === "access" ? "Mobile access unavailable" : roleErrorKind === "network" ? "Can't connect" : "Unable to verify access"}</Text>
         <Text style={styles.body}>{roleErrorKind === "network" ? "Can't connect, tap to retry. Check your internet connection and try again." : roleError}</Text>
         <Pressable disabled={checkingRole} onPress={() => void refreshRole(session.access_token).then(role => { setVerifiedRole(role); setRoleError(""); setRoleErrorKind(null); }).catch(e => { setRoleError(e instanceof Error ? e.message : "Role check failed."); setRoleErrorKind(e instanceof RoleCheckError ? e.kind : "verification"); })} style={styles.retry}>
