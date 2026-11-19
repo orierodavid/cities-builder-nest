@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../src/theme/theme';
-import BrandMark from '../src/features/shared/BrandMark';
+import BrandMark from '../src/features/shared/AppLogo';
 
 export default function SplashScreen() {
   const insets = useSafeAreaInsets();
@@ -19,7 +19,7 @@ export default function SplashScreen() {
     <View style={s.root}>
       <View style={s.glowTop} />
       <Animated.View style={[s.brand, { opacity: fade, transform: [{ scale: pulse }] }]}>
-        <BrandMark size={104} />
+        <AppLogo size={104} />
         <View style={s.rule} />
         <Text style={s.promise}>A better way to live, manage and belong.</Text>
       </Animated.View>
