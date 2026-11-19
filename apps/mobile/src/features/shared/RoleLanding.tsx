@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { theme } from '../../theme/theme';
-import BrandMark from './AppLogo';
+import AppLogo from './AppLogo';
 import { supabase } from '../../../lib/supabase';
 import { readDashboardCache, writeDashboardCache, clearDashboardCache } from '../../lib/dashboard-cache';
 import { subscribeConnectionRestored } from '../../lib/connection-events';
