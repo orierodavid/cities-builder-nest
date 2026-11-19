@@ -6,20 +6,19 @@ import AppLogo from '../src/features/shared/AppLogo';
 
 export default function SplashScreen() {
   const insets = useSafeAreaInsets();
-  const pulse = useRef(new Animated.Value(0.94)).current;
+  const pulse = useRef(new Animated.Value(0.97)).current;
   const fade = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const entrance = Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 650, useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 1, duration: 850, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }),
+      Animated.timing(fade, { toValue: 1, duration: 450, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1, duration: 550, easing: Easing.out(Easing.quad), useNativeDriver: true }),
     ]);
     entrance.start();
   }, [fade, pulse]);
   return (
     <View style={s.root}>
-      <View style={s.glowTop} />
       <Animated.View style={[s.brand, { opacity: fade, transform: [{ scale: pulse }] }]}>
-        <AppLogo size={64} />
+        <AppLogo size={38} />
         <View style={s.rule} />
         <Text style={s.promise}>A better way to live, manage and belong.</Text>
       </Animated.View>
@@ -28,12 +27,11 @@ export default function SplashScreen() {
   );
 }
 const s = StyleSheet.create({
-  root:{flex:1,backgroundColor:'#050505',alignItems:'center',justifyContent:'center',padding:28,overflow:'hidden'},
-  glowTop:{position:'absolute',width:310,height:310,borderRadius:155,borderWidth:1,borderColor:theme.border,top:-190,alignSelf:'center'},
+  root:{flex:1,backgroundColor:'#050505',alignItems:'center',justifyContent:'center',padding:28},
   brand:{alignItems:'center'},
-  rule:{width:54,height:2,backgroundColor:theme.gold,marginTop:20,marginBottom:14},
-  promise:{color:theme.muted,fontSize:12,letterSpacing:.3,textAlign:'center'},
-  bottom:{position:'absolute',bottom:54,alignItems:'center',gap:10},
-  dot:{width:6,height:6,borderRadius:3,backgroundColor:theme.gold},
-  loading:{color:theme.goldSoft,fontSize:8,fontWeight:'900',letterSpacing:2.1}
+  rule:{width:44,height:2,backgroundColor:theme.gold,marginTop:15,marginBottom:11},
+  promise:{color:theme.muted,fontSize:11,letterSpacing:.2,textAlign:'center'},
+  bottom:{position:'absolute',alignItems:'center',gap:10},
+  dot:{width:5,height:5,borderRadius:3,backgroundColor:theme.gold},
+  loading:{color:theme.goldSoft,fontSize:8,fontWeight:'900',letterSpacing:1.8}
 });

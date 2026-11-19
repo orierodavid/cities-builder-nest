@@ -8,7 +8,7 @@
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/cb-nest-logo.png",
-      "imageWidth": 112,
+      "imageWidth": 72,
       "backgroundColor": "#050505",
       "resizeMode": "contain"
     },
@@ -21,7 +21,16 @@
           "recordAudioAndroid": false
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/cb-nest-logo.png",
+          "imageWidth": 72,
+          "resizeMode": "contain",
+          "backgroundColor": "#050505"
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
