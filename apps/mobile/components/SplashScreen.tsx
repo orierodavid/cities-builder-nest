@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../src/theme/theme';
+import BrandMark from '../src/features/shared/BrandMark';
 
 export default function SplashScreen() {
   const insets = useSafeAreaInsets();
@@ -18,7 +19,7 @@ export default function SplashScreen() {
     <View style={s.root}>
       <View style={s.glowTop} />
       <Animated.View style={[s.brand, { opacity: fade, transform: [{ scale: pulse }] }]}>
-        <Image source={require('../IMG_9873.png')} style={s.logo} resizeMode="contain" accessibilityLabel="CB Nest Ltd logo" />
+        <BrandMark size={104} />
         <View style={s.rule} />
         <Text style={s.promise}>A better way to live, manage and belong.</Text>
       </Animated.View>
@@ -30,7 +31,7 @@ const s = StyleSheet.create({
   root:{flex:1,backgroundColor:theme.bg,alignItems:'center',justifyContent:'center',padding:28,overflow:'hidden'},
   glowTop:{position:'absolute',width:310,height:310,borderRadius:155,borderWidth:1,borderColor:theme.border,top:-190,alignSelf:'center'},
   brand:{alignItems:'center'},
-  logo:{width:112,height:112,maxWidth:'100%',alignSelf:'center',marginBottom:4},
+
   rule:{width:54,height:2,backgroundColor:theme.gold,marginTop:24,marginBottom:17},
   promise:{color:theme.muted,fontSize:12,letterSpacing:.3,textAlign:'center'},
   bottom:{position:'absolute',bottom:54,alignItems:'center',gap:10},
