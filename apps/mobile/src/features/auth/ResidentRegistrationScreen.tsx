@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
+  ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -157,8 +157,7 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <View style={s.brand}>
-            <View style={s.logo}><MaterialCommunityIcons name="home-city-outline" size={34} color={C.gold}/></View>
-            <Text style={s.wordmark}>CB NEST</Text>
+            <Image source={require("../../../IMG_9873.png")} style={s.logoImage} resizeMode="contain" accessibilityLabel="CB Nest logo" />
             <Text style={s.kicker}>RESIDENT REGISTRATION</Text>
           </View>
           <View style={s.card}>
@@ -226,8 +225,7 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   scroll: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 22, paddingVertical: 28 },
   brand: { alignItems: "center", marginBottom: 22 },
-  logo: { width: 68, height: 68, borderRadius: 21, borderWidth: 1, borderColor: "#6A542B", backgroundColor: "#17130B", alignItems: "center", justifyContent: "center" },
-  wordmark: { color: C.text, fontSize: 25, fontWeight: "900", letterSpacing: 4, marginTop: 10 },
+  logoImage: { width: 84, height: 84, alignSelf: "center" },
   kicker: { color: C.gold, fontSize: 9, fontWeight: "900", letterSpacing: 2.6, marginTop: 5 },
   card: { width: "100%", maxWidth: 480, alignSelf: "center", backgroundColor: C.panel, borderWidth: 1, borderColor: "#40331E", borderRadius: 22, padding: 22 },
   eyebrow: { color: C.gold, fontSize: 9, fontWeight: "900", letterSpacing: 1.7 },
