@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import BrandMark from "../shared/BrandMark";
+import BrandMark from "../shared/AppLogo";
 import { supabase } from "../../lib/supabase";
 
 type EstateOption = { id: string; name: string; address: string; city: string; state: string; lga: string; country_code: string };
@@ -157,7 +157,7 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
     <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-          <View style={s.brand}><BrandMark size={104} /></View>
+          <View style={s.brand}><AppLogo size={104} /></View>
           <View style={s.card}>
             {success ? (
               <>
