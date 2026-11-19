@@ -36,7 +36,6 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Pro
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <View style={s.brand}>
             <Image source={require('../../../IMG_9873.png')} style={s.logoImage} resizeMode="contain" accessibilityLabel="CB Nest Ltd logo" />
-            <Text style={s.wordmark}>CB NEST</Text>
             <Text style={s.kicker}>ESTATE MANAGEMENT</Text>
           </View>
           <View style={s.card}>
@@ -80,7 +79,6 @@ const s = StyleSheet.create({
   scroll:{flexGrow:1,justifyContent:'center',paddingHorizontal:22,paddingVertical:32},
   brand:{alignItems:'center',marginBottom:27},
   logoImage:{width:84,height:84,alignSelf:'center',marginBottom:0},
-  wordmark:{color:C.text,fontSize:27,fontWeight:'900',letterSpacing:4,marginTop:13},
   kicker:{color:C.gold,fontSize:9,fontWeight:'900',letterSpacing:3.3,marginTop:5},
   card:{width:'100%',maxWidth:450,alignSelf:'center',backgroundColor:C.panel,borderWidth:1,borderColor:C.border,borderRadius:22,padding:22},
   eyebrow:{color:C.gold,fontSize:9,fontWeight:'900',letterSpacing:1.7},
