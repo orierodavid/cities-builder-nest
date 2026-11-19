@@ -6,7 +6,7 @@ import AppLogo from '../src/features/shared/AppLogo';
 
 export default function SplashScreen() {
   const insets = useSafeAreaInsets();
-  const pulse = useRef(new Animated.Value(0.92)).current;
+  const pulse = useRef(new Animated.Value(0.94)).current;
   const fade = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const entrance = Animated.parallel([
@@ -19,7 +19,7 @@ export default function SplashScreen() {
     <View style={s.root}>
       <View style={s.glowTop} />
       <Animated.View style={[s.brand, { opacity: fade, transform: [{ scale: pulse }] }]}>
-        <AppLogo size={104} />
+        <AppLogo size={64} />
         <View style={s.rule} />
         <Text style={s.promise}>A better way to live, manage and belong.</Text>
       </Animated.View>
@@ -28,11 +28,10 @@ export default function SplashScreen() {
   );
 }
 const s = StyleSheet.create({
-  root:{flex:1,backgroundColor:theme.bg,alignItems:'center',justifyContent:'center',padding:28,overflow:'hidden'},
+  root:{flex:1,backgroundColor:'#050505',alignItems:'center',justifyContent:'center',padding:28,overflow:'hidden'},
   glowTop:{position:'absolute',width:310,height:310,borderRadius:155,borderWidth:1,borderColor:theme.border,top:-190,alignSelf:'center'},
   brand:{alignItems:'center'},
-
-  rule:{width:54,height:2,backgroundColor:theme.gold,marginTop:24,marginBottom:17},
+  rule:{width:54,height:2,backgroundColor:theme.gold,marginTop:20,marginBottom:14},
   promise:{color:theme.muted,fontSize:12,letterSpacing:.3,textAlign:'center'},
   bottom:{position:'absolute',bottom:54,alignItems:'center',gap:10},
   dot:{width:6,height:6,borderRadius:3,backgroundColor:theme.gold},

@@ -8,6 +8,7 @@
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/cb-nest-logo.png",
+      "imageWidth": 112,
       "backgroundColor": "#050505",
       "resizeMode": "contain"
     },
