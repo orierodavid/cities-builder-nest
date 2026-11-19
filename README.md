@@ -1,4 +1,4 @@
-# Cities Builder Nest
+# CB Nest
 
 A starter monorepo for an estate and community management app for iOS and Android.
 
@@ -39,7 +39,7 @@ Keep `EXPO_PUBLIC_API_URL=http://localhost:4000` for a browser running on the sa
 The URL and `sb_publishable_...` value in the example files are public client configuration, not server secrets. Never put a Supabase service-role key or database password in the mobile app or commit them to Git. Email confirmation, database schema, RLS policies, and an active estate membership may still be required for all features to work.
 
 ## Enterprise multi-estate model
-Cities Builder Nest is designed as one shared platform for many estates, not a single-estate deployment. Estate-scoped roles and memberships are separated from platform-wide administration, and the database enforces same-estate relationships between buildings, units, resident assignments, and maintenance requests. RLS remains fail-closed for finance, ledger, audit, and privileged administration paths until secure server endpoints are implemented and tested.
+CB Nest is designed as one shared platform for many estates, not a single-estate deployment. Estate-scoped roles and memberships are separated from platform-wide administration, and the database enforces same-estate relationships between buildings, units, resident assignments, and maintenance requests. RLS remains fail-closed for finance, ledger, audit, and privileged administration paths until secure server endpoints are implemented and tested.
 
 Apply reviewed migrations in order: `001_initial_schema.sql`, `002_auth_rls_policies.sql`, `003_enterprise_tenant_isolation.sql`, then `004_tenant_fk_indexes.sql`, `005_foreign_key_indexes.sql`, and `006_estate_role_onboarding.sql`. Migrations 003–005 add tenant isolation and supporting indexes; migration 006 adds role-scoped RLS policies for estate creation and resident/staff membership onboarding. Review and apply migrations in order to the intended Supabase project.
 
