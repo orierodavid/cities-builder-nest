@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
+  ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -55,14 +55,20 @@ function SelectField({
                 />
               </View>
             )}
-            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 360 }}>
-              {filteredOptions.length ? filteredOptions.map(option => (
-                <Pressable key={option.value} onPress={() => { onSelect(option.value); setOpen(false); setSearch(""); }} style={s.option}>
+            <FlatList
+              data={filteredOptions}
+              keyExtractor={option => option.value}
+              keyboardShouldPersistTaps="always"
+              style={{ maxHeight: 360 }}
+              initialNumToRender={12}
+              ListEmptyComponent={<Text style={s.noResults}>No estates found</Text>}
+              renderItem={({ item: option }) => (
+                <Pressable onPress={() => { onSelect(option.value); setOpen(false); setSearch(""); }} style={s.option}>
                   <Text style={s.optionText}>{option.label}</Text>
                   {option.value === value && <MaterialCommunityIcons name="check" size={18} color={C.gold}/>}
                 </Pressable>
-              )) : <Text style={s.noResults}>No matching estates found.</Text>}
-            </ScrollView>
+              )}
+            />
           </View>
         </View>
       </Modal>
@@ -92,17 +98,27 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
 
   useEffect(() => {
     let active = true;
+    console.info("[CB Nest registration] Loading active estate options");
     void supabase.functions.invoke("resident-registration", { body: { action: "options" } })
       .then(({ data, error: invokeError }) => {
         if (!active) return;
         if (invokeError || data?.error) {
+          console.error("[CB Nest registration] Estate options request failed", {
+            message: invokeError?.message || data?.error || "Unknown error",
+            status: (invokeError as any)?.context?.status,
+          });
           setError("Estate options could not be loaded. Please try again.");
           return;
         }
         const options = data as RegistrationOptions;
-        setEstates((options?.estates || []) as EstateOption[]);
+        const rows = (options?.estates || []) as EstateOption[];
+        console.info("[CB Nest registration] Estate options loaded", { count: rows.length });
+        setEstates(rows);
       })
-      .catch(() => { if (active) setError("Estate options could not be loaded. Check your connection and try again."); })
+      .catch((fetchError) => {
+        console.error("[CB Nest registration] Estate options request threw", fetchError);
+        if (active) setError("Estate options could not be loaded. Check your connection and try again.");
+      })
       .finally(() => { if (active) setLoadingOptions(false); });
     return () => { active = false; };
   }, []);
