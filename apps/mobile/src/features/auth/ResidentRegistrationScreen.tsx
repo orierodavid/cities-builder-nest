@@ -80,7 +80,8 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [homeNumber, setHomeNumber] = useState("");
+  const [apartmentSuite, setApartmentSuite] = useState("");
+  const [houseNumber, setHouseNumber] = useState("");
   const [streetName, setStreetName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -113,7 +114,8 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
     if (firstName.trim().length < 2 || lastName.trim().length < 2) { setError("Enter your first name and last name."); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("Enter a valid email address."); return; }
     if (phone.trim().length < 10) { setError("Enter a valid Nigerian phone number."); return; }
-    if (homeNumber.trim().length < 1 || homeNumber.trim().length > 80) { setError("Enter your home number or apartment number."); return; }
+    if (apartmentSuite.trim().length < 1 || apartmentSuite.trim().length > 80) { setError("Enter your apartment or suite."); return; }
+    if (houseNumber.trim().length < 1 || houseNumber.trim().length > 80) { setError("Enter your house number."); return; }
     if (streetName.trim().length < 2 || streetName.trim().length > 160) { setError("Enter your street name."); return; }
     if (password.length < 8 || password.length > 128) { setError("Your password must be between 8 and 128 characters."); return; }
     if (password !== confirmPassword) { setError("Your passwords do not match."); return; }
@@ -124,7 +126,7 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
         body: {
           action: "register", firstName: firstName.trim(), lastName: lastName.trim(),
           email: email.trim().toLowerCase(), phone: phone.trim(), password,
-          homeNumber: homeNumber.trim(), streetName: streetName.trim(),
+          homeNumber: apartmentSuite.trim(), houseNumber: houseNumber.trim(), streetName: streetName.trim(),
           state, lga, estateId,
         },
       });
@@ -186,8 +188,10 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
                 <TextInput style={s.input} value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor="#777" autoCapitalize="none" keyboardType="email-address" autoCorrect={false} textContentType="emailAddress"/>
                 <Text style={s.label}>PHONE NUMBER</Text>
                 <TextInput style={s.input} value={phone} onChangeText={setPhone} placeholder="08012345678 or +2348012345678" placeholderTextColor="#777" keyboardType="phone-pad" textContentType="telephoneNumber"/>
-                <Text style={s.label}>APARTMENT / HOME NUMBER</Text>
-                <TextInput style={s.input} value={homeNumber} onChangeText={setHomeNumber} placeholder="Enter your apartment or home number" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
+                <Text style={s.label}>APARTMENT / SUITE</Text>
+                <TextInput style={s.input} value={apartmentSuite} onChangeText={setApartmentSuite} placeholder="Enter your apartment or suite" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
+                <Text style={s.label}>HOUSE NUMBER</Text>
+                <TextInput style={s.input} value={houseNumber} onChangeText={setHouseNumber} placeholder="Enter your house number" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
                 <SelectField label="ESTATE" value={selectedEstate?.name || ""} placeholder={loadingOptions ? "Loading estates…" : "Search or select your Estate"} options={estateOptions.map(item => ({ label: item.name, value: item.id }))} disabled={loadingOptions} searchable onSelect={value => { const estate = estateOptions.find(item => item.id === value); setEstateId(value); setStreetName(""); setState(estate?.state || ""); setLga(estate?.lga || ""); }}/>
                 <Text style={s.label}>STREET ADDRESS</Text>
                 <TextInput style={s.input} value={streetName} onChangeText={setStreetName} placeholder="Enter your street address" placeholderTextColor="#777" autoCapitalize="words" returnKeyType="next"/>
