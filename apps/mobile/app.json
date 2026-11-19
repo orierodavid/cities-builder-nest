@@ -1,12 +1,13 @@
 {
   "expo": {
     "name": "CB Nest",
-    "slug": "cities-builder-nest",
-    "scheme": "citiesbuildernest",
+    "slug": "cb-nest",
+    "scheme": "cbnest",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "splash": {
+      "image": "./assets/cb-nest-logo.png",
       "backgroundColor": "#050505",
       "resizeMode": "contain"
     },
@@ -24,19 +25,19 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.citiesbuilder.nest",
-      "icon": "../web/public/IMG_9873.png"
+      "icon": "./assets/cb-nest-logo.png"
     },
     "android": {
       "package": "com.citiesbuilder.nest",
       "adaptiveIcon": {
-        "foregroundImage": "../web/public/IMG_9873.png",
+        "foregroundImage": "./assets/cb-nest-logo.png",
         "backgroundColor": "#050505"
       },
       "permissions": [
         "android.permission.CAMERA"
       ]
     },
-    "icon": "../web/public/IMG_9873.png",
+    "icon": "./assets/cb-nest-logo.png",
     "extra": {
       "router": {},
       "eas": {
