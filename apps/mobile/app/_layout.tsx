@@ -18,7 +18,7 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000000" }}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" translucent={false} />
+      <StatusBar barStyle="light-content" translucent={false} />
       {ready ? (
         <MobileConsentGate>
           <Stack
