@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable,
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import BrandMark from "../shared/BrandMark";
 import { supabase } from "../../lib/supabase";
 
 type EstateOption = { id: string; name: string; address: string; city: string; state: string; lga: string; country_code: string };
@@ -156,10 +157,7 @@ export default function ResidentRegistrationScreen({ onBack }: { onBack: () => v
     <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-          <View style={s.brand}>
-            <Image source={require("../../../IMG_9873.png")} style={s.logoImage} resizeMode="contain" accessibilityLabel="CB Nest logo" />
-            <Text style={s.kicker}>RESIDENT REGISTRATION</Text>
-          </View>
+          <View style={s.brand}><BrandMark size={104} /></View>
           <View style={s.card}>
             {success ? (
               <>
@@ -225,8 +223,6 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   scroll: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 22, paddingVertical: 28 },
   brand: { alignItems: "center", marginBottom: 22 },
-  logoImage: { width: 84, height: 84, alignSelf: "center" },
-  kicker: { color: C.gold, fontSize: 9, fontWeight: "900", letterSpacing: 2.6, marginTop: 5 },
   card: { width: "100%", maxWidth: 480, alignSelf: "center", backgroundColor: C.panel, borderWidth: 1, borderColor: "#40331E", borderRadius: 22, padding: 22 },
   eyebrow: { color: C.gold, fontSize: 9, fontWeight: "900", letterSpacing: 1.7 },
   title: { color: C.text, fontSize: 27, fontWeight: "900", marginTop: 9 },
