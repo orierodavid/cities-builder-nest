@@ -33,8 +33,8 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Pro
   };
   return (
     <SafeAreaView style={s.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={s.brand}><AppLogo size={104} /></View>
           <View style={s.card}>
             <Text style={s.eyebrow}>YOUR COMMUNITY, CONNECTED</Text>
