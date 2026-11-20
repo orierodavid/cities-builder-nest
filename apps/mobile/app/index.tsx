@@ -106,7 +106,8 @@ export default function MobileEntryRoute() {
       );
       setCheckingRole(true);
       setRoleError("");
-      setRoleErrorKind(null);
+      // Keep network-error state active while automatic recovery is running.
+      // Callers clear the error kind only after verification succeeds.
       for (let attempt = 1; attempt <= 3; attempt += 1) {
         try {
           // Avoid AbortSignal.timeout on iOS: native fetch cancellation was
