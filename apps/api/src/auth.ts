@@ -99,11 +99,18 @@ export function createRequireAuth(dependencies: AuthMiddlewareDependencies = {})
       // If RLS hides a disabled account's profile, a missing row is denied below.
       // A service-role reader is used only when the API environment explicitly has one.
       const accountStatusClient = createAccountStatusClient(token);
-      const { data: accountProfile, error: accountProfileError } = await accountStatusClient
-        .from("users")
-        .select("is_active,is_disabled,deleted_at")
-        .eq("id", verification.user.id)
-        .maybeSingle();
+      // These independent security checks previously ran sequentially. Running
+      // them together reduces authenticated-request latency while preserving
+      // both account-status and legal-consent enforcement.
+      const [accountProfileResult, legalConsentResult] = await Promise.all([
+        accountStatusClient
+          .from("users")
+          .select("is_active,is_disabled,deleted_at")
+          .eq("id", verification.user.id)
+          .maybeSingle(),
+        userSupabase.rpc("get_legal_consent_status"),
+      ]);
+      const { data: accountProfile, error: accountProfileError } = accountProfileResult;
       if (accountProfileError) {
         res.status(503).json({ error: "account_status_check_unavailable" });
         return;
@@ -127,7 +134,7 @@ export function createRequireAuth(dependencies: AuthMiddlewareDependencies = {})
         return;
       }
 
-      const { data: legalStatus, error: legalError } = await userSupabase.rpc("get_legal_consent_status");
+      const { data: legalStatus, error: legalError } = legalConsentResult;
       if (legalError) {
         res.status(503).json({ error: "legal_consent_check_unavailable" });
         return;
