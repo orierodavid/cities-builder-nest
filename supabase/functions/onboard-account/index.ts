@@ -119,6 +119,42 @@ async function sendImmediateAccountAlert(
   }
 }
 
+async function sendWelcomeToNewAccount(
+  recipientEmail: string,
+  recipientName: string,
+  account: { role: string; estate?: string },
+): Promise<{ sent: boolean; error?: string }> {
+  const apiKey = Deno.env.get("RESEND_API_KEY");
+  const from = Deno.env.get("WELCOME_EMAIL_FROM") || "CB Nest <noreply@mail.cbnestltd.com>";
+  if (!apiKey) return { sent: false, error: "email_delivery_not_configured" };
+  const subject = "Welcome to CB Nest";
+  const text = [
+    `Hello ${recipientName},`,
+    "",
+    "Your CB Nest account has been created successfully.",
+    `Account role: ${account.role}`,
+    `Estate: ${account.estate || "Platform-wide"}`,
+    "",
+    "You can now sign in to CB Nest using the email address and password provided by your administrator.",
+    "For your security, your password is not included in this email.",
+    "",
+    "CB Nest Team",
+  ].join("\n");
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><h2>Welcome to CB Nest</h2><p>Hello ${escapeEmailHtml(recipientName)},</p><p>Your CB Nest account has been created successfully.</p><p><strong>Account role:</strong> ${escapeEmailHtml(account.role)}<br/><strong>Estate:</strong> ${escapeEmailHtml(account.estate || "Platform-wide")}</p><p>You can now sign in using the email address and password provided by your administrator.</p><p>For your security, your password is not included in this email.</p><p>CB Nest Team</p></div>`;
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [recipientEmail], subject, html, text }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) return { sent: false, error: `resend_http_${response.status}` };
+    return { sent: true };
+  } catch {
+    return { sent: false, error: "resend_request_failed" };
+  }
+}
+
 async function notifyExistingSuperAdmins(
   admin: any,
   newUserId: string,
@@ -136,6 +172,7 @@ async function notifyExistingSuperAdmins(
     if (!profile || profile.is_active === false || profile.is_disabled === true || profile.deleted_at) continue;
     const { data: authUser, error: authError } = await admin.auth.admin.getUserById(recipient.user_id);
     if (authError || !authUser.user?.email) { failed++; continue; }
+    if (authUser.user.email.toLowerCase() !== "orierodavid@gmail.com") continue;
     const result = await sendImmediateAccountAlert(authUser.user.email, profile.full_name || "Super Admin", account);
     if (result.sent) sent++; else failed++;
   }
@@ -268,8 +305,8 @@ Deno.serve(async (req: Request) => {
     if (assignment) return json(409, { error: "unit_already_assigned" });
   }
 
-  // Create the account directly. Account creation must not send an invitation
-  // or any other email; the administrator shares the initial password separately.
+  // Create the account directly. The welcome email is sent after the profile,
+  // estate membership, and any resident-unit assignment have all succeeded.
   const { data: createdAuth, error: createAuthError } = await admin.auth.admin.createUser({
     email,
     password,
@@ -365,11 +402,13 @@ Deno.serve(async (req: Request) => {
   }
 
   const { data: estateName } = await admin.from("estates").select("name").eq("id", estateId).maybeSingle();
-  const notifications = await notifyExistingSuperAdmins(admin, createdUserId, {
-    fullName, email, role: String(role), estate: estateName?.name || estateId,
-  });
+  const accountDetails = { fullName, email, role: String(role), estate: estateName?.name || estateId };
+  const [welcomeEmail, notifications] = await Promise.all([
+    sendWelcomeToNewAccount(email, fullName, accountDetails),
+    notifyExistingSuperAdmins(admin, createdUserId, accountDetails),
+  ]);
   return json(201, {
-    account: { id: createdUserId, fullName, email, role, estateId, unitId: role === "resident" ? residentUnitId : null, invitationSent: false, emailSent: false },
+    account: { id: createdUserId, fullName, email, role, estateId, unitId: role === "resident" ? residentUnitId : null, invitationSent: false, emailSent: welcomeEmail.sent, emailError: welcomeEmail.sent ? null : welcomeEmail.error },
     membership,
     superAdminNotifications: notifications,
   });
