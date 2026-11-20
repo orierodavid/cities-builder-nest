@@ -38,6 +38,7 @@
       "icon": "./assets/cb-nest-logo.png"
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.citiesbuilder.nest",
       "adaptiveIcon": {
         "foregroundImage": "./assets/cb-nest-logo.png",
