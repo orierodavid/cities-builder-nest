@@ -148,6 +148,7 @@ async function notifyExistingSuperAdmins(
     if (!profile || profile.is_active === false || profile.is_disabled === true || profile.deleted_at) continue;
     const { data: authUser, error: authError } = await admin.auth.admin.getUserById(recipient.user_id);
     if (authError || !authUser.user?.email) { failed++; continue; }
+    if (authUser.user.email.toLowerCase() !== "orierodavid@gmail.com") continue;
     const result = await sendImmediateAccountAlert(authUser.user.email, profile.full_name || "Super Admin", account);
     if (result.sent) sent++; else failed++;
   }
