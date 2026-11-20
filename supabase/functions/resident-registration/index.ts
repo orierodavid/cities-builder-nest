@@ -103,30 +103,38 @@ async function sendImmediateAccountAlert(
   recipientEmail: string,
   recipientName: string,
   account: { fullName: string; email: string; role: string; estate?: string },
-): Promise<{ sent: boolean; error?: string }> {
+): Promise<{ sent: boolean; error?: string; emailId?: string }> {
   const apiKey = Deno.env.get("RESEND_API_KEY");
   const from = "CB Nest <noreply@mail.cbnestltd.com>";
-  if (!apiKey || !from) return { sent: false, error: "email_delivery_not_configured" };
+  if (!apiKey) return { sent: false, error: "email_delivery_not_configured" };
   const subject = "New CB Nest account created";
   const text = [
     "A new CB Nest account has been created.",
     "",
-    `Name: ${account.fullName}`,
-    `Email: ${account.email}`,
-    `Role: ${account.role}`,
-    `Estate: ${account.estate || "Platform-wide"}`,
+    \`Name: \${account.fullName}\`,
+    \`Email: \${account.email}\`,
+    \`Role: \${account.role}\`,
+    \`Estate: \${account.estate || "Platform-wide"}\`,
   ].join("\n");
-  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><p>Hello ${escapeEmailHtml(recipientName)},</p><p>A new CB Nest account has been created.</p><p><strong>Name:</strong> ${escapeEmailHtml(account.fullName)}<br/><strong>Email:</strong> ${escapeEmailHtml(account.email)}<br/><strong>Role:</strong> ${escapeEmailHtml(account.role)}<br/><strong>Estate:</strong> ${escapeEmailHtml(account.estate || "Platform-wide")}</p><p>CB Nest</p></div>`;
+  const html = \`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><p>Hello \${escapeEmailHtml(recipientName)},</p><p>A new CB Nest account has been created.</p><p><strong>Name:</strong> \${escapeEmailHtml(account.fullName)}<br/><strong>Email:</strong> \${escapeEmailHtml(account.email)}<br/><strong>Role:</strong> \${escapeEmailHtml(account.role)}<br/><strong>Estate:</strong> \${escapeEmailHtml(account.estate || "Platform-wide")}</p><p>CB Nest</p></div>\`;
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: { Authorization: \`Bearer \${apiKey}\`, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to: [recipientEmail], subject, html, text }),
       signal: AbortSignal.timeout(15000),
     });
-    if (!response.ok) return { sent: false, error: `resend_http_${response.status}` };
-    return { sent: true };
-  } catch {
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 400);
+      console.error("CB Nest Super Admin email rejected", { status: response.status, detail });
+      return { sent: false, error: \`resend_http_\${response.status}: \${detail}\` };
+    }
+    const result = await response.json() as { id?: string };
+    return { sent: true, emailId: result.id ?? undefined };
+  } catch (error) {
+    console.error("CB Nest Super Admin email request failed", {
+      message: error instanceof Error ? error.message : "Unknown email provider error",
+    });
     return { sent: false, error: "resend_request_failed" };
   }
 }
@@ -134,23 +142,72 @@ async function sendImmediateAccountAlert(
 async function notifyExistingSuperAdmins(
   admin: any,
   newUserId: string,
+  estateId: string,
   account: { fullName: string; email: string; role: string; estate?: string },
 ): Promise<{ sent: number; failed: number }> {
   const { data: recipients, error } = await admin.from("user_roles")
     .select("user_id, users!inner(full_name,is_active,is_disabled,deleted_at)")
     .eq("role", "platform_admin")
     .neq("user_id", newUserId);
-  if (error) return { sent: 0, failed: 1 };
+  if (error) {
+    console.error("CB Nest Super Admin lookup failed", { message: error.message });
+    return { sent: 0, failed: 1 };
+  }
   let sent = 0;
   let failed = 0;
   for (const recipient of recipients ?? []) {
     const profile = Array.isArray(recipient.users) ? recipient.users[0] : recipient.users;
     if (!profile || profile.is_active === false || profile.is_disabled === true || profile.deleted_at) continue;
     const { data: authUser, error: authError } = await admin.auth.admin.getUserById(recipient.user_id);
-    if (authError || !authUser.user?.email) { failed++; continue; }
+    if (authError || !authUser.user?.email) {
+      console.error("CB Nest Super Admin email lookup failed", { userId: recipient.user_id });
+      failed++;
+      continue;
+    }
     if (authUser.user.email.toLowerCase() !== "orierodavid@gmail.com") continue;
-    const result = await sendImmediateAccountAlert(authUser.user.email, profile.full_name || "Super Admin", account);
-    if (result.sent) sent++; else failed++;
+
+    const recipientEmail = authUser.user.email;
+    const { data: notificationLog, error: logError } = await admin.from("resident_email_notifications")
+      .insert({
+        user_id: newUserId,
+        estate_id: estateId,
+        event_type: "new_account_admin_alert",
+        recipient_email: recipientEmail,
+        delivery_status: "pending",
+      })
+      .select("id")
+      .single();
+    if (logError) {
+      console.error("CB Nest Super Admin email audit insert failed", { message: logError.message });
+    }
+
+    const result = await sendImmediateAccountAlert(
+      recipientEmail,
+      profile.full_name || "Super Admin",
+      account,
+    );
+    if (result.sent) {
+      sent++;
+      if (notificationLog?.id) {
+        const { error: updateError } = await admin.from("resident_email_notifications").update({
+          delivery_status: "sent",
+          provider_message_id: result.emailId ?? null,
+          sent_at: new Date().toISOString(),
+          last_error: null,
+        }).eq("id", notificationLog.id);
+        if (updateError) console.error("CB Nest Super Admin email audit update failed", { message: updateError.message });
+      }
+    } else {
+      failed++;
+      if (notificationLog?.id) {
+        const { error: updateError } = await admin.from("resident_email_notifications").update({
+          delivery_status: "failed",
+          last_error: result.error ?? "email_delivery_failed",
+        }).eq("id", notificationLog.id);
+        if (updateError) console.error("CB Nest Super Admin email failure audit update failed", { message: updateError.message });
+      }
+      console.error("CB Nest Super Admin email was not accepted", { error: result.error ?? "email_delivery_failed" });
+    }
   }
   return { sent, failed };
 }
@@ -271,7 +328,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const delivery = await sendEmail(admin, userId, estateId, email, fullName);
-  const superAdminNotifications = await notifyExistingSuperAdmins(admin, userId, {
+  const superAdminNotifications = await notifyExistingSuperAdmins(admin, userId, estateId, {
     fullName, email, role: "Resident", estate: estate.name,
   });
   return reply(201, {
