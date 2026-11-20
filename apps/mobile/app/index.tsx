@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { Redirect } from "expo-router";
 import type { Session } from "@supabase/supabase-js";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import LoginScreen from "../src/features/auth/LoginScreen";
 import ResidentRegistrationScreen from "../src/features/auth/ResidentRegistrationScreen";
 import SplashScreen from "../components/SplashScreen";
 import { getApiBaseUrl } from "../src/lib/api-url";
+import { subscribeConnectionRestored } from "../src/lib/connection-events";
 import * as ExpoSplashScreen from "expo-splash-screen";
 import AppLogo from "../src/features/shared/AppLogo";
 type Role = "resident" | "security";
@@ -181,6 +182,43 @@ export default function MobileEntryRoute() {
     });
     return () => { active = false; };
   }, [session?.access_token, refreshRole]);
+
+
+  // Recover role verification automatically after a transient network failure.
+  // The connection banner emits an event when connectivity returns; a slower
+  // 20-second foreground check also covers networks that recover gradually.
+  useEffect(() => {
+    if (!session?.access_token || roleErrorKind !== "network" || verifiedRole) return;
+    let active = true;
+    let retryInFlight = false;
+    const retryRoleCheck = () => {
+      if (!active || retryInFlight || AppState.currentState !== "active") return;
+      retryInFlight = true;
+      void refreshRole(session.access_token).then((role) => {
+        if (!active) return;
+        setVerifiedRole(role);
+        setRoleError("");
+        setRoleErrorKind(null);
+      }).catch((error) => {
+        if (!active) return;
+        setRoleError(error instanceof Error ? error.message : "Can't connect to CB Nest right now.");
+        setRoleErrorKind(error instanceof RoleCheckError ? error.kind : "network");
+      }).finally(() => {
+        retryInFlight = false;
+      });
+    };
+    const unsubscribe = subscribeConnectionRestored(retryRoleCheck);
+    const interval = setInterval(retryRoleCheck, 20_000);
+    const appStateSubscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") retryRoleCheck();
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+      clearInterval(interval);
+      appStateSubscription.remove();
+    };
+  }, [session?.access_token, roleErrorKind, verifiedRole, refreshRole]);
 
   const submitAuth = async (email: string, password: string) => {
     setMessage("");
