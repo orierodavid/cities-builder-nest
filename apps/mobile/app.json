@@ -49,10 +49,7 @@
     },
     "icon": "./assets/cb-nest-logo.png",
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "cff1ab38-ecdc-40e8-bdc7-3bcaded37a32"
-      }
+      "router": {}
     }
   }
 }
