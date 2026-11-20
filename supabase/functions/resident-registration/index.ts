@@ -111,23 +111,23 @@ async function sendImmediateAccountAlert(
   const text = [
     "A new CB Nest account has been created.",
     "",
-    \`Name: \${account.fullName}\`,
-    \`Email: \${account.email}\`,
-    \`Role: \${account.role}\`,
-    \`Estate: \${account.estate || "Platform-wide"}\`,
+    `Name: ${account.fullName}`,
+    `Email: ${account.email}`,
+    `Role: ${account.role}`,
+    `Estate: ${account.estate || "Platform-wide"}`,
   ].join("\n");
-  const html = \`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><p>Hello \${escapeEmailHtml(recipientName)},</p><p>A new CB Nest account has been created.</p><p><strong>Name:</strong> \${escapeEmailHtml(account.fullName)}<br/><strong>Email:</strong> \${escapeEmailHtml(account.email)}<br/><strong>Role:</strong> \${escapeEmailHtml(account.role)}<br/><strong>Estate:</strong> \${escapeEmailHtml(account.estate || "Platform-wide")}</p><p>CB Nest</p></div>\`;
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#202020;max-width:640px;margin:0 auto;padding:24px"><p>Hello ${escapeEmailHtml(recipientName)},</p><p>A new CB Nest account has been created.</p><p><strong>Name:</strong> ${escapeEmailHtml(account.fullName)}<br/><strong>Email:</strong> ${escapeEmailHtml(account.email)}<br/><strong>Role:</strong> ${escapeEmailHtml(account.role)}<br/><strong>Estate:</strong> ${escapeEmailHtml(account.estate || "Platform-wide")}</p><p>CB Nest</p></div>`;
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { Authorization: \`Bearer \${apiKey}\`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to: [recipientEmail], subject, html, text }),
       signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 400);
       console.error("CB Nest Super Admin email rejected", { status: response.status, detail });
-      return { sent: false, error: \`resend_http_\${response.status}: \${detail}\` };
+      return { sent: false, error: `resend_http_${response.status}: ${detail}` };
     }
     const result = await response.json() as { id?: string };
     return { sent: true, emailId: result.id ?? undefined };
