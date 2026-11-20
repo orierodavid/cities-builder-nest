@@ -18,8 +18,6 @@ type ProfileResponse = {
   globalRoles?: string[];
   error?: string;
 };
-type Estate = { id: string; membershipRole?: string | null };
-type EstateResponse = { estates?: Estate[]; error?: string };
 const normalizeRole = (value?: string | null) => value?.trim().toLowerCase().replace(/-/g, "_") || "";
 type RoleErrorKind = "network" | "access" | "verification";
 class RoleCheckError extends Error {
@@ -42,16 +40,16 @@ const isTransientRoleError = (error: unknown) => {
     (typeof status === "number" && status >= 500);
 };
 const wait = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
-const ROLE_REQUEST_TIMEOUT_MS = 12_000;
+const ROLE_REQUEST_TIMEOUT_MS = 25_000;
 function fetchWithRoleTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return Promise.race([
-    fetch(input, init),
-    new Promise<Response>((_, reject) => setTimeout(() => {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
       const error = new Error("Role verification request timed out.");
       error.name = "TimeoutError";
       reject(error);
-    }, ROLE_REQUEST_TIMEOUT_MS)),
-  ]);
+    }, ROLE_REQUEST_TIMEOUT_MS);
+    fetch(input, init).then(resolve, reject).finally(() => clearTimeout(timeout));
+  });
 }
 
 export default function MobileEntryRoute() {
@@ -113,36 +111,30 @@ export default function MobileEntryRoute() {
           // Avoid AbortSignal.timeout on iOS: native fetch cancellation was
           // previously being surfaced as a false role/access failure.
           console.info("[CB Nest role check] Starting authenticated verification", { attempt, apiBaseUrl });
-          const [profileResponse, estatesResponse] = await Promise.all([
-            fetchWithRoleTimeout(apiBaseUrl + "/v1/me", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
-            fetchWithRoleTimeout(apiBaseUrl + "/v1/estates", { headers: { Authorization: "Bearer " + token, Accept: "application/json" } }),
-          ]);
-          console.info("[CB Nest role check] API response statuses", {
-            attempt, profileStatus: profileResponse.status, estatesStatus: estatesResponse.status,
+          // /v1/me already returns the authenticated user's active estate memberships
+          // and resident units. A second /v1/estates call repeated the full auth
+          // middleware (token verification, account status and legal consent),
+          // adding latency without contributing any role information.
+          const profileResponse = await fetchWithRoleTimeout(apiBaseUrl + "/v1/me", {
+            headers: { Authorization: "Bearer " + token, Accept: "application/json" },
           });
-          if ([401, 403].includes(profileResponse.status) || [401, 403].includes(estatesResponse.status)) {
-            const status = [401, 403].includes(profileResponse.status) ? profileResponse.status : estatesResponse.status;
-            throw new RoleCheckError("Your session is not authorised for mobile access. Sign in again or contact your estate administrator.", "access", status);
+          console.info("[CB Nest role check] API response status", { attempt, profileStatus: profileResponse.status });
+          if ([401, 403].includes(profileResponse.status)) {
+            throw new RoleCheckError("Your session is not authorised for mobile access. Sign in again or contact your estate administrator.", "access", profileResponse.status);
           }
-          if (!profileResponse.ok || !estatesResponse.ok) {
-            const response = !profileResponse.ok ? profileResponse : estatesResponse;
-            const body = await response.json().catch(() => ({})) as { error?: string };
+          if (!profileResponse.ok) {
+            const body = await profileResponse.json().catch(() => ({})) as { error?: string };
             const failure = new Error(body.error || "The CB Nest service could not verify your account.") as Error & { status?: number };
-            failure.status = response.status;
+            failure.status = profileResponse.status;
             throw failure;
           }
-          const [profileBody, estatesBody] = await Promise.all([
-            profileResponse.json() as Promise<ProfileResponse>,
-            estatesResponse.json() as Promise<EstateResponse>,
-          ]);
-          const nextEstates = estatesBody.estates || [];
+          const profileBody = await profileResponse.json() as ProfileResponse;
           const activeMemberships = (profileBody.estateMemberships || []).filter(m => m.status?.trim().toLowerCase() === "active");
           const roles = new Set(activeMemberships.map(m => normalizeRole(m.membership_role)));
-          const estateRoles = new Set(nextEstates.map(e => normalizeRole(e.membershipRole)));
           const hasResidentUnit = (profileBody.residentUnits || []).length > 0;
           const role: Role | null =
-            roles.has("resident") || hasResidentUnit || estateRoles.has("resident") ? "resident" :
-            roles.has("security") || estateRoles.has("security") ? "security" : null;
+            roles.has("resident") || hasResidentUnit ? "resident" :
+            roles.has("security") ? "security" : null;
           if (!role) throw new RoleCheckError(
             "No active Resident or Security role was found. Facility Manager and Super Admin accounts must use the web portal.",
             "access"
