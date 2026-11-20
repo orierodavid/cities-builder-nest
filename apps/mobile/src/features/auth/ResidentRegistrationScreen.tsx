@@ -31,7 +31,18 @@ function SelectField({
         <Text numberOfLines={1} style={[s.selectText, !value && s.placeholder]}>{value || placeholder}</Text>
         <MaterialCommunityIcons name="chevron-down" size={21} color={C.gold} />
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" statusBarTranslucent onRequestClose={() => { setOpen(false); setSearch(""); }}>
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        // Use the same transparent, full-screen presentation on both platforms.
+        // Android's native dialog window must also render smoothly in release APKs.
+        presentationStyle="overFullScreen"
+        statusBarTranslucent={Platform.OS === "android"}
+        navigationBarTranslucent={Platform.OS === "android"}
+        hardwareAccelerated={Platform.OS === "android"}
+        onRequestClose={() => { setOpen(false); setSearch(""); }}
+      >
         <View style={s.modalBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => { setOpen(false); setSearch(""); }} />
           <View style={s.modalCard}>
