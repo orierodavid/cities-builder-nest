@@ -198,8 +198,8 @@ export default function WalletScreen() {
             <Card key={estate.id}>
               <Text style={{ color: theme.text, fontSize: 14, fontWeight: '700' }}>{estate.name}</Text>
               <Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }}>Paystack dedicated accounts are not enabled yet. This option will be available after Paystack registration and configuration.</Text>
-              <TouchableOpacity onPress={() => Alert.alert('Paystack coming soon', 'Paystack will be enabled after your account is registered and configured.')} disabled={true} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: busyEstate ? 0.65 : 1 }}>
-                {busyEstate === estate.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>PAYSTACK — COMING SOON</Text>}
+              <TouchableOpacity onPress={() => Alert.alert('Paystack coming soon', 'Paystack will be enabled after your account is registered and configured.')} disabled={true} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+                <Text style={{ color: '#071A3A', fontWeight: '900' }}>PAYSTACK — COMING SOON</Text>
               </TouchableOpacity>
             </Card>
           ))}
