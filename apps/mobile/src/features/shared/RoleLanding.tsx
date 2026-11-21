@@ -23,9 +23,9 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
  const router=useRouter(); const cfg=CONFIG[role]; const [signingOut,setSigningOut]=useState(false);
  const { width: windowWidth } = useWindowDimensions();
  const carouselCardWidth = Math.max(240, windowWidth - 56);
- const carouselRef = useRef<ScrollView>(null);
+ const carouselRef = useRef<React.ElementRef<typeof ScrollView>>(null);
  const [carouselIndex, setCarouselIndex] = useState(0);
- const imageCarouselRef = useRef<ScrollView>(null);
+ const imageCarouselRef = useRef<React.ElementRef<typeof ScrollView>>(null);
  const imageCarouselCardWidth = Math.max(220, Math.min(300, windowWidth * 0.76));
  const [imageCarouselIndex, setImageCarouselIndex] = useState(0);
  const [walletBalanceKobo,setWalletBalanceKobo]=useState<number|null>(null); const [walletBalanceLoading,setWalletBalanceLoading]=useState(role==='resident');
