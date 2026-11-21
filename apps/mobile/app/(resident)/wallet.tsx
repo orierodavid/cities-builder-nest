@@ -23,6 +23,8 @@ export default function WalletScreen() {
   const router = useRouter();
   const [estates, setEstates] = useState<Estate[]>([]);
   const [accounts, setAccounts] = useState<VirtualAccount[]>([]);
+  const [walletBalanceKobo, setWalletBalanceKobo] = useState<number | null>(null);
+  const [walletStatus, setWalletStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyEstate, setBusyEstate] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -38,7 +40,7 @@ export default function WalletScreen() {
       return;
     }
 
-    const [membershipResult, accountResult] = await Promise.all([
+    const [membershipResult, accountResult, balanceResult] = await Promise.all([
       supabase.from('estate_memberships')
         .select('estate_id, estate:estates(id,name)')
         .eq('user_id', user.id)
@@ -48,6 +50,7 @@ export default function WalletScreen() {
         .select('id,estate_id,provider,bank_name,account_number,account_name,currency,status')
         .eq('resident_user_id', user.id)
         .order('created_at', { ascending: false }),
+      supabase.rpc('get_my_wallet_balance'),
     ]);
 
     if (membershipResult.error || accountResult.error) {
@@ -62,6 +65,9 @@ export default function WalletScreen() {
     });
     setEstates([...new Map(estateRows.map((estate) => [estate.id, estate])).values()]);
     setAccounts((accountResult.data || []) as VirtualAccount[]);
+    const wallet = Array.isArray(balanceResult.data) ? balanceResult.data[0] : null;
+    setWalletBalanceKobo(wallet ? Number(wallet.balance_kobo) : null);
+    setWalletStatus(wallet?.status ?? null);
     setLoading(false);
   }, []);
 
@@ -101,9 +107,15 @@ export default function WalletScreen() {
     <Screen title="Wallet" subtitle="Manage your wallet funding accounts">
       <Card>
         <Text style={{ color: theme.muted, fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>WALLET BALANCE</Text>
-        <Text style={{ color: theme.text, fontSize: 14, fontWeight: '700', marginTop: 9 }}>Balance display is not available yet</Text>
+        <Text accessibilityLabel="Wallet balance" style={{ color: theme.text, fontSize: 28, fontWeight: '900', marginTop: 9 }}>
+          {walletBalanceKobo === null ? 'Wallet not activated' : `₦${(walletBalanceKobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+        </Text>
         <Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }}>
-          Your payment records are available in Payment History. Wallet balance and wallet top-ups will appear here once the wallet ledger is enabled.
+          {walletBalanceKobo === null
+            ? 'Your wallet will appear here once your resident account is approved.'
+            : walletStatus === 'active'
+              ? 'Available balance is calculated from confirmed wallet transactions. Funding and wallet checkout will be enabled after payment-provider integration is completed.'
+              : `Your wallet is ${walletStatus || 'not available'}. Contact CB Nest support if you need help.`}
         </Text>
         <TouchableOpacity onPress={() => router.push('/payments' as never)} style={{ marginTop: 14, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: theme.goldSoft, fontWeight: '800' }}>VIEW PAYMENT HISTORY</Text>
