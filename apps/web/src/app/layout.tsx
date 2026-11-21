@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s | CB Nest",
   },
   description:
-    "CB Nest connects residents, security teams, facility managers and Super Admins through one estate-management platform.",
+    "CB Nest is building smarter, safer communities, one step at a time, with connected tools for residents, security teams and estate managers.",
   applicationName: "CB Nest",
   openGraph: {
     type: "website",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     siteName: "CB Nest",
     title: "CB Nest | Smart Estate & Community Management",
     description:
-      "A connected platform for smarter estate living and management.",
+      "Building smarter, safer communities, one step at a time.",
     images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "CB Nest — Smarter Estate Living" }],
   },
   twitter: {
