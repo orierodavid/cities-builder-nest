@@ -21,8 +21,8 @@ Deno.serve(async (req: Request) => {
   const url = Deno.env.get("SUPABASE_URL");
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const secret = Deno.env.get("SQUAD_SECRET_KEY");
-  const mode = Deno.env.get("SQUAD_ENVIRONMENT") ?? "sandbox";
-  if (!url || !service || !secret || !["sandbox", "live"].includes(mode)) {
+  const mode = Deno.env.get("SQUAD_ENVIRONMENT") ?? "";
+  if (!url || !service || !secret || mode !== "live") {
     return reply(503, { error: "webhook_not_configured" });
   }
 
