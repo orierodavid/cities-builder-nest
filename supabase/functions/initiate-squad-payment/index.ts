@@ -24,9 +24,9 @@ Deno.serve(async (req: Request) => {
   const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const secret = Deno.env.get("SQUAD_SECRET_KEY");
-  const mode = Deno.env.get("SQUAD_ENVIRONMENT") ?? "sandbox";
+  const mode = Deno.env.get("SQUAD_ENVIRONMENT") ?? "";
   if (!url || !anon || !service || !secret) return reply(503, { error: "squad_payment_not_configured" });
-  if (!["sandbox", "live"].includes(mode)) return reply(503, { error: "invalid_squad_environment" });
+  if (mode !== "live") return reply(503, { error: "invalid_squad_environment" });
 
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!token) return reply(401, { error: "authentication_required" });
