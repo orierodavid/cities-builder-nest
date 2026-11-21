@@ -44,6 +44,52 @@ Deno.serve(async (req: Request) => {
   if (accountStatusError) return reply(503, { error: "account_status_check_unavailable" });
   if (!accountStatus || accountStatus.is_disabled === true || accountStatus.deleted_at) return reply(403, { error: "account_disabled", message: "This CB Nest account is disabled." });
   if (accountStatus.is_active !== true) return reply(403, { error: "account_pending_approval" });
+  const { data: walletIntent, error: walletIntentError } = await admin.from("squad_wallet_funding_intents")
+    .select("id,resident_user_id,amount_kobo,currency,status,verified_at,created_at")
+    .eq("reference", ref).eq("resident_user_id", auth.user.id).maybeSingle();
+  if (walletIntentError) return reply(503, { error: "wallet_funding_lookup_failed" });
+  if (walletIntent) {
+    if (walletIntent.status === "successful" && walletIntent.verified_at) return reply(200, { status: "successful", verified: true });
+    const base = mode === "live" ? "https://api-d.squadco.com" : "https://sandbox-api-d.squadco.com";
+    let response: Response;
+    try { response = await fetch(`${base}/transaction/verify/${encodeURIComponent(ref)}`, { headers: { Authorization: `Bearer ${secret}` }, signal: AbortSignal.timeout(10000) }); }
+    catch { return reply(202, { status: "pending", verified: false, retry: true }); }
+    if (!response.ok) return reply(202, { status: "pending", verified: false, retry: true });
+    let payload: Record<string, unknown>;
+    try { payload = await response.json(); } catch { return reply(202, { status: "pending", verified: false, retry: true }); }
+    const data = payload.data as Record<string, unknown> | undefined;
+    if (!payload.success || !data) return reply(202, { status: "pending", verified: false, retry: true });
+    const status = String(data.transaction_status ?? "").toLowerCase();
+    const amount = Number(data.transaction_amount ?? data.amount);
+    const currency = String(data.transaction_currency_id ?? data.currency ?? "").toUpperCase();
+    if (!Number.isSafeInteger(amount) || amount !== Number(walletIntent.amount_kobo) ||
+        currency !== "NGN" || walletIntent.currency !== "NGN" || String(data.transaction_ref ?? "") !== ref ||
+        String(data.email ?? "").toLowerCase() !== auth.user.email?.toLowerCase()) return reply(409, { error: "verified_wallet_payment_mismatch" });
+    if (status === "success") {
+      const { error: creditError } = await admin.rpc("post_verified_wallet_credit", {
+        p_resident_user_id: auth.user.id, p_amount_kobo: amount, p_source: "squad_checkout",
+        p_external_reference: `squad:wallet:${ref}`, p_provider_reference: ref,
+        p_description: "Wallet funding via Squad",
+        p_metadata: { provider: "squad", reference: ref, currency: "NGN", purpose: "wallet_funding" },
+      });
+      if (creditError) return reply(500, { error: "wallet_credit_post_failed" });
+      const { error } = await admin.from("squad_wallet_funding_intents")
+        .update({ status: "successful", verified_at: new Date().toISOString() })
+        .eq("id", walletIntent.id).in("status", ["pending", "failed"]).is("verified_at", null);
+      if (error) return reply(500, { error: "wallet_funding_update_failed" });
+      return reply(200, { status: "successful", verified: true });
+    }
+    if (status === "failed" || status === "abandoned") {
+      const { error } = await admin.from("squad_wallet_funding_intents")
+        .update({ status: "failed", verified_at: new Date().toISOString() })
+        .eq("id", walletIntent.id).eq("status", "pending").is("verified_at", null);
+      if (error) return reply(500, { error: "wallet_funding_update_failed" });
+      return reply(200, { status: "failed", verified: true });
+    }
+    if (status !== "pending") return reply(409, { error: "verified_transaction_status_invalid" });
+    return reply(202, { status: "pending", verified: true, retry: true });
+  }
+
   const [{ data: serviceRow, error: serviceError }, { data: rentRow, error: rentError }] = await Promise.all([
     admin.from("service_charge_payments")
       .select("id,amount_kobo,fee_kobo,total_amount_kobo,currency,status,resident_user_id,verified_at,created_at")
