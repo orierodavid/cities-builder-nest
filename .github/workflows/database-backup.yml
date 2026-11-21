@@ -75,7 +75,7 @@ jobs:
           echo "CBNEST_BACKUP_FILE=$BACKUP_NAME.age" >> "$GITHUB_ENV"
 
       - name: Store encrypted backup artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cbnest-encrypted-database-backup
           path: ${{ runner.temp }}/cbnest-*.dump.age
