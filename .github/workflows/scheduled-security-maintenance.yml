@@ -71,7 +71,7 @@ jobs:
           cache-dependency-path: apps/mobile/package-lock.json
 
       - name: Install locked mobile dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Check Expo SDK package compatibility
         run: npx expo install --check
