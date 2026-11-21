@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, SectionTitle, Card, EmptyState } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
@@ -29,6 +29,8 @@ export default function WalletScreen() {
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyEstate, setBusyEstate] = useState<string | null>(null);
+  const [fundingAmount, setFundingAmount] = useState('');
+  const [fundingBusy, setFundingBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -84,7 +86,7 @@ export default function WalletScreen() {
     setError('');
     try {
       const { data, error: invokeError } = await supabase.functions.invoke('create-resident-virtual-account', {
-        body: { estateId },
+        body: { estateId, provider: 'paystack', consent: true },
       });
       if (invokeError) {
         const serverMessage = typeof data?.message === 'string' ? data.message : '';
@@ -102,6 +104,37 @@ export default function WalletScreen() {
       setError(e instanceof Error ? e.message : 'We could not create the virtual account. Please try again.');
     } finally {
       setBusyEstate(null);
+    }
+  };
+
+  const fundWallet = async () => {
+    if (fundingBusy) return;
+    const naira = Number(fundingAmount.replace(/,/g, '').trim());
+    const amountKobo = Math.round(naira * 100);
+    if (!Number.isFinite(naira) || !Number.isSafeInteger(amountKobo) || amountKobo < 10000 || amountKobo > 100000000000) {
+      setError('Enter an amount between ₦100 and ₦1,000,000,000.');
+      return;
+    }
+    setFundingBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('paystack-wallet-checkout', {
+        body: { amountKobo },
+      });
+      if (invokeError) throw new Error(typeof data?.message === 'string' ? data.message : 'Paystack checkout is not configured yet.');
+      if (typeof data?.checkoutUrl === 'string' && data.checkoutUrl.startsWith('https://')) {
+        await Linking.openURL(data.checkoutUrl);
+        setNotice('Paystack checkout opened. Your wallet will update after the payment is verified.');
+      } else if (data?.status === 'pending') {
+        setNotice('Your payment request is being confirmed. Refresh your wallet shortly.');
+      } else {
+        throw new Error('Paystack did not return a checkout link.');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'We could not start wallet funding.');
+    } finally {
+      setFundingBusy(false);
     }
   };
 
@@ -123,6 +156,23 @@ export default function WalletScreen() {
         </Text>
         <TouchableOpacity onPress={() => router.push('/payments' as never)} style={{ marginTop: 14, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: theme.goldSoft, fontWeight: '800' }}>VIEW PAYMENT HISTORY</Text>
+        </TouchableOpacity>
+      </Card>
+
+      <SectionTitle>Add money</SectionTitle>
+      <Card>
+        <Text style={{ color: theme.muted, fontSize: 12, marginBottom: 8 }}>Fund your CB Nest wallet securely with Paystack.</Text>
+        <TextInput
+          value={fundingAmount}
+          onChangeText={setFundingAmount}
+          keyboardType="decimal-pad"
+          placeholder="Amount in naira (minimum ₦100)"
+          placeholderTextColor={theme.muted}
+          style={{ color: theme.text, borderWidth: 1, borderColor: theme.border, borderRadius: 10, paddingHorizontal: 13, paddingVertical: 12, fontSize: 15 }}
+          accessibilityLabel="Wallet funding amount in naira"
+        />
+        <TouchableOpacity onPress={() => void fundWallet()} disabled={fundingBusy} style={{ marginTop: 12, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: fundingBusy ? 0.65 : 1 }}>
+          {fundingBusy ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>CONTINUE WITH PAYSTACK</Text>}
         </TouchableOpacity>
       </Card>
 
@@ -173,12 +223,12 @@ export default function WalletScreen() {
             <EmptyState icon="bank-outline" title="No virtual account yet" message="Generate a virtual account when the account provider is configured for your estate." />
           )}
 
-          {estates.filter((estate) => !accounts.some((account) => account.estate_id === estate.id && (account.status === 'active' || account.status === 'pending'))).map((estate) => (
+          {estates.filter((estate) => !accounts.some((account) => account.estate_id === estate.id && account.provider === 'paystack' && (account.status === 'active' || account.status === 'pending'))).map((estate) => (
             <Card key={estate.id}>
               <Text style={{ color: theme.text, fontSize: 14, fontWeight: '700' }}>{estate.name}</Text>
-              <Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }}>Request a dedicated bank-transfer account for this estate. Account creation depends on an enabled provider.</Text>
-              <TouchableOpacity onPress={() => void generateAccount(estate.id)} disabled={busyEstate !== null} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: busyEstate ? 0.65 : 1 }}>
-                {busyEstate === estate.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>GENERATE VIRTUAL ACCOUNT</Text>}
+              <Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }}>Request a Paystack dedicated bank-transfer account for this estate. Paystack account eligibility and configuration are required.</Text>
+              <TouchableOpacity onPress={() => Alert.alert('Paystack virtual account', 'I consent to CB Nest sharing my name, email address and phone number with Paystack to create a dedicated bank-transfer account for me.', [{ text: 'Cancel', style: 'cancel' }, { text: 'I agree and continue', onPress: () => void generateAccount(estate.id) }])} disabled={busyEstate !== null} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: busyEstate ? 0.65 : 1 }}>
+                {busyEstate === estate.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>GENERATE PAYSTACK ACCOUNT</Text>}
               </TouchableOpacity>
             </Card>
           ))}
