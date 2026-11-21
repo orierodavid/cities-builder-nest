@@ -151,7 +151,7 @@ export default function WalletScreen() {
           {walletBalanceKobo === null
             ? 'Your wallet will appear here once your resident account is approved.'
             : walletStatus === 'active'
-              ? 'Available balance is calculated from confirmed wallet transactions. Funding and wallet checkout will be enabled after payment-provider integration is completed.'
+              ? 'Available balance is calculated from confirmed wallet transactions. Squad and Paystack payments appear here after server-side verification.'
               : `Your wallet is ${walletStatus || 'not available'}. Contact CB Nest support if you need help.`}
         </Text>
         <TouchableOpacity onPress={() => router.push('/payments' as never)} style={{ marginTop: 14, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center' }}>
@@ -220,7 +220,7 @@ export default function WalletScreen() {
               {!account.account_number && account.status === 'pending' ? <Text style={{ color: theme.muted, fontSize: 12, marginTop: 10 }}>Your bank account details are being confirmed.</Text> : null}
             </Card>
           )) : (
-            <EmptyState icon="bank-outline" title="No virtual account yet" message="Generate a virtual account when the account provider is configured for your estate." />
+            <EmptyState icon="bank-outline" title="No virtual account yet" message="Generate a Paystack virtual account when your Paystack account is configured and approved for dedicated accounts." />
           )}
 
           {estates.filter((estate) => !accounts.some((account) => account.estate_id === estate.id && account.provider === 'paystack' && (account.status === 'active' || account.status === 'pending'))).map((estate) => (
@@ -239,7 +239,7 @@ export default function WalletScreen() {
       {!!notice && <Card><Text style={{ color: '#79D6A1', fontSize: 12 }}>{notice}</Text></Card>}
       {!!error && (accounts.length > 0 || estates.length > 0) ? <Card><Text accessibilityRole="alert" style={{ color: '#F2A5A5', fontSize: 12, lineHeight: 18 }}>{error}</Text></Card> : null}
       <Text style={{ color: theme.muted, fontSize: 11, lineHeight: 17, marginTop: 8 }}>
-        Virtual accounts are optional and are not created automatically when your resident account is approved. Account creation is available only when a payment provider has been configured.
+        Virtual accounts are optional and are not created automatically when your resident account is approved. Paystack account creation requires your express consent and an eligible, configured Paystack business account.
       </Text>
     </Screen>
   );
