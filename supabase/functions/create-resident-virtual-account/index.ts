@@ -114,6 +114,10 @@ Deno.serve(async (req: Request) => {
     accountRowId = data.id;
   }
   if (!accountRowId) return reply(500, { error: "virtual_account_request_id_missing" });
+  const { error: consentError } = await admin.from("resident_virtual_accounts")
+    .update({ paystack_dva_consent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", accountRowId);
+  if (consentError) return reply(500, { error: "dedicated_account_consent_record_failed" });
 
   try {
     const created = await provider.createDedicatedAccount({
