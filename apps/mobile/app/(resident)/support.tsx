@@ -6,7 +6,7 @@ import { theme } from '../../src/theme/theme';
 
 export default function SupportScreen() {
   const router = useRouter();
-  const open = (route: string) => router.push(route as never);
+  const open = (route: string) => router.push((route === '/wallet' ? '/(resident)/wallet' : `/(resident)${route}`) as never);
 
   return (
     <Screen title="Support" subtitle="Find help with your CB Nest account and estate services">
