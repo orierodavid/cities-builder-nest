@@ -49,14 +49,13 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
  useEffect(()=>{
   if(role!=='resident')return;
   const timer=setInterval(()=>{
-   setCarouselIndex(current=>{
-    const next=(current+1)%2;
-    carouselRef.current?.scrollTo({x:next*(carouselCardWidth+10),animated:true});
-    return next;
-   });
+   setCarouselIndex(current=>(current+1)%2);
   },5000);
   return ()=>clearInterval(timer);
- },[role,carouselCardWidth]);
+ },[role]);
+ useEffect(()=>{
+  if(role==='resident')carouselRef.current?.scrollTo({x:carouselIndex*(carouselCardWidth+10),animated:true});
+ },[role,carouselIndex,carouselCardWidth]);
  const loadResidentDetails=async()=>{
   if(role!=='resident')return;
   setProfileError('');
