@@ -47,7 +47,7 @@ jobs:
       PORT: "4000"
     steps:
       - name: Check out main commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
