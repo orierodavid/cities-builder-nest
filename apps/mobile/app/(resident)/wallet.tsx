@@ -119,17 +119,15 @@ export default function WalletScreen() {
     setError('');
     setNotice('');
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('paystack-wallet-checkout', {
-        body: { amountKobo },
-      });
-      if (invokeError) throw new Error(typeof data?.message === 'string' ? data.message : 'Paystack checkout is not configured yet.');
+      const { data, error: invokeError } = await supabase.functions.invoke('squad-wallet-checkout', { body: { amountKobo } });
+      if (invokeError) throw new Error(typeof data?.message === 'string' ? data.message : 'Squad wallet funding is not currently available.');
       if (typeof data?.checkoutUrl === 'string' && data.checkoutUrl.startsWith('https://')) {
         await Linking.openURL(data.checkoutUrl);
-        setNotice('Paystack checkout opened. Your wallet will update after the payment is verified.');
+        setNotice('Squad checkout opened. Your wallet balance updates only after the payment is verified.');
       } else if (data?.status === 'pending') {
         setNotice('Your payment request is being confirmed. Refresh your wallet shortly.');
       } else {
-        throw new Error('Paystack did not return a checkout link.');
+        throw new Error('Squad did not return a checkout link.');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'We could not start wallet funding.');
@@ -151,7 +149,7 @@ export default function WalletScreen() {
           {walletBalanceKobo === null
             ? 'Your wallet will appear here once your resident account is approved.'
             : walletStatus === 'active'
-              ? 'Available balance is calculated from confirmed wallet transactions. Squad and Paystack payments appear here after server-side verification.'
+              ? 'Available balance is calculated from confirmed wallet transactions. Confirmed Squad payments appear here after server-side verification. Paystack is coming soon.'
               : `Your wallet is ${walletStatus || 'not available'}. Contact CB Nest support if you need help.`}
         </Text>
         <TouchableOpacity onPress={() => router.push('/payments' as never)} style={{ marginTop: 14, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center' }}>
@@ -161,7 +159,7 @@ export default function WalletScreen() {
 
       <SectionTitle>Add money</SectionTitle>
       <Card>
-        <Text style={{ color: theme.muted, fontSize: 12, marginBottom: 8 }}>Fund your CB Nest wallet securely with Paystack.</Text>
+        <Text style={{ color: theme.muted, fontSize: 12, marginBottom: 8 }}>Fund your CB Nest wallet securely with Squad.</Text>
         <TextInput
           value={fundingAmount}
           onChangeText={setFundingAmount}
@@ -172,7 +170,7 @@ export default function WalletScreen() {
           accessibilityLabel="Wallet funding amount in naira"
         />
         <TouchableOpacity onPress={() => void fundWallet()} disabled={fundingBusy} style={{ marginTop: 12, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: fundingBusy ? 0.65 : 1 }}>
-          {fundingBusy ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>CONTINUE WITH PAYSTACK</Text>}
+          {fundingBusy ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>CONTINUE WITH SQUAD</Text>}
         </TouchableOpacity>
       </Card>
 
@@ -220,15 +218,15 @@ export default function WalletScreen() {
               {!account.account_number && account.status === 'pending' ? <Text style={{ color: theme.muted, fontSize: 12, marginTop: 10 }}>Your bank account details are being confirmed.</Text> : null}
             </Card>
           )) : (
-            <EmptyState icon="bank-outline" title="No virtual account yet" message="Generate a Paystack virtual account when your Paystack account is configured and approved for dedicated accounts." />
+            <EmptyState icon="bank-outline" title="No virtual account yet" message="Paystack virtual accounts will be available after your Paystack account is registered and configured." />
           )}
 
           {estates.filter((estate) => !accounts.some((account) => account.estate_id === estate.id && account.provider === 'paystack' && (account.status === 'active' || account.status === 'pending'))).map((estate) => (
             <Card key={estate.id}>
               <Text style={{ color: theme.text, fontSize: 14, fontWeight: '700' }}>{estate.name}</Text>
-              <Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }}>Request a Paystack dedicated bank-transfer account for this estate. Paystack account eligibility and configuration are required.</Text>
-              <TouchableOpacity onPress={() => Alert.alert('Paystack virtual account', 'I consent to CB Nest sharing my name, email address and phone number with Paystack to create a dedicated bank-transfer account for me.', [{ text: 'Cancel', style: 'cancel' }, { text: 'I agree and continue', onPress: () => void generateAccount(estate.id) }])} disabled={busyEstate !== null} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: busyEstate ? 0.65 : 1 }}>
-                {busyEstate === estate.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>GENERATE PAYSTACK ACCOUNT</Text>}
+              <Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18, marginTop: 5 }}>Paystack dedicated accounts are not enabled yet. This option will be available after Paystack registration and configuration.</Text>
+              <TouchableOpacity onPress={() => Alert.alert('Paystack coming soon', 'Paystack will be enabled after your account is registered and configured.')} disabled={true} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: busyEstate ? 0.65 : 1 }}>
+                {busyEstate === estate.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>PAYSTACK — COMING SOON</Text>}
               </TouchableOpacity>
             </Card>
           ))}
@@ -239,7 +237,7 @@ export default function WalletScreen() {
       {!!notice && <Card><Text style={{ color: '#79D6A1', fontSize: 12 }}>{notice}</Text></Card>}
       {!!error && (accounts.length > 0 || estates.length > 0) ? <Card><Text accessibilityRole="alert" style={{ color: '#F2A5A5', fontSize: 12, lineHeight: 18 }}>{error}</Text></Card> : null}
       <Text style={{ color: theme.muted, fontSize: 11, lineHeight: 17, marginTop: 8 }}>
-        Virtual accounts are optional and are not created automatically when your resident account is approved. Paystack account creation requires your express consent and an eligible, configured Paystack business account.
+        Virtual accounts are optional. Paystack account creation is not enabled yet and will be activated after registration and configuration.
       </Text>
     </Screen>
   );
