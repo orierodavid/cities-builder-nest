@@ -44,7 +44,7 @@ jobs:
         run: deno check supabase/functions/reconcile-squad-payments/index.ts
 
       - name: Set up Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v3
         with:
           version: latest
 
