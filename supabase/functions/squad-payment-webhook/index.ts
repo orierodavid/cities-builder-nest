@@ -41,6 +41,57 @@ Deno.serve(async (req: Request) => {
   if (!ref || ref.length > 120) return reply(400, { error: "transaction_reference_missing" });
 
   const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data: walletIntent, error: walletIntentError } = await admin.from("squad_wallet_funding_intents")
+    .select("id,resident_user_id,amount_kobo,currency,status,verified_at")
+    .eq("reference", ref).maybeSingle();
+  if (walletIntentError) return reply(503, { error: "wallet_funding_lookup_failed" });
+  if (walletIntent) {
+    if (walletIntent.status === "successful" && walletIntent.verified_at) return reply(200, { received: true, duplicate: true });
+    const base = mode === "live" ? "https://api-d.squadco.com" : "https://sandbox-api-d.squadco.com";
+    let check: Response;
+    try {
+      check = await fetch(`${base}/transaction/verify/${encodeURIComponent(ref)}`, {
+        headers: { Authorization: `Bearer ${secret}` }, signal: AbortSignal.timeout(10000),
+      });
+    } catch { return reply(502, { error: "squad_verification_unavailable" }); }
+    if (!check.ok) return reply(502, { error: "squad_verification_unavailable" });
+    let verified: Record<string, unknown>;
+    try { verified = await check.json(); } catch { return reply(502, { error: "squad_verification_invalid_response" }); }
+    const data = verified.data as Record<string, unknown> | undefined;
+    if (!verified.success || !data) return reply(502, { error: "squad_verification_invalid_response" });
+    const status = String(data.transaction_status ?? "").toLowerCase();
+    const amount = Number(data.transaction_amount ?? data.amount);
+    const currency = String(data.transaction_currency_id ?? data.currency ?? "").toUpperCase();
+    const verifiedRef = String(data.transaction_ref ?? "");
+    const { data: authUser, error: userError } = await admin.auth.admin.getUserById(walletIntent.resident_user_id);
+    if (!Number.isSafeInteger(amount) || amount !== Number(walletIntent.amount_kobo) ||
+        currency !== "NGN" || walletIntent.currency !== "NGN" || verifiedRef !== ref ||
+        userError || !authUser.user?.email || String(data.email ?? "").toLowerCase() !== authUser.user.email.toLowerCase()) {
+      return reply(409, { error: "verified_wallet_payment_mismatch" });
+    }
+    if (status === "success") {
+      const { error: creditError } = await admin.rpc("post_verified_wallet_credit", {
+        p_resident_user_id: walletIntent.resident_user_id, p_amount_kobo: amount,
+        p_source: "squad_checkout", p_external_reference: `squad:wallet:${ref}`,
+        p_provider_reference: ref, p_description: "Wallet funding via Squad",
+        p_metadata: { provider: "squad", reference: ref, currency: "NGN", purpose: "wallet_funding" },
+      });
+      if (creditError) return reply(500, { error: "wallet_credit_post_failed" });
+      const { error: updateError } = await admin.from("squad_wallet_funding_intents")
+        .update({ status: "successful", verified_at: new Date().toISOString() })
+        .eq("id", walletIntent.id).in("status", ["pending", "failed"]).is("verified_at", null);
+      if (updateError) return reply(500, { error: "wallet_funding_update_failed" });
+      return reply(200, { received: true, processed: true });
+    }
+    if (status === "failed" || status === "abandoned") {
+      const { error } = await admin.from("squad_wallet_funding_intents")
+        .update({ status: "failed", verified_at: new Date().toISOString() })
+        .eq("id", walletIntent.id).eq("status", "pending").is("verified_at", null);
+      if (error) return reply(500, { error: "wallet_funding_update_failed" });
+    }
+    if (!["success", "failed", "abandoned", "pending"].includes(status)) return reply(409, { error: "verified_transaction_status_invalid" });
+    return reply(200, { received: true, transactionStatus: status });
+  }
   const [{ data: serviceRow, error: se }, { data: rentRow, error: re }] = await Promise.all([
     admin.from("service_charge_payments")
       .select("id,amount_kobo,fee_kobo,total_amount_kobo,currency,status,resident_user_id,verified_at")
