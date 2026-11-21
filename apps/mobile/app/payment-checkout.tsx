@@ -8,7 +8,11 @@ type PaymentStatus = "pending" | "successful" | "failed" | "reversed" | "unknown
 
 export default function PaymentCheckoutScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ checkoutUrl?: string; reference?: string; paymentType?: string }>();
+  const params = useLocalSearchParams<{ checkoutUrl?: string; reference?: string; paymentType?: string; amountKobo?: string; feeKobo?: string; totalAmountKobo?: string }>();
+  const amountKobo = Number(params.amountKobo ?? 0);
+  const feeKobo = Number(params.feeKobo ?? 0);
+  const totalAmountKobo = Number(params.totalAmountKobo ?? 0);
+  const money = (kobo: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 2 }).format(kobo / 100);
   const checkoutUrl = typeof params.checkoutUrl === "string" ? params.checkoutUrl : "";
   const reference = typeof params.reference === "string" ? params.reference : "";
   const paymentType = params.paymentType === "rent_savings" ? "rent_savings" : "service_charge";
@@ -108,6 +112,25 @@ export default function PaymentCheckoutScreen() {
           <Text style={{ color: "#F0C766", fontWeight: "800" }}>CLOSE</Text>
         </TouchableOpacity>
       </View>
+
+      {amountKobo > 0 && totalAmountKobo >= amountKobo && (
+        <View style={{ marginHorizontal: 14, marginTop: 10, marginBottom: 4, padding: 13, borderRadius: 10, borderWidth: 1, borderColor: "#3A2E12", backgroundColor: "#121212" }}>
+          <Text style={{ color: "#F0C766", fontSize: 11, fontWeight: "900", marginBottom: 8 }}>PAYMENT BREAKDOWN</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+            <Text style={{ color: "#A8A8A8", fontSize: 12 }}>Payment amount</Text>
+            <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>{money(amountKobo)}</Text>
+          </View>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+            <Text style={{ color: "#A8A8A8", fontSize: 12 }}>CB Nest fee</Text>
+            <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>{money(feeKobo)}</Text>
+          </View>
+          <View style={{ height: 1, backgroundColor: "#3A2E12", marginVertical: 7 }} />
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "900" }}>Total payable</Text>
+            <Text style={{ color: "#F0C766", fontSize: 15, fontWeight: "900" }}>{money(totalAmountKobo)}</Text>
+          </View>
+        </View>
+      )}
 
       {checkoutVisible && status === "pending" && !!checkoutUrl ? (
         <WebView
