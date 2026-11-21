@@ -184,3 +184,19 @@
 .portal .logout{color:#e4dbc9;border-color:#514326}
 .portal .logout:hover{background:#211b10}
 @media(max-width:700px){.portal .sidebar{border-right:0;border-bottom:1px solid #3a2e12}.portal .nav{color:#d0c8b8}.portal .nav.active{background:#574522;color:#f5d58b}}
+
+/* Mandatory legal acceptance modal: fixed, non-dismissible until accepted or signed out. */
+.legal-gate-modal{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;overflow:auto;background:rgba(0,0,0,.88);backdrop-filter:blur(5px);padding:18px}
+.legal-gate-modal .legal-gate-card{width:min(100%,860px);max-height:calc(100dvh - 36px);overflow:auto;background:#080808;color:#f4f1e8;border:1px solid #3a2e12;border-radius:14px;padding:clamp(18px,3vw,30px)}
+.legal-gate-modal .legal-gate-card h1{color:#fff}
+.legal-gate-modal .legal-gate-card>p{color:#c5c5c5}
+.legal-gate-modal .legal-document{background:#121212;border-color:#3a2e12}
+.legal-gate-modal .legal-document-heading h2{color:#fff}
+.legal-gate-modal .legal-document-scroll{height:230px;max-height:30vh;overflow-y:auto;overscroll-behavior:contain;white-space:pre-wrap;overflow-wrap:anywhere;background:#101010;border:1px solid #3b3b3b;border-radius:6px;padding:12px;font:11px/1.7 Arial,sans-serif;color:#e2e2e2}
+.legal-read-status{font-size:9px;color:#2fb36d;font-weight:900}
+.legal-scroll-status{font-size:8px;color:#d9a93f;font-weight:900}
+.legal-document-end{margin:18px 0 0;text-align:center;color:#d9a93f;font-weight:800}
+.legal-gate-modal .legal-note{color:#aaa}
+.legal-gate-modal .legal-gate-actions button{min-width:130px}
+.legal-gate-modal .legal-gate-actions button:disabled{opacity:.4}
+@media(max-width:700px){.legal-gate-modal{padding:8px;align-items:flex-start}.legal-gate-modal .legal-gate-card{max-height:calc(100dvh - 16px);padding:16px}.legal-gate-modal .legal-document-scroll{height:190px;max-height:26vh}}
