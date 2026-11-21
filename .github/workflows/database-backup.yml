@@ -22,7 +22,7 @@ jobs:
       CBNEST_BACKUP_AGE_RECIPIENT: ${{ vars.CBNEST_BACKUP_AGE_RECIPIENT }}
       CBNEST_BACKUP_AGE_IDENTITY: ${{ secrets.CBNEST_BACKUP_AGE_IDENTITY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: supabase/setup-cli@v1
         with:

@@ -69,7 +69,7 @@ jobs:
       LOAD_TEST_PROFILE: ${{ inputs.profile || 'full' }}
     steps:
       - name: Check out main commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
