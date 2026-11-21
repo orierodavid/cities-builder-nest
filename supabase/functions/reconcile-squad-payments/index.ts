@@ -173,6 +173,80 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  const { data: walletRows, error: walletRowsError } = await admin.from("squad_wallet_funding_intents")
+    .select("id,resident_user_id,reference,amount_kobo,currency,status,created_at,last_reconciled_at")
+    .in("status", ["pending", "failed"]).is("verified_at", null)
+    .lt("created_at", staleBefore)
+    .or(`last_reconciled_at.is.null,last_reconciled_at.lt.${retryBefore}`)
+    .order("created_at", { ascending: true }).limit(50);
+  if (walletRowsError) return reply(503, { error: "wallet_funding_lookup_failed" });
+  for (const row of walletRows ?? []) {
+    totals.scanned += 1;
+    let verified: Record<string, unknown>;
+    try { verified = await verifyPayment(base, squadSecret, row.reference); }
+    catch {
+      totals.unavailable += 1;
+      const { error } = await admin.from("squad_wallet_funding_intents").update({ last_reconciled_at: attemptedAt })
+        .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
+      if (error) return reply(500, { error: "wallet_funding_update_failed" });
+      continue;
+    }
+    const status = String(verified.transaction_status ?? "").toLowerCase();
+    if (status === "not_found") {
+      const ageMs = Date.now() - new Date(row.created_at).getTime();
+      if (Number.isFinite(ageMs) && ageMs >= 15 * 60_000) {
+        const { data: updated, error } = await admin.from("squad_wallet_funding_intents")
+          .update({ status: "failed", verified_at: attemptedAt, last_reconciled_at: attemptedAt })
+          .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null).select("id").maybeSingle();
+        if (error) return reply(500, { error: "wallet_funding_update_failed" });
+        if (updated) totals.failed += 1;
+      } else {
+        await admin.from("squad_wallet_funding_intents").update({ last_reconciled_at: attemptedAt })
+          .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
+        totals.stillPending += 1;
+      }
+      continue;
+    }
+    const amount = Number(verified.transaction_amount ?? verified.amount);
+    const currency = String(verified.transaction_currency_id ?? verified.currency ?? "").toUpperCase();
+    const reference = String(verified.transaction_ref ?? "");
+    const { data: authUser, error: userError } = await admin.auth.admin.getUserById(row.resident_user_id);
+    const emailMatches = Boolean(authUser?.user?.email) &&
+      String(verified.email ?? "").toLowerCase() === authUser.user.email!.toLowerCase();
+    if (userError || !Number.isSafeInteger(amount) || amount !== Number(row.amount_kobo) ||
+        currency !== "NGN" || row.currency !== "NGN" || reference !== row.reference || !emailMatches ||
+        !["success", "failed", "abandoned", "pending"].includes(status)) {
+      totals.mismatched += 1;
+      await admin.from("squad_wallet_funding_intents").update({ last_reconciled_at: attemptedAt })
+        .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
+      continue;
+    }
+    if (status === "success") {
+      const { error: creditError } = await admin.rpc("post_verified_wallet_credit", {
+        p_resident_user_id: row.resident_user_id, p_amount_kobo: amount, p_source: "squad_checkout",
+        p_external_reference: `squad:wallet:${row.reference}`, p_provider_reference: row.reference,
+        p_description: "Wallet funding via Squad",
+        p_metadata: { provider: "squad", reference: row.reference, currency: "NGN", purpose: "wallet_funding" },
+      });
+      if (creditError) return reply(500, { error: "wallet_credit_post_failed" });
+      const { data: updated, error } = await admin.from("squad_wallet_funding_intents")
+        .update({ status: "successful", verified_at: attemptedAt, last_reconciled_at: attemptedAt })
+        .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null).select("id").maybeSingle();
+      if (error) return reply(500, { error: "wallet_funding_update_failed" });
+      if (updated) totals.successful += 1;
+    } else if (status === "failed" || status === "abandoned") {
+      const { data: updated, error } = await admin.from("squad_wallet_funding_intents")
+        .update({ status: "failed", verified_at: attemptedAt, last_reconciled_at: attemptedAt })
+        .eq("id", row.id).eq("status", "pending").is("verified_at", null).select("id").maybeSingle();
+      if (error) return reply(500, { error: "wallet_funding_update_failed" });
+      if (updated) totals.failed += 1;
+    } else {
+      await admin.from("squad_wallet_funding_intents").update({ last_reconciled_at: attemptedAt })
+        .eq("id", row.id).in("status", ["pending", "failed"]).is("verified_at", null);
+      totals.stillPending += 1;
+    }
+  }
+
   const { data: utilityRows, error: utilityError } = await admin.from("utility_transactions")
     .select("id,validation_id,service,merchant_reference,status,created_at,last_reconciled_at,receipt")
     .eq("status", "pending")
