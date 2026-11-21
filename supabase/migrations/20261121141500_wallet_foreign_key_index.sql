@@ -1,0 +1,1 @@
+create index if not exists wallet_transactions_wallet_owner_idx on public.wallet_transactions(wallet_id,resident_user_id);
