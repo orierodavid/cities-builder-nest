@@ -12,10 +12,10 @@ type SettingsRow = {
   rent_savings_enabled: boolean; rent_savings_fee_mode: FeeMode; rent_savings_fee_value: number;
 };
 
-const categories: { key: FeeKey; title: string; description: string }[] = [
-  { key: "electricity", title: "Electricity vending", description: "Applied to electricity purchases across every estate." },
-  { key: "service_charge", title: "Service charges", description: "Applied to service-charge payments across every estate." },
-  { key: "rent_savings", title: "Save for Rent", description: "Applied to every rent-savings contribution across every estate." },
+const categories: { key: FeeKey; title: string; description: string; configurable: boolean }[] = [
+  { key: "electricity", title: "Electricity vending", description: "Will apply to electricity purchases across every estate after electricity is moved to central payment checkout.", configurable: false },
+  { key: "service_charge", title: "Service charges", description: "Applied to service-charge payments across every estate.", configurable: true },
+  { key: "rent_savings", title: "Save for Rent", description: "Applied to every rent-savings contribution across every estate.", configurable: true },
 ];
 
 function fromRow(row: SettingsRow): Record<FeeKey, FeeConfig> {
@@ -105,22 +105,22 @@ export default function PaymentFeeSettingsPanel() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div><strong>{item.title}</strong><p style={{ margin: "4px 0 0", color: "var(--muted, #9A9A9A)", fontSize: 13 }}>{item.description}</p></div>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700 }}>
-                  <input type="checkbox" checked={fee.enabled} onChange={(event) => change(item.key, { enabled: event.target.checked })} />
+                  <input type="checkbox" checked={fee.enabled} disabled={!item.configurable} onChange={(event) => change(item.key, { enabled: event.target.checked })} />
                   Enabled
                 </label>
               </div>
               <div className="user-form-grid">
                 <label>Fee type
-                  <select value={fee.mode} onChange={(event) => change(item.key, { mode: event.target.value as FeeMode })}>
+                  <select value={fee.mode} disabled={!item.configurable} onChange={(event) => change(item.key, { mode: event.target.value as FeeMode })}>
                     <option value="fixed">Fixed amount (NGN)</option>
                     <option value="percentage">Percentage (%)</option>
                   </select>
                 </label>
                 <label>{fee.mode === "fixed" ? "Fee amount (NGN)" : "Fee rate (%)"}
-                  <input type="number" min="0" max={fee.mode === "fixed" ? "100000000" : "100"} step="0.01" value={fee.value} onChange={(event) => change(item.key, { value: event.target.value })} />
+                  <input type="number" min="0" max={fee.mode === "fixed" ? "100000000" : "100"} step="0.01" value={fee.value} disabled={!item.configurable} onChange={(event) => change(item.key, { value: event.target.value })} />
                 </label>
               </div>
-              <small style={{ color: "var(--muted, #9A9A9A)" }}>Applies identically to all estates. Set to zero or disable to collect no fee.</small>
+              <small style={{ color: "var(--muted, #9A9A9A)" }}>{item.configurable ? "Applies identically to all estates. Set to zero or disable to collect no fee." : "Not active yet. Electricity currently uses direct vending, so no electricity fee can be collected safely until its checkout flow is converted."}</small>
             </div>
           );
         })}
