@@ -6,6 +6,7 @@ import { supabase } from '../../src/lib/supabase';
 import { theme } from '../../src/theme/theme';
 
 type Estate = { id: string; name: string };
+type WalletTransaction = { id: string; entry_type: 'credit' | 'debit'; amount_kobo: number; source: string; description: string; created_at: string };
 type VirtualAccount = {
   id: string;
   estate_id: string;
@@ -25,6 +26,7 @@ export default function WalletScreen() {
   const [accounts, setAccounts] = useState<VirtualAccount[]>([]);
   const [walletBalanceKobo, setWalletBalanceKobo] = useState<number | null>(null);
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyEstate, setBusyEstate] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -40,7 +42,7 @@ export default function WalletScreen() {
       return;
     }
 
-    const [membershipResult, accountResult, balanceResult] = await Promise.all([
+    const [membershipResult, accountResult, balanceResult, transactionResult] = await Promise.all([
       supabase.from('estate_memberships')
         .select('estate_id, estate:estates(id,name)')
         .eq('user_id', user.id)
@@ -51,6 +53,7 @@ export default function WalletScreen() {
         .eq('resident_user_id', user.id)
         .order('created_at', { ascending: false }),
       supabase.rpc('get_my_wallet_balance'),
+      supabase.rpc('get_my_wallet_transactions', { p_limit: 20 }),
     ]);
 
     if (membershipResult.error || accountResult.error) {
@@ -68,6 +71,7 @@ export default function WalletScreen() {
     const wallet = Array.isArray(balanceResult.data) ? balanceResult.data[0] : null;
     setWalletBalanceKobo(wallet ? Number(wallet.balance_kobo) : null);
     setWalletStatus(wallet?.status ?? null);
+    setTransactions((transactionResult.data || []) as WalletTransaction[]);
     setLoading(false);
   }, []);
 
@@ -121,6 +125,21 @@ export default function WalletScreen() {
           <Text style={{ color: theme.goldSoft, fontWeight: '800' }}>VIEW PAYMENT HISTORY</Text>
         </TouchableOpacity>
       </Card>
+
+      <SectionTitle>Wallet transactions</SectionTitle>
+      {transactions.length ? transactions.map((transaction) => (
+        <Card key={transaction.id}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: theme.text, fontSize: 13, fontWeight: '700', flex: 1, marginRight: 12 }}>{transaction.description}</Text>
+            <Text style={{ color: transaction.entry_type === 'credit' ? '#79D6A1' : theme.text, fontSize: 14, fontWeight: '900' }}>
+              {transaction.entry_type === 'credit' ? '+' : '−'}₦{(Number(transaction.amount_kobo) / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </Text>
+          </View>
+          <Text style={{ color: theme.muted, fontSize: 11, marginTop: 6 }}>{new Date(transaction.created_at).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' })}</Text>
+        </Card>
+      )) : (
+        <Card><Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18 }}>No wallet transactions yet. Confirmed wallet funding and wallet payments will appear here.</Text></Card>
+      )}
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
         <SectionTitle>Virtual accounts</SectionTitle>
