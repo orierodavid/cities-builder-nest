@@ -127,6 +127,9 @@ export default function RentSavings({ residentUserId, estateId }: Props) {
         checkoutUrl: typeof data.checkoutUrl === "string" ? data.checkoutUrl : "",
         reference: data.transactionReference,
         paymentType: "rent_savings",
+        amountKobo: String(data.amountKobo ?? Math.round(naira * 100)),
+        feeKobo: String(data.feeKobo ?? 0),
+        totalAmountKobo: String(data.totalAmountKobo ?? data.amountKobo ?? Math.round(naira * 100)),
       } });
     } catch (error) {
       setMessage("We could not confirm whether the payment started. Check its status before trying again.");
