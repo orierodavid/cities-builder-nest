@@ -10,6 +10,11 @@ const reply = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers });
 const makeRef = () =>
   `CBNEST${Date.now().toString(36).toUpperCase()}${crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
+const calculateFee = (principalKobo: number, enabled: boolean, mode: string, value: number) => {
+  if (!enabled || value <= 0) return 0;
+  const fee = mode === "percentage" ? Math.round(principalKobo * value / 10000) : value;
+  return Number.isSafeInteger(fee) && fee >= 0 && principalKobo + fee <= Number.MAX_SAFE_INTEGER ? fee : -1;
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers });
@@ -63,9 +68,15 @@ Deno.serve(async (req: Request) => {
   ]);
   if (pe || me) return reply(503, { error: "resident_context_unavailable" });
   if (!profile?.full_name || !auth.user.email || !members?.length) return reply(403, { error: "active_resident_profile_required" });
+  const { data: feeSettings, error: feeSettingsError } = await admin.from("platform_payment_fee_settings")
+    .select("service_charge_enabled,service_charge_fee_mode,service_charge_fee_value,rent_savings_enabled,rent_savings_fee_mode,rent_savings_fee_value")
+    .eq("id", 1).single();
+  if (feeSettingsError || !feeSettings) return reply(503, { error: "payment_fee_settings_unavailable" });
 
   let estateId = "";
   let amountKobo = 0;
+  let feeKobo = 0;
+  let totalAmountKobo = 0;
   let ledgerId = "";
   let table = "";
   let ref = makeRef();
@@ -84,7 +95,7 @@ Deno.serve(async (req: Request) => {
     if (paid) return reply(409, { error: "service_charge_already_paid" });
 
     const { data: pending, error: pendingError } = await admin.from("service_charge_payments")
-      .select("id,provider_reference,amount_kobo").eq("charge_id", charge.id)
+      .select("id,provider_reference,amount_kobo,fee_kobo,total_amount_kobo").eq("charge_id", charge.id)
       .eq("resident_user_id", auth.user.id).eq("status", "pending").maybeSingle();
     if (pendingError) return reply(503, { error: "pending_payment_lookup_failed" });
     if (pending?.provider_reference) {
@@ -92,6 +103,8 @@ Deno.serve(async (req: Request) => {
         status: "pending",
         transactionReference: pending.provider_reference,
         amountKobo: Number(pending.amount_kobo),
+        feeKobo: Number(pending.fee_kobo ?? 0),
+        totalAmountKobo: Number(pending.total_amount_kobo ?? pending.amount_kobo),
         currency: "NGN",
         confirmationPending: true,
       });
@@ -99,19 +112,23 @@ Deno.serve(async (req: Request) => {
 
     estateId = charge.estate_id;
     amountKobo = Number(charge.amount_kobo);
+    feeKobo = calculateFee(amountKobo, feeSettings.service_charge_enabled,
+      feeSettings.service_charge_fee_mode, Number(feeSettings.service_charge_fee_value));
+    totalAmountKobo = amountKobo + feeKobo;
     table = "service_charge_payments";
-    if (!Number.isSafeInteger(amountKobo) || amountKobo <= 0) return reply(409, { error: "invalid_service_charge_amount" });
+    if (!Number.isSafeInteger(amountKobo) || amountKobo <= 0 || feeKobo < 0 || !Number.isSafeInteger(totalAmountKobo)) return reply(409, { error: "invalid_service_charge_amount" });
     const { data: row, error: insertError } = await admin.from(table).insert({
       charge_id: charge.id, estate_id: estateId, resident_user_id: auth.user.id,
-      amount_kobo: amountKobo, currency: "NGN", status: "pending",
-      provider: "squad", provider_reference: ref,
+      amount_kobo: amountKobo, fee_kobo: feeKobo, total_amount_kobo: totalAmountKobo,
+      currency: "NGN", status: "pending", provider: "squad", provider_reference: ref,
     }).select("id").single();
     if (insertError || !row) {
-      const { data: raced } = await admin.from(table).select("provider_reference,amount_kobo")
+      const { data: raced } = await admin.from(table).select("provider_reference,amount_kobo,fee_kobo,total_amount_kobo")
         .eq("charge_id", charge.id).eq("resident_user_id", auth.user.id).eq("status", "pending").maybeSingle();
       if (raced?.provider_reference) {
         return reply(202, { status: "pending", transactionReference: raced.provider_reference,
-          amountKobo: Number(raced.amount_kobo), currency: "NGN", confirmationPending: true });
+          amountKobo: Number(raced.amount_kobo), feeKobo: Number(raced.fee_kobo ?? 0),
+          totalAmountKobo: Number(raced.total_amount_kobo ?? raced.amount_kobo), currency: "NGN", confirmationPending: true });
       }
       return reply(409, { error: "payment_record_create_failed" });
     }
@@ -129,30 +146,36 @@ Deno.serve(async (req: Request) => {
     }
 
     const { data: pending, error: pendingError } = await admin.from("rent_savings_contributions")
-      .select("id,provider_reference,amount_kobo").eq("goal_id", goal.id)
+      .select("id,provider_reference,amount_kobo,fee_kobo,total_amount_kobo").eq("goal_id", goal.id)
       .eq("resident_user_id", auth.user.id).eq("amount_kobo", requested)
       .eq("status", "pending").maybeSingle();
     if (pendingError) return reply(503, { error: "pending_contribution_lookup_failed" });
     if (pending?.provider_reference) {
       return reply(202, { status: "pending", transactionReference: pending.provider_reference,
-        amountKobo: Number(pending.amount_kobo), currency: "NGN", confirmationPending: true });
+        amountKobo: Number(pending.amount_kobo), feeKobo: Number(pending.fee_kobo ?? 0),
+        totalAmountKobo: Number(pending.total_amount_kobo ?? pending.amount_kobo), currency: "NGN", confirmationPending: true });
     }
 
     estateId = goal.estate_id;
     amountKobo = requested;
+    feeKobo = calculateFee(amountKobo, feeSettings.rent_savings_enabled,
+      feeSettings.rent_savings_fee_mode, Number(feeSettings.rent_savings_fee_value));
+    totalAmountKobo = amountKobo + feeKobo;
     table = "rent_savings_contributions";
+    if (feeKobo < 0 || !Number.isSafeInteger(totalAmountKobo)) return reply(409, { error: "invalid_savings_contribution_amount" });
     const { data: row, error: insertError } = await admin.from(table).insert({
       goal_id: goal.id, resident_user_id: auth.user.id, estate_id: estateId,
-      amount_kobo: amountKobo, currency: "NGN", status: "pending",
-      provider: "squad", provider_reference: ref,
+      amount_kobo: amountKobo, fee_kobo: feeKobo, total_amount_kobo: totalAmountKobo,
+      currency: "NGN", status: "pending", provider: "squad", provider_reference: ref,
     }).select("id").single();
     if (insertError || !row) {
-      const { data: raced } = await admin.from(table).select("provider_reference,amount_kobo")
+      const { data: raced } = await admin.from(table).select("provider_reference,amount_kobo,fee_kobo,total_amount_kobo")
         .eq("goal_id", goal.id).eq("resident_user_id", auth.user.id)
         .eq("amount_kobo", amountKobo).eq("status", "pending").maybeSingle();
       if (raced?.provider_reference) {
         return reply(202, { status: "pending", transactionReference: raced.provider_reference,
-          amountKobo: Number(raced.amount_kobo), currency: "NGN", confirmationPending: true });
+          amountKobo: Number(raced.amount_kobo), feeKobo: Number(raced.fee_kobo ?? 0),
+          totalAmountKobo: Number(raced.total_amount_kobo ?? raced.amount_kobo), currency: "NGN", confirmationPending: true });
       }
       return reply(409, { error: "contribution_record_create_failed" });
     }
@@ -166,12 +189,13 @@ Deno.serve(async (req: Request) => {
       headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
       signal: AbortSignal.timeout(15_000),
       body: JSON.stringify({
-        email: auth.user.email, amount: amountKobo, currency: "NGN",
+        email: auth.user.email, amount: totalAmountKobo, currency: "NGN",
         customer_name: profile.full_name, initiate_type: "inline",
         transaction_ref: ref, callback_url: "citiesbuildernest://payment-return",
         payment_channels: ["card", "bank", "ussd", "transfer"], pass_charge: false,
         metadata: { app: "cities-builder-nest", payment_type: type, ledger_id: ledgerId,
-          resident_user_id: auth.user.id, estate_id: estateId },
+          resident_user_id: auth.user.id, estate_id: estateId, principal_amount_kobo: amountKobo,
+          platform_fee_kobo: feeKobo, total_amount_kobo: totalAmountKobo },
       }),
     });
 
@@ -187,13 +211,13 @@ Deno.serve(async (req: Request) => {
       ? result.data as Record<string, unknown> : result;
     const checkout = resultData.checkout_url;
     if (response.ok && result.success === true && typeof checkout === "string" && checkout.startsWith("https://")) {
-      return reply(200, { checkoutUrl: checkout, transactionReference: ref, amountKobo,
-        currency: "NGN", environment: mode, status: "pending" });
+      return reply(200, { checkoutUrl: checkout, transactionReference: ref, amountKobo, feeKobo,
+        totalAmountKobo, currency: "NGN", environment: mode, status: "pending" });
     }
 
     if (response.status >= 500 || response.status === 408 || !raw || !Object.keys(result).length || response.ok) {
-      return reply(202, { status: "pending", transactionReference: ref, amountKobo,
-        currency: "NGN", confirmationPending: true });
+      return reply(202, { status: "pending", transactionReference: ref, amountKobo, feeKobo,
+        totalAmountKobo, currency: "NGN", confirmationPending: true });
     }
 
     const { error: updateError } = await admin.from(table)
@@ -203,7 +227,7 @@ Deno.serve(async (req: Request) => {
   } catch {
     // A timeout or dropped connection does not prove that Squad rejected the charge.
     // Keep the ledger pending; webhook and scheduled verification will reconcile it.
-    return reply(202, { status: "pending", transactionReference: ref, amountKobo,
-      currency: "NGN", confirmationPending: true });
+    return reply(202, { status: "pending", transactionReference: ref, amountKobo, feeKobo,
+      totalAmountKobo, currency: "NGN", confirmationPending: true });
   }
 });
