@@ -9,7 +9,7 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
   const [status, setStatus] = useState<LegalStatus | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [checking, setChecking] = useState(true);
-  const [checked, setChecked] = useState<string[]>([]);
+  const [readToEnd, setReadToEnd] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -91,7 +91,7 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
   }, []);
 
   async function accept() {
-    if (!status || status.documents.length < 2 || checked.length !== status.documents.length) return;
+    if (!status || status.documents.length < 2 || readToEnd.length !== status.documents.length) return;
     setBusy(true);
     setError("");
     const { error: acceptError } = await supabase.rpc("accept_legal_documents", {
