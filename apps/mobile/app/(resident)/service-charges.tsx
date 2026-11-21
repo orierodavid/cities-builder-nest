@@ -125,6 +125,9 @@ export default function ServiceChargesScreen() {
         checkoutUrl: typeof data.checkoutUrl === "string" ? data.checkoutUrl : "",
         reference: data.transactionReference,
         paymentType: "service_charge",
+        amountKobo: String(data.amountKobo ?? 0),
+        feeKobo: String(data.feeKobo ?? 0),
+        totalAmountKobo: String(data.totalAmountKobo ?? data.amountKobo ?? 0),
       } });
     } catch (e) {
       setPaymentMessage('We could not confirm whether the payment started. Check its status before trying again.');
