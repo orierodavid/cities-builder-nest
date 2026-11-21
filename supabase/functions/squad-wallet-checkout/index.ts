@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
     if (response.status >= 500 || response.status === 408 || !raw || !Object.keys(result).length || response.ok) {
       return reply(202, { status: "pending", transactionReference: reference, confirmationPending: true });
     }
-    await admin.from("squad_wallet_funding_intents").update({ status: "failed", verified_at: new Date().toISOString() }).eq("reference", reference).eq("status", "pending");
+    await admin.from("squad_wallet_funding_intents").update({ status: "failed" }).eq("reference", reference).eq("status", "pending");
     return reply(502, { error: "squad_checkout_initialization_failed" });
   } catch {
     return reply(202, { status: "pending", transactionReference: reference, confirmationPending: true });
