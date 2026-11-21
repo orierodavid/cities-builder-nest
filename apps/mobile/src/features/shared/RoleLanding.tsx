@@ -164,7 +164,6 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
    </View>
   </ScrollView>
   <View style={s.carouselDots}><View style={carouselIndex===0?s.carouselDotActive:s.carouselDot}/><View style={carouselIndex===1?s.carouselDotActive:s.carouselDot}/></View>
- </View>
   <View style={s.imageCarouselSection}>
    <View style={s.imageCarouselHeading}><Text style={s.imageCarouselHeadingText}>AROUND YOUR COMMUNITY</Text><Text style={s.imageCarouselHint}>Community highlights and updates</Text></View>
    <ScrollView ref={imageCarouselRef} horizontal pagingEnabled decelerationRate="fast" snapToInterval={imageCarouselCardWidth+10} onMomentumScrollEnd={event=>setImageCarouselIndex(Math.max(0,Math.min(2,Math.round(event.nativeEvent.contentOffset.x/(imageCarouselCardWidth+10)))))} showsHorizontalScrollIndicator={false} contentContainerStyle={s.carouselContent}>
