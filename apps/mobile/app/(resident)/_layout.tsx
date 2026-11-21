@@ -18,14 +18,14 @@ export default function ResidentLayout() {
       <Tabs.Screen name="notifications" options={{ title: 'Notifications' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       <Tabs.Screen name="community" options={{ title: 'Community' }} />
-      <Tabs.Screen name="support" options={{ title: 'Support', href: null }} />
+      <Tabs.Screen name="support" options={{ title: 'Support' }} />
       <Tabs.Screen name="maintain" options={{ title: 'Maintenance' }} />
       <Tabs.Screen name="property" options={{ title: 'Property' }} />
       <Tabs.Screen name="visitors" options={{ title: 'Visitors' }} />
       <Tabs.Screen name="events" options={{ title: 'Events' }} />
       <Tabs.Screen name="service-charges" options={{ title: 'Service Charges' }} />
       <Tabs.Screen name="payments" options={{ title: 'Payments' }} />
-      <Tabs.Screen name="wallet" options={{ title: 'Wallet', href: null }} />
+      <Tabs.Screen name="wallet" options={{ title: 'Wallet' }} />
       <Tabs.Screen name="utilities" options={{ title: 'Utilities' }} />
       <Tabs.Screen name="save-for-rent" options={{ title: 'Save for Rent' }} />
       <Tabs.Screen name="electricity" options={{ title: 'Electricity', href: null }} />
