@@ -24,7 +24,7 @@ export default function SplashScreen() {
       <Animated.View style={[s.brand, { opacity: fade, transform: [{ scale: pulse }] }]}>
         <AppLogo size={logoSize} />
         <View style={s.rule} />
-        <Text style={s.promise}>A better way to live, manage and belong.</Text>
+        <Text style={s.promise}>Building Smarter, Safer Communities, One Step at a Time.</Text>
       </Animated.View>
       <View style={[s.bottom, { bottom: Math.max(54, insets.bottom + 24) }]}>
         <View style={s.dot} />
