@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 type PaymentRow = {
   id: string;
   amount_kobo: number | string;
+  total_amount_kobo: number | string;
   currency: string;
   status: string;
   resident_user_id: string;
@@ -75,7 +76,7 @@ Deno.serve(async (req: Request) => {
 
   for (const table of tables) {
     const { data, error } = await admin.from(table)
-      .select("id,amount_kobo,currency,status,resident_user_id,provider_reference,created_at,last_reconciled_at")
+      .select("id,amount_kobo,total_amount_kobo,currency,status,resident_user_id,provider_reference,created_at,last_reconciled_at")
       .in("status", ["pending", "failed"])
       .is("verified_at", null)
       .eq("provider", "squad")
@@ -120,7 +121,7 @@ Deno.serve(async (req: Request) => {
       const amount = Number(verified.transaction_amount ?? verified.amount);
       const currency = String(verified.transaction_currency_id ?? verified.currency ?? "").toUpperCase();
       const reference = String(verified.transaction_ref ?? "");
-      const ledgerAmount = Number(row.amount_kobo);
+      const ledgerAmount = Number(row.total_amount_kobo ?? row.amount_kobo);
       const { data: authUser, error: userError } = await admin.auth.admin.getUserById(row.resident_user_id);
       if (userError) {
         totals.unavailable += 1;
