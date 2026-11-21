@@ -43,10 +43,10 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
   const [{ data: serviceRow, error: se }, { data: rentRow, error: re }] = await Promise.all([
     admin.from("service_charge_payments")
-      .select("id,amount_kobo,currency,status,resident_user_id,verified_at")
+      .select("id,amount_kobo,fee_kobo,total_amount_kobo,currency,status,resident_user_id,verified_at")
       .eq("provider_reference", ref).maybeSingle(),
     admin.from("rent_savings_contributions")
-      .select("id,amount_kobo,currency,status,resident_user_id,verified_at")
+      .select("id,amount_kobo,fee_kobo,total_amount_kobo,currency,status,resident_user_id,verified_at")
       .eq("provider_reference", ref).maybeSingle(),
   ]);
   if (se || re) return reply(503, { error: "payment_ledger_lookup_failed" });
@@ -78,7 +78,8 @@ Deno.serve(async (req: Request) => {
   const verifiedRef = String(data.transaction_ref ?? "");
   if (!Number.isSafeInteger(amount) || amount <= 0 ||
       !Number.isSafeInteger(Number(row.amount_kobo)) || Number(row.amount_kobo) <= 0 ||
-      verifiedRef !== ref || amount !== Number(row.amount_kobo) || currency !== "NGN") {
+      !Number.isSafeInteger(Number(row.total_amount_kobo ?? row.amount_kobo)) ||
+      verifiedRef !== ref || amount !== Number(row.total_amount_kobo ?? row.amount_kobo) || currency !== "NGN") {
     return reply(409, { error: "verified_transaction_mismatch" });
   }
   if (!["success", "failed", "abandoned", "pending"].includes(status)) {
