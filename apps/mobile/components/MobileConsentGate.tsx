@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, AppState, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, AppState, Modal, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { supabase } from "../lib/supabase";
 import LegalConsentScreen, { type MobileLegalDocument } from "./LegalConsentScreen";
 import SplashScreen from "./SplashScreen";
@@ -92,13 +92,13 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
 
   if (!sessionChecked || checking) return <SplashScreen />;
   if (error) return <View style={styles.center}><Text style={styles.title}>Verification required</Text><Text style={styles.copy}>{error}</Text><TouchableOpacity onPress={() => void refresh()} style={styles.button}><Text style={styles.buttonText}>Retry</Text></TouchableOpacity><TouchableOpacity onPress={() => void supabase.auth.signOut()} style={styles.secondary}><Text style={styles.secondaryText}>Sign out</Text></TouchableOpacity></View>;
-  if (status?.requiresAcceptance) return <ScrollView style={styles.shell} contentContainerStyle={styles.shellContent} keyboardShouldPersistTaps="handled"><LegalConsentScreen documents={status.documents || []} onAccepted={() => void refresh()} onSignOut={() => void supabase.auth.signOut()}/></ScrollView>;
+  if (status?.requiresAcceptance) return <><>{children}</><Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}><View style={styles.modalBackdrop}><ScrollView style={styles.shell} contentContainerStyle={styles.shellContent} keyboardShouldPersistTaps="handled"><LegalConsentScreen documents={status.documents || []} onAccepted={() => void refresh()} onSignOut={() => void supabase.auth.signOut()}/></ScrollView></View></Modal></>;
   return <>{children}</>;
 }
 
 const styles = StyleSheet.create({
   center:{flex:1,backgroundColor:"#080808",alignItems:"center",justifyContent:"center",padding:24,gap:13},
-  shell:{flex:1,backgroundColor:"#080808"},
+  shell:{flex:1,backgroundColor:"#080808",width:"100%"},\n  modalBackdrop:{flex:1,backgroundColor:"rgba(0,0,0,0.92)",justifyContent:"center",padding:10},
   shellContent:{padding:16,paddingTop:32,paddingBottom:40},
   title:{fontSize:21,color:"#FFFFFF",fontWeight:"900"},
   copy:{fontSize:12,lineHeight:18,color:"#C5C5C5",textAlign:"center"},
