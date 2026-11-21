@@ -15,7 +15,7 @@ export default function PaymentCheckoutScreen() {
   const money = (kobo: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 2 }).format(kobo / 100);
   const checkoutUrl = typeof params.checkoutUrl === "string" ? params.checkoutUrl : "";
   const reference = typeof params.reference === "string" ? params.reference : "";
-  const paymentType = params.paymentType === "rent_savings" ? "rent_savings" : "service_charge";
+  const paymentType = params.paymentType === "wallet_funding" ? "wallet_funding" : params.paymentType === "rent_savings" ? "rent_savings" : "service_charge";
   const [checkoutVisible, setCheckoutVisible] = useState(true);
   const [status, setStatus] = useState<PaymentStatus>("pending");
   const [checking, setChecking] = useState(false);
@@ -37,7 +37,13 @@ export default function PaymentCheckoutScreen() {
     setChecking(true);
     try {
       if (verifyWithSquad) {
-        await supabase.functions.invoke("verify-squad-payment", { body: { transactionReference: reference } });
+        const { data: verification, error: verificationError } = await supabase.functions.invoke("verify-squad-payment", { body: { transactionReference: reference } });
+        if (paymentType === "wallet_funding") {
+          if (!verificationError && ["pending", "successful", "failed", "reversed"].includes(String(verification?.status))) {
+            setStatus(String(verification.status) as PaymentStatus);
+          }
+          return;
+        }
       }
       const table = paymentType === "rent_savings" ? "rent_savings_contributions" : "service_charge_payments";
       const { data, error } = await supabase.from(table).select("status,verified_at").eq("provider_reference", reference).maybeSingle();
@@ -159,7 +165,7 @@ export default function PaymentCheckoutScreen() {
           {status === "successful" ? (
             <>
               <Text style={{ color: "#72D6A0", fontSize: 22, fontWeight: "900" }}>Payment confirmed</Text>
-              <Text style={{ color: "#C8C8C8", textAlign: "center", marginTop: 10, lineHeight: 21 }}>Squad has verified this payment. Your CB Nest records will reflect the confirmed transaction.</Text>
+              <Text style={{ color: "#C8C8C8", textAlign: "center", marginTop: 10, lineHeight: 21 }}>Your payment provider has verified this transaction. Your CB Nest records will reflect the confirmed transaction.</Text>
             </>
           ) : status === "failed" || status === "reversed" ? (
             <>
@@ -176,7 +182,7 @@ export default function PaymentCheckoutScreen() {
           {checking && <Text style={{ color: "#777777", fontSize: 10, marginTop: 12 }}>Refreshing secure payment status…</Text>}
           {!!pageError && <Text style={{ color: "#FF9292", fontSize: 12, textAlign: "center", marginTop: 16 }}>{pageError}</Text>}
           <Text style={{ color: "#777777", fontSize: 10, marginTop: 18 }}>Reference: {reference}</Text>
-          <TouchableOpacity onPress={() => router.replace(paymentType === "rent_savings" ? "/save-for-rent" : "/service-charges")} style={{ marginTop: 24, minHeight: 48, paddingHorizontal: 24, backgroundColor: "#D9A93F", borderRadius: 10, justifyContent: "center", alignItems: "center" }}>
+          <TouchableOpacity onPress={() => router.replace(paymentType === "wallet_funding" ? "/wallet" : paymentType === "rent_savings" ? "/save-for-rent" : "/service-charges")} style={{ marginTop: 24, minHeight: 48, paddingHorizontal: 24, backgroundColor: "#D9A93F", borderRadius: 10, justifyContent: "center", alignItems: "center" }}>
             <Text style={{ color: "#080808", fontWeight: "900" }}>Return to CB Nest</Text>
           </TouchableOpacity>
           {status === "pending" && !!checkoutUrl && <TouchableOpacity onPress={() => { setCheckoutVisible(true); setPageError(""); }} style={{ padding: 14 }}><Text style={{ color: "#F0C766", fontWeight: "800" }}>Reopen checkout</Text></TouchableOpacity>}
