@@ -48,7 +48,7 @@ export default function LandingPage() {
       </div>
     </header>
     <section className="hero" id="home"><div className="hero-bg" aria-hidden="true" /><div className="container hero-inner"><div className="hero-copy">
-      <p className="eyebrow">Smarter Estate Management</p><h1>CB Nest — One Platform.<br />A <span className="gold">Better Living</span> Experience.</h1>
+      <p className="eyebrow">Building Smarter, Safer Communities, One Step at a Time</p><h1>CB Nest — One Platform.<br />A <span className="gold">Better Living</span> Experience.</h1>
       <p className="lead">One connected platform for residents, security teams, facility managers and Super Admins—with the right tools for every part of estate living and operations.</p>
       <div className="hero-actions"><a className="btn-solid" href="#how">Discover How It Works ↗</a></div>
       <ul className="hero-badges"><li><Icon name="shield" /><span>Secure<br />&amp; Reliable</span></li><li><Icon name="bolt" /><span>Simple<br />&amp; Efficient</span></li><li><Icon name="users" /><span>A Connected<br />Community</span></li></ul>
@@ -97,6 +97,6 @@ export default function LandingPage() {
       <div className="feature-grid">{features.map(([title, description, icon]) => <article className="feature" key={title}><span className="f-icon">{icon}</span><h3>{title}</h3><p>{description}</p></article>)}</div>
     </div></section>
     <section className="cta" id="contact"><div className="container cta-inner"><div><h2>Ready to build a better-connected estate?</h2><p>Talk to us and see how CB Nest can work for your community.</p></div><a className="btn-solid" href="mailto:info@cbnestltd.com">Get in Touch ↗</a></div></section>
-    <footer className="site-footer"><div className="container footer-inner"><a href="/" className="logo"><img src="/IMG_9873.png" alt="CB Nest Ltd — Building Your Future" /></a><p className="tagline">Building your future. One platform, many estates.</p><a className="footer-email" href="mailto:info@cbnestltd.com">info@cbnestltd.com</a><p className="copy">© {new Date().getFullYear()} CB Nest. All rights reserved.</p></div></footer>
+    <footer className="site-footer"><div className="container footer-inner"><a href="/" className="logo"><img src="/IMG_9873.png" alt="CB Nest Ltd — Building Your Future" /></a><p className="tagline">Building Smarter, Safer Communities, One Step at a Time.</p><a className="footer-email" href="mailto:info@cbnestltd.com">info@cbnestltd.com</a><p className="copy">© {new Date().getFullYear()} CB Nest. All rights reserved.</p></div></footer>
   </main>;
 }
