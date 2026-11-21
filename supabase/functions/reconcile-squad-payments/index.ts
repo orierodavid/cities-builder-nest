@@ -60,8 +60,8 @@ Deno.serve(async (req: Request) => {
   const url = Deno.env.get("SUPABASE_URL");
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const squadSecret = Deno.env.get("SQUAD_SECRET_KEY");
-  const mode = Deno.env.get("SQUAD_ENVIRONMENT") ?? "sandbox";
-  if (!url || !service || !squadSecret || !["sandbox", "live"].includes(mode)) {
+  const mode = Deno.env.get("SQUAD_ENVIRONMENT") ?? "";
+  if (!url || !service || !squadSecret || mode !== "live") {
     return reply(503, { error: "payment_reconciliation_not_configured" });
   }
 
