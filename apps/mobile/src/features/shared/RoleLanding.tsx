@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -15,7 +15,7 @@ type Action = {label:string;icon:IconName;route:string;variant:'gold'|'light'};
 type RoleConfig = {greeting:string;badge?:string;tagline?:string;welcomeTitle?:string;welcomeText?:string;actions?:Action[];tiles:Tile[];columns:2|3;footer?:Tile};
 const CONFIG:Record<Role,RoleConfig>={
 resident:{greeting:'Hello,',tagline:'Building Your Future, One Step at a Time.',welcomeTitle:'Welcome to CB Nest',welcomeText:'A safer, smarter and more convenient community.',columns:3,tiles:[
-{label:'Wallet',icon:'wallet-outline',route:'/wallet'},{label:'Visitor Management',icon:'account-multiple-outline',route:'/visitors'},{label:'Create & Manage Events',icon:'calendar-star',route:'/events'},{label:'Service Charges',icon:'cash-multiple',route:'/service-charges'},{label:'Electricity & Utilities',icon:'lightning-bolt-circle',route:'/utilities'},{label:'Support',icon:'headset',route:'/support'},{label:'Payment History',icon:'file-document-outline',route:'/payments'},{label:'Save for Rent',icon:'wallet-outline',route:'/save-for-rent'},{label:'Maintenance Requests',icon:'tools',route:'/maintain'},{label:'Estate Announcements',icon:'bullhorn-outline',route:'/announcements'}],footer:{label:'My Account',icon:'account-circle-outline',route:'/profile'}},
+{label:'Wallet',icon:'wallet-outline',route:'/(resident)/wallet'},{label:'Visitor Management',icon:'account-multiple-outline',route:'/visitors'},{label:'Create & Manage Events',icon:'calendar-star',route:'/events'},{label:'Service Charges',icon:'cash-multiple',route:'/service-charges'},{label:'Electricity & Utilities',icon:'lightning-bolt-circle',route:'/utilities'},{label:'Support',icon:'headset',route:'/(resident)/support'},{label:'Payment History',icon:'file-document-outline',route:'/payments'},{label:'Save for Rent',icon:'wallet-outline',route:'/save-for-rent'},{label:'Maintenance Requests',icon:'tools',route:'/maintain'},{label:'Estate Announcements',icon:'bullhorn-outline',route:'/announcements'}],footer:{label:'My Account',icon:'account-circle-outline',route:'/profile'}},
 security:{greeting:'Good Morning,',badge:'Security',columns:2,actions:[{label:'Scan Visitor Code',icon:'qrcode-scan',route:'/scan',variant:'gold'},{label:'Enter Access Code',icon:'keyboard-outline',route:'/enter-code',variant:'light'}],tiles:[{label:'Event Guest Verification',icon:'account-check-outline',route:'/event-guests'},{label:'Vehicle Registration',icon:'car-outline',route:'/vehicles'},{label:'Visitor Entry Records',icon:'login',route:'/entry-records'},{label:'Visitor Exit Records',icon:'logout',route:'/exit-records'},{label:'Incident Reporting',icon:'shield-alert-outline',route:'/incidents'},{label:'Emergency Alerts',icon:'alarm-light-outline',route:'/emergency'}],footer:{label:'Shift Handover',icon:'clipboard-text-outline',route:'/handover'}}}
 const C={bg:theme.bg,card:theme.card,cardAlt:'#181818',gold:theme.gold,goldBorder:theme.border,text:theme.text,muted:theme.muted,dark:'#0A0A0A'};
 type Props={role:Role;name?:string;unit?:string;hasUnread?:boolean};
@@ -23,9 +23,11 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
  const router=useRouter(); const cfg=CONFIG[role]; const [signingOut,setSigningOut]=useState(false);
  const { width: windowWidth } = useWindowDimensions();
  const carouselCardWidth = Math.max(240, windowWidth - 56);
+ const carouselRef = useRef<ScrollView>(null);
+ const [carouselIndex, setCarouselIndex] = useState(0);
  const [walletBalanceKobo,setWalletBalanceKobo]=useState<number|null>(null); const [walletBalanceLoading,setWalletBalanceLoading]=useState(role==='resident');
  const [residentName,setResidentName]=useState(providedName||''); const [residentUnit,setResidentUnit]=useState(providedUnit||''); const [profileLoading,setProfileLoading]=useState(role==='resident'); const [profileError,setProfileError]=useState('');
- const go=(route:string)=>router.push(route as never);
+ const go=(route:string)=>router.push((role==='resident' && (route==='/wallet'||route==='/support') ? `/(resident)${route}` : route) as never);
  const loadWalletBalance=async()=>{
   if(role!=='resident')return;
   setWalletBalanceLoading(true);
@@ -44,6 +46,17 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   }
  };
  useEffect(()=>{if(role==='resident')void loadWalletBalance();},[role]);
+ useEffect(()=>{
+  if(role!=='resident')return;
+  const timer=setInterval(()=>{
+   setCarouselIndex(current=>{
+    const next=(current+1)%2;
+    carouselRef.current?.scrollTo({x:next*(carouselCardWidth+10),animated:true});
+    return next;
+   });
+  },5000);
+  return ()=>clearInterval(timer);
+ },[role,carouselCardWidth]);
  const loadResidentDetails=async()=>{
   if(role!=='resident')return;
   setProfileError('');
@@ -136,7 +149,7 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   <Pressable onPress={()=>go('/wallet')} style={s.walletFooter} accessibilityRole="button" accessibilityLabel="View wallet and transactions"><Text style={s.walletHint}>View wallet and transactions</Text><MaterialCommunityIcons name="chevron-right" size={18} color={C.gold}/></Pressable>
  </View>:null}
  {role==='resident'?<View style={s.carouselWrap}>
-  <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={s.carouselContent}>
+  <ScrollView ref={carouselRef} horizontal pagingEnabled decelerationRate="fast" snapToInterval={carouselCardWidth+10} onMomentumScrollEnd={event=>setCarouselIndex(Math.max(0,Math.min(1,Math.round(event.nativeEvent.contentOffset.x/(carouselCardWidth+10)))))} showsHorizontalScrollIndicator={false} contentContainerStyle={s.carouselContent}>
    <View style={[s.carouselCard,{width:carouselCardWidth}]}>
     <Text style={s.bannerEyebrow}>COMMUNITY SPOTLIGHT</Text>
     <Text style={s.carouselTitle}>A safer, smarter and more connected community.</Text>
@@ -148,7 +161,7 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
     <Text style={s.carouselSubtext}>Contact our team to discuss availability, pricing and duration.</Text>
    </View>
   </ScrollView>
-  <View style={s.carouselDots}><View style={s.carouselDotActive}/><View style={s.carouselDot}/></View>
+  <View style={s.carouselDots}><View style={carouselIndex===0?s.carouselDotActive:s.carouselDot}/><View style={carouselIndex===1?s.carouselDotActive:s.carouselDot}/></View>
  </View>:cfg.welcomeTitle?<View style={s.banner}><Text style={s.bannerTitle}>{cfg.welcomeTitle}</Text><Text style={s.bannerText}>{cfg.welcomeText}</Text></View>:null}
  {cfg.actions?.map(a=><Pressable key={a.label} onPress={()=>go(a.route)} style={({pressed})=>[s.action,a.variant==='gold'?s.actionGold:s.actionLight,pressed&&{opacity:0.85}]}><MaterialCommunityIcons name={a.icon} size={24} color={C.dark}/><Text style={s.actionText}>{a.label}</Text><MaterialCommunityIcons name="chevron-right" size={22} color={C.dark}/></Pressable>)}
  <View style={s.grid}>{cfg.tiles.map(tile=><Pressable key={tile.label} onPress={()=>go(tile.route)} style={({pressed})=>[s.tile,{width:tileBasis},pressed&&{opacity:0.8}]}><MaterialCommunityIcons name={tile.icon} size={26} color={C.gold}/><Text style={s.tileText} numberOfLines={2}>{tile.label}</Text></Pressable>)}</View>
