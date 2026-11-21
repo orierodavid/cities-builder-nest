@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Alert, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -21,8 +21,29 @@ const C={bg:theme.bg,card:theme.card,cardAlt:'#181818',gold:theme.gold,goldBorde
 type Props={role:Role;name?:string;unit?:string;hasUnread?:boolean};
 export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}:Props){
  const router=useRouter(); const cfg=CONFIG[role]; const [signingOut,setSigningOut]=useState(false);
+ const { width: windowWidth } = useWindowDimensions();
+ const carouselCardWidth = Math.max(240, windowWidth - 56);
+ const [walletBalanceKobo,setWalletBalanceKobo]=useState<number|null>(null); const [walletBalanceLoading,setWalletBalanceLoading]=useState(role==='resident');
  const [residentName,setResidentName]=useState(providedName||''); const [residentUnit,setResidentUnit]=useState(providedUnit||''); const [profileLoading,setProfileLoading]=useState(role==='resident'); const [profileError,setProfileError]=useState('');
  const go=(route:string)=>router.push(route as never);
+ const loadWalletBalance=async()=>{
+  if(role!=='resident')return;
+  setWalletBalanceLoading(true);
+  try{
+   const {data:{session},error:sessionError}=await supabase.auth.getSession();
+   if(sessionError)throw sessionError;
+   if(!session?.user)throw new Error('Session unavailable');
+   const {data,error}=await supabase.rpc('get_my_wallet_balance');
+   if(error)throw error;
+   const wallet=Array.isArray(data)?data[0]:null;
+   setWalletBalanceKobo(wallet?Number(wallet.balance_kobo):null);
+  }catch{
+   setWalletBalanceKobo(null);
+  }finally{
+   setWalletBalanceLoading(false);
+  }
+ };
+ useEffect(()=>{if(role==='resident')void loadWalletBalance();},[role]);
  const loadResidentDetails=async()=>{
   if(role!=='resident')return;
   setProfileError('');
@@ -92,8 +113,14 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   return <SafeAreaView style={s.safe} edges={['top']}><ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
    <AppLogo size={34} compact />
    <View style={s.skeletonTagline}/>
-   <View style={s.greetRow}><View style={s.avatar}><View style={s.skeletonAvatarInner}/></View><View style={{flex:1,gap:7}}><View style={[s.skeletonLine,{width:'22%'}]}/><View style={[s.skeletonLine,{width:'58%',height:16}]}/><View style={[s.skeletonLine,{width:'43%'}]}/></View><MaterialCommunityIcons name="bell-outline" size={24} color={C.text}/></View>
-   <View style={s.banner}><View style={[s.skeletonLine,{width:'62%',height:20,marginBottom:9}]}/><View style={[s.skeletonLine,{width:'88%'}]}/><View style={[s.skeletonLine,{width:'65%',marginTop:6}]}/></View>
+   <View style={s.walletCard}><View style={[s.skeletonLine,{width:'35%'}]}/><View style={[s.skeletonLine,{width:'58%',height:22,marginTop:10}]}/></View>
+   {role==='resident'?<Pressable onPress={()=>go('/wallet')} style={s.walletCard} accessibilityRole="button" accessibilityLabel="Open wallet">
+  <View style={s.walletHeader}><Text style={s.walletEyebrow}>WALLET BALANCE</Text><MaterialCommunityIcons name="wallet-outline" size={20} color={C.gold}/></View>
+  <Text style={s.walletAmount}>{walletBalanceLoading?'Loading balance…':walletBalanceKobo===null?'Wallet not activated':`₦${(walletBalanceKobo/100).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2})}`}</Text>
+  <View style={s.walletFooter}><Text style={s.walletHint}>View wallet and transactions</Text><MaterialCommunityIcons name="chevron-right" size={18} color={C.gold}/></View>
+ </Pressable>:null}
+ <View style={s.greetRow}><View style={s.avatar}><View style={s.skeletonAvatarInner}/></View><View style={{flex:1,gap:7}}><View style={[s.skeletonLine,{width:'22%'}]}/><View style={[s.skeletonLine,{width:'58%',height:16}]}/><View style={[s.skeletonLine,{width:'43%'}]}/></View><MaterialCommunityIcons name="bell-outline" size={24} color={C.text}/></View>
+   <View style={s.carouselSkeleton}><View style={[s.skeletonLine,{width:'45%'}]}/><View style={[s.skeletonLine,{width:'78%',marginTop:9}]}/></View>
    <View style={s.grid}>{cfg.tiles.map((tile)=><View key={tile.label} style={[s.tile,{width:tileBasis}]}><MaterialCommunityIcons name={tile.icon} size={26} color={C.gold}/><View style={[s.skeletonTileLabel,{width:'82%'}]}/></View>)}</View>
    {cfg.footer?<View style={s.footer}><MaterialCommunityIcons name={cfg.footer.icon} size={20} color={C.gold}/><View style={[s.skeletonTileLabel,{width:88}]}/></View>:null}
    <View style={s.signOut}><MaterialCommunityIcons name="logout" size={19} color={C.gold}/><View style={[s.skeletonTileLabel,{width:58}]}/></View>
@@ -103,7 +130,21 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
  <AppLogo size={34} compact />
  {cfg.tagline?<Text style={s.tagline}>{cfg.tagline}</Text>:null}{cfg.badge?<View style={s.badge}><Text style={s.badgeText}>{cfg.badge}</Text></View>:null}
  <View style={s.greetRow}><View style={s.avatar}><MaterialCommunityIcons name="account" size={28} color={C.gold}/></View><View style={{flex:1}}><Text style={s.greet}>{cfg.greeting}</Text>{role==='resident'&&profileLoading?<ActivityIndicator color={C.gold} size="small"/>:null}{(residentName||providedName)?<Text style={s.name}>{residentName||providedName}</Text>:role==='resident'&&!profileLoading?<Text style={s.name}>Name unavailable</Text>:null}{(residentUnit||providedUnit)?<Text style={s.unit}>{residentUnit||providedUnit}</Text>:role==='resident'&&!profileLoading?<Text style={s.unit}>Apartment assignment not found</Text>:null}{!!profileError&&<Pressable onPress={()=>void loadResidentDetails()}><Text style={s.error}>{profileError.includes('Connection is taking longer')?profileError:'Resident details could not be loaded. Tap to retry.'}</Text></Pressable>}</View><Pressable onPress={()=>go('/notifications')} hitSlop={10}><MaterialCommunityIcons name="bell-outline" size={24} color={C.text}/>{hasUnread?<View style={s.dot}/>:null}</Pressable></View>
- {role==='resident'?<View style={s.banner}><Text style={s.bannerEyebrow}>COMMUNITY SPOTLIGHT</Text><Text style={s.bannerTitle}>Welcome to CB Nest</Text><Text style={s.bannerText}>A safer, smarter and more connected community.</Text><View style={s.bannerDivider}/><Text style={s.adTitle}>Advertise with CB Nest</Text><Text style={s.adText}>Interested in a promotional slot? Contact our team to discuss availability, pricing and duration.</Text></View>:cfg.welcomeTitle?<View style={s.banner}><Text style={s.bannerTitle}>{cfg.welcomeTitle}</Text><Text style={s.bannerText}>{cfg.welcomeText}</Text></View>:null}
+ {role==='resident'?<View style={s.carouselWrap}>
+  <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={s.carouselContent}>
+   <View style={[s.carouselCard,{width:carouselCardWidth}]}>
+    <Text style={s.bannerEyebrow}>COMMUNITY SPOTLIGHT</Text>
+    <Text style={s.carouselTitle}>A safer, smarter and more connected community.</Text>
+    <Text style={s.carouselSubtext}>Welcome to CB Nest.</Text>
+   </View>
+   <View style={[s.carouselCard,s.carouselCardSecondary,{width:carouselCardWidth}]}>
+    <Text style={s.bannerEyebrow}>PROMOTE YOUR BUSINESS</Text>
+    <Text style={s.carouselTitle}>Advertise with CB Nest</Text>
+    <Text style={s.carouselSubtext}>Contact our team to discuss availability, pricing and duration.</Text>
+   </View>
+  </ScrollView>
+  <View style={s.carouselDots}><View style={s.carouselDotActive}/><View style={s.carouselDot}/></View>
+ </View>:cfg.welcomeTitle?<View style={s.banner}><Text style={s.bannerTitle}>{cfg.welcomeTitle}</Text><Text style={s.bannerText}>{cfg.welcomeText}</Text></View>:null}
  {cfg.actions?.map(a=><Pressable key={a.label} onPress={()=>go(a.route)} style={({pressed})=>[s.action,a.variant==='gold'?s.actionGold:s.actionLight,pressed&&{opacity:0.85}]}><MaterialCommunityIcons name={a.icon} size={24} color={C.dark}/><Text style={s.actionText}>{a.label}</Text><MaterialCommunityIcons name="chevron-right" size={22} color={C.dark}/></Pressable>)}
  <View style={s.grid}>{cfg.tiles.map(tile=><Pressable key={tile.label} onPress={()=>go(tile.route)} style={({pressed})=>[s.tile,{width:tileBasis},pressed&&{opacity:0.8}]}><MaterialCommunityIcons name={tile.icon} size={26} color={C.gold}/><Text style={s.tileText} numberOfLines={2}>{tile.label}</Text></Pressable>)}</View>
  {cfg.footer?<Pressable onPress={()=>go(cfg.footer!.route)} style={({pressed})=>[s.footer,pressed&&{opacity:0.8}]}><MaterialCommunityIcons name={cfg.footer.icon} size={20} color={C.gold}/><Text style={s.footerText}>{cfg.footer.label}</Text></Pressable>:null}
@@ -111,4 +152,4 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
  </ScrollView></SafeAreaView>
 }
 export default RoleLanding;
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:C.bg},skeletonTagline:{height:10,width:210,alignSelf:'center',borderRadius:6,backgroundColor:C.muted,opacity:0.25,marginTop:6},skeletonAvatarInner:{width:26,height:26,borderRadius:13,backgroundColor:C.goldBorder,opacity:0.45},skeletonLine:{height:10,borderRadius:6,backgroundColor:C.muted,opacity:0.28},skeletonTileLabel:{height:8,borderRadius:5,backgroundColor:C.muted,opacity:0.3},scroll:{padding:16,paddingBottom:120},tagline:{color:C.muted,fontSize:11,textAlign:'center',marginTop:4},badge:{alignSelf:'center',marginTop:8,paddingHorizontal:14,paddingVertical:3,borderRadius:999,borderWidth:1,borderColor:C.gold},badgeText:{color:C.gold,fontSize:11,fontWeight:'600'},greetRow:{flexDirection:'row',alignItems:'center',gap:12,marginTop:18},avatar:{width:48,height:48,borderRadius:24,borderWidth:1.5,borderColor:C.gold,backgroundColor:C.card,alignItems:'center',justifyContent:'center'},greet:{color:C.muted,fontSize:12},name:{color:C.text,fontSize:16,fontWeight:'700'},unit:{color:C.muted,fontSize:11},error:{color:'#FF9292',fontSize:10,marginTop:4},dot:{position:'absolute',top:-2,right:-2,width:8,height:8,borderRadius:4,backgroundColor:'#E5484D'},banner:{marginTop:16,padding:18,minHeight:190,justifyContent:'flex-end',borderRadius:16,backgroundColor:C.cardAlt,borderWidth:1,borderColor:C.goldBorder},bannerEyebrow:{color:C.gold,fontSize:9,fontWeight:'800',letterSpacing:1.5,marginBottom:8},bannerTitle:{color:C.text,fontSize:20,fontWeight:'800'},bannerText:{color:C.muted,fontSize:12,marginTop:4},bannerDivider:{height:1,backgroundColor:C.goldBorder,marginTop:14,marginBottom:12},adTitle:{color:C.gold,fontSize:14,fontWeight:'800'},adText:{color:C.muted,fontSize:11,lineHeight:16,marginTop:4},action:{flexDirection:'row',alignItems:'center',gap:12,padding:16,borderRadius:12,marginTop:14},actionGold:{backgroundColor:C.gold},actionLight:{backgroundColor:'#171717',borderWidth:1,borderColor:C.goldBorder},actionText:{flex:1,color:C.gold,fontSize:15,fontWeight:'700'},grid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:10,marginTop:16},tile:{minHeight:88,paddingVertical:14,paddingHorizontal:8,borderRadius:14,backgroundColor:C.card,borderWidth:1,borderColor:C.goldBorder,alignItems:'center',justifyContent:'center',gap:8},tileText:{color:C.text,fontSize:11,fontWeight:'600',textAlign:'center'},footer:{marginTop:14,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,paddingVertical:12,borderRadius:12,backgroundColor:C.card,borderWidth:1,borderColor:C.goldBorder},footerText:{color:C.text,fontSize:13,fontWeight:'600'},signOut:{marginTop:12,marginBottom:18,minHeight:48,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,borderRadius:12,borderWidth:1,borderColor:C.goldBorder,backgroundColor:C.card,paddingVertical:12},signOutText:{color:C.gold,fontSize:13,fontWeight:'700'}});
+const s=StyleSheet.create({safe:{flex:1,backgroundColor:C.bg},walletCard:{marginTop:14,padding:14,minHeight:102,borderRadius:14,backgroundColor:C.card,borderWidth:1,borderColor:C.goldBorder},walletHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},walletEyebrow:{color:C.muted,fontSize:10,fontWeight:'800',letterSpacing:1.2},walletAmount:{color:C.text,fontSize:24,fontWeight:'900',marginTop:7},walletFooter:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:5},walletHint:{color:C.gold,fontSize:10,fontWeight:'600'},carouselWrap:{marginTop:14},carouselContent:{gap:10},carouselCard:{minHeight:112,padding:14,borderRadius:14,backgroundColor:C.cardAlt,borderWidth:1,borderColor:C.goldBorder,justifyContent:'center'},carouselCardSecondary:{backgroundColor:'#141414'},carouselTitle:{color:C.text,fontSize:15,fontWeight:'800',lineHeight:20,marginTop:5},carouselSubtext:{color:C.muted,fontSize:10,lineHeight:15,marginTop:4},carouselDots:{flexDirection:'row',justifyContent:'center',alignItems:'center',gap:5,marginTop:7},carouselDotActive:{width:14,height:5,borderRadius:3,backgroundColor:C.gold},carouselDot:{width:5,height:5,borderRadius:3,backgroundColor:C.muted},carouselSkeleton:{marginTop:14,minHeight:112,padding:14,borderRadius:14,backgroundColor:C.cardAlt,borderWidth:1,borderColor:C.goldBorder,justifyContent:'center'},skeletonTagline:{height:10,width:210,alignSelf:'center',borderRadius:6,backgroundColor:C.muted,opacity:0.25,marginTop:6},skeletonAvatarInner:{width:26,height:26,borderRadius:13,backgroundColor:C.goldBorder,opacity:0.45},skeletonLine:{height:10,borderRadius:6,backgroundColor:C.muted,opacity:0.28},skeletonTileLabel:{height:8,borderRadius:5,backgroundColor:C.muted,opacity:0.3},scroll:{padding:16,paddingBottom:120},tagline:{color:C.muted,fontSize:11,textAlign:'center',marginTop:4},badge:{alignSelf:'center',marginTop:8,paddingHorizontal:14,paddingVertical:3,borderRadius:999,borderWidth:1,borderColor:C.gold},badgeText:{color:C.gold,fontSize:11,fontWeight:'600'},greetRow:{flexDirection:'row',alignItems:'center',gap:12,marginTop:18},avatar:{width:48,height:48,borderRadius:24,borderWidth:1.5,borderColor:C.gold,backgroundColor:C.card,alignItems:'center',justifyContent:'center'},greet:{color:C.muted,fontSize:12},name:{color:C.text,fontSize:16,fontWeight:'700'},unit:{color:C.muted,fontSize:11},error:{color:'#FF9292',fontSize:10,marginTop:4},dot:{position:'absolute',top:-2,right:-2,width:8,height:8,borderRadius:4,backgroundColor:'#E5484D'},banner:{marginTop:14,padding:14,minHeight:100,justifyContent:'center',borderRadius:14,backgroundColor:C.cardAlt,borderWidth:1,borderColor:C.goldBorder},bannerEyebrow:{color:C.gold,fontSize:9,fontWeight:'800',letterSpacing:1.5,marginBottom:8},bannerTitle:{color:C.text,fontSize:20,fontWeight:'800'},bannerText:{color:C.muted,fontSize:12,marginTop:4},bannerDivider:{height:1,backgroundColor:C.goldBorder,marginTop:14,marginBottom:12},adTitle:{color:C.gold,fontSize:14,fontWeight:'800'},adText:{color:C.muted,fontSize:11,lineHeight:16,marginTop:4},action:{flexDirection:'row',alignItems:'center',gap:12,padding:16,borderRadius:12,marginTop:14},actionGold:{backgroundColor:C.gold},actionLight:{backgroundColor:'#171717',borderWidth:1,borderColor:C.goldBorder},actionText:{flex:1,color:C.gold,fontSize:15,fontWeight:'700'},grid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:10,marginTop:16},tile:{minHeight:88,paddingVertical:14,paddingHorizontal:8,borderRadius:14,backgroundColor:C.card,borderWidth:1,borderColor:C.goldBorder,alignItems:'center',justifyContent:'center',gap:8},tileText:{color:C.text,fontSize:11,fontWeight:'600',textAlign:'center'},footer:{marginTop:14,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,paddingVertical:12,borderRadius:12,backgroundColor:C.card,borderWidth:1,borderColor:C.goldBorder},footerText:{color:C.text,fontSize:13,fontWeight:'600'},signOut:{marginTop:12,marginBottom:18,minHeight:48,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,borderRadius:12,borderWidth:1,borderColor:C.goldBorder,backgroundColor:C.card,paddingVertical:12},signOutText:{color:C.gold,fontSize:13,fontWeight:'700'}});
