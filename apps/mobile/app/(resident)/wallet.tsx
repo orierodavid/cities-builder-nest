@@ -195,7 +195,7 @@ export default function WalletScreen() {
       <SectionTitle>Virtual accounts</SectionTitle>
       <Card>
         <Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18, marginBottom: 12 }}>
-          Virtual accounts are a separate wallet-funding option for bank transfers. Squad checkout remains available above. You can request a dedicated account when a supported provider is configured; no account is created just by viewing this page.
+          Paystack virtual accounts are a separate bank-transfer funding option. Squad checkout remains available above. You can request a dedicated account when a supported provider is configured; no account is created just by viewing this page.
         </Text>
         {estates.length === 0 ? (
           <Text style={{ color: theme.muted, fontSize: 12 }}>An active resident-estate membership is required before a virtual account can be requested.</Text>
@@ -231,7 +231,7 @@ export default function WalletScreen() {
             </View>
           );
         })}
-        {estates.length > 0 && virtualAccounts.every((account) => account.status !== 'active') && (
+        {estates.length > 0 && estates.some((estate) => !virtualAccounts.some((account) => account.estate_id === estate.id && account.status === 'active')) && (
           <TouchableOpacity onPress={() => setAccountConsent((value) => !value)} style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 14, gap: 9 }}>
             <View style={{ width: 20, height: 20, borderRadius: 5, borderWidth: 1, borderColor: theme.gold, backgroundColor: accountConsent ? theme.gold : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
               {accountConsent ? <Text style={{ color: '#071A3A', fontWeight: '900', fontSize: 13 }}>✓</Text> : null}
@@ -240,7 +240,7 @@ export default function WalletScreen() {
           </TouchableOpacity>
         )}
         <Text style={{ color: theme.muted, fontSize: 11, lineHeight: 16, marginTop: 10 }}>
-          Provider availability is checked securely when you request an account. If credentials or provider approval are not in place, CB Nest will not create an account.
+          Paystack availability is checked securely when you request an account. If credentials or provider approval are not in place, CB Nest will not create an account.
         </Text>
       </Card>
 
