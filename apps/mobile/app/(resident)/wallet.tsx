@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import Svg, { Circle, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { Screen, Card } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
@@ -20,6 +21,7 @@ function SquadMark() {
 }
 
 export default function WalletScreen() {
+  const router = useRouter();
   const [balanceKobo, setBalanceKobo] = useState<number | null>(null);
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,10 +68,27 @@ export default function WalletScreen() {
     try {
       const { data, error } = await supabase.functions.invoke('squad-wallet-checkout', { body: { amountKobo } });
       if (error) throw new Error('Squad top up is temporarily unavailable.');
-      if (typeof data?.checkoutUrl === 'string' && data.checkoutUrl.startsWith('https://')) {
-        await Linking.openURL(data.checkoutUrl);
+      if (typeof data?.transactionReference !== 'string' || !data.transactionReference) {
+        throw new Error('We could not confirm the payment attempt. Please check your wallet before trying again.');
+      }
+      if (data.checkoutUrl && (typeof data.checkoutUrl !== 'string' || !data.checkoutUrl.startsWith('https://'))) {
+        throw new Error('The payment link could not be validated.');
+      }
+      if (typeof data.checkoutUrl === 'string') {
+        router.push({ pathname: '/payment-checkout', params: {
+          checkoutUrl: data.checkoutUrl,
+          reference: data.transactionReference,
+          paymentType: 'wallet_funding',
+          amountKobo: String(data.amountKobo ?? amountKobo),
+          feeKobo: '0',
+          totalAmountKobo: String(data.amountKobo ?? amountKobo),
+        } });
       } else if (data?.status === 'pending') {
-        setMessage('Your payment is being confirmed. Refresh your balance shortly.');
+        router.push({ pathname: '/payment-checkout', params: {
+          checkoutUrl: '', reference: data.transactionReference, paymentType: 'wallet_funding',
+          amountKobo: String(data.amountKobo ?? amountKobo), feeKobo: '0',
+          totalAmountKobo: String(data.amountKobo ?? amountKobo),
+        } });
       } else {
         throw new Error('Squad could not start the payment. Please try again.');
       }
