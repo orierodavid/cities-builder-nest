@@ -24,6 +24,7 @@ export default function ResidentLayout() {
       <Tabs.Screen name="events" options={{ title: 'Events' }} />
       <Tabs.Screen name="service-charges" options={{ title: 'Service Charges' }} />
       <Tabs.Screen name="payments" options={{ title: 'Payments' }} />
+      <Tabs.Screen name="wallet" options={{ title: 'Wallet', href: null }} />
       <Tabs.Screen name="utilities" options={{ title: 'Utilities' }} />
       <Tabs.Screen name="save-for-rent" options={{ title: 'Save for Rent' }} />
       <Tabs.Screen name="electricity" options={{ title: 'Electricity', href: null }} />
