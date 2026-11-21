@@ -122,7 +122,7 @@ export default function WalletScreen() {
           {walletBalanceKobo === null
             ? 'Your wallet will appear here once your resident account is approved.'
             : walletStatus === 'active'
-              ? 'Available balance is calculated from confirmed wallet transactions. Confirmed Squad payments appear here after server-side verification. Paystack is coming soon.'
+              ? 'Available balance includes only confirmed wallet funding and wallet adjustments. Save for Rent contributions are tracked separately and never appear in this balance. Confirmed Squad payments appear here after server-side verification. Paystack is coming soon.'
               : `Your wallet is ${walletStatus || 'not available'}. Contact CB Nest support if you need help.`}
         </Text>
         <TouchableOpacity onPress={() => router.push('/payments' as never)} style={{ marginTop: 14, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center' }}>
@@ -159,7 +159,7 @@ export default function WalletScreen() {
           <Text style={{ color: theme.muted, fontSize: 11, marginTop: 6 }}>{new Date(transaction.created_at).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' })}</Text>
         </Card>
       )) : (
-        <Card><Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18 }}>No wallet transactions yet. Confirmed wallet funding and wallet payments will appear here.</Text></Card>
+        <Card><Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18 }}>No wallet transactions yet. Confirmed wallet funding and wallet payments will appear here. Save for Rent contributions are recorded separately.</Text></Card>
       )}
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
