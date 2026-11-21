@@ -28,7 +28,6 @@ export default function WalletScreen() {
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busyEstate, setBusyEstate] = useState<string | null>(null);
   const [fundingAmount, setFundingAmount] = useState('');
   const [fundingBusy, setFundingBusy] = useState(false);
   const [error, setError] = useState('');
@@ -79,33 +78,7 @@ export default function WalletScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const generateAccount = async (estateId: string) => {
-    if (busyEstate) return;
-    setBusyEstate(estateId);
-    setNotice('');
-    setError('');
-    try {
-      const { data, error: invokeError } = await supabase.functions.invoke('create-resident-virtual-account', {
-        body: { estateId, provider: 'paystack', consent: true },
-      });
-      if (invokeError) {
-        const serverMessage = typeof data?.message === 'string' ? data.message : '';
-        throw new Error(serverMessage || 'The virtual-account provider is not currently available. No account was created.');
-      }
-      if (data?.virtualAccount) {
-        setNotice(data.pending
-          ? 'Your virtual-account request is still processing.'
-          : 'Your virtual account has been created.');
-        await load();
-      } else {
-        throw new Error(typeof data?.message === 'string' ? data.message : 'The provider did not confirm account creation.');
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'We could not create the virtual account. Please try again.');
-    } finally {
-      setBusyEstate(null);
-    }
-  };
+
 
   const fundWallet = async () => {
     if (fundingBusy) return;
