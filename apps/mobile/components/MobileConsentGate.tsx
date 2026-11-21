@@ -98,7 +98,8 @@ export default function MobileConsentGate({ children }: { children: ReactNode })
 
 const styles = StyleSheet.create({
   center:{flex:1,backgroundColor:"#080808",alignItems:"center",justifyContent:"center",padding:24,gap:13},
-  shell:{flex:1,backgroundColor:"#080808",width:"100%"},\n  modalBackdrop:{flex:1,backgroundColor:"rgba(0,0,0,0.92)",justifyContent:"center",padding:10},
+  shell:{flex:1,backgroundColor:"#080808",width:"100%"},
+  modalBackdrop:{flex:1,backgroundColor:"rgba(0,0,0,0.92)",justifyContent:"center",padding:10},
   shellContent:{padding:16,paddingTop:32,paddingBottom:40},
   title:{fontSize:21,color:"#FFFFFF",fontWeight:"900"},
   copy:{fontSize:12,lineHeight:18,color:"#C5C5C5",textAlign:"center"},
