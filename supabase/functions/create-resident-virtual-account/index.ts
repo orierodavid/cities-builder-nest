@@ -41,6 +41,8 @@ Deno.serve(async (req: Request) => {
   let input: Record<string, unknown>;
   try { input = await req.json(); } catch { return reply(400, { error: "invalid_json" }); }
   const estateId = typeof input.estateId === "string" ? input.estateId.trim() : "";
+  if (input.provider !== "paystack") return reply(400, { error: "unsupported_virtual_account_provider" });
+  if (input.consent !== true) return reply(400, { error: "dedicated_account_consent_required" });
   if (!estateId || estateId.length > 100) return reply(400, { error: "estate_id_required" });
 
   const admin = createClient(url, serviceKey, {
@@ -71,12 +73,13 @@ Deno.serve(async (req: Request) => {
     .select("id, provider, provider_account_reference, bank_name, account_number, account_name, currency, status")
     .eq("resident_user_id", authData.user.id)
     .eq("estate_id", estateId)
+    .eq("provider", "paystack")
     .maybeSingle();
   if (existingError) return reply(503, { error: "virtual_account_lookup_failed" });
   if (existing?.status === "active") return reply(200, { virtualAccount: existing, alreadyCreated: true });
   if (existing?.status === "pending") return reply(202, { virtualAccount: existing, pending: true });
 
-  const provider = resolveVirtualAccountProvider();
+  const provider = resolveVirtualAccountProvider("paystack");
   if (!provider) {
     return reply(503, {
       error: "virtual_account_provider_not_configured",
@@ -90,7 +93,7 @@ Deno.serve(async (req: Request) => {
     return reply(400, { error: "resident_profile_incomplete", message: "Complete the resident name and email before creating a virtual account." });
   }
 
-  const idempotencyKey = `cbnest-va:${authData.user.id}:${estateId}`;
+  const idempotencyKey = `cbnest-va:paystack:${authData.user.id}:${estateId}`;
   let accountRowId: string | null = existing?.id ?? null;
   if (!accountRowId) {
     const { data, error } = await admin.from("resident_virtual_accounts").insert({
@@ -103,7 +106,7 @@ Deno.serve(async (req: Request) => {
     if (error || !data) {
       const { data: raced } = await admin.from("resident_virtual_accounts")
         .select("id, provider, provider_account_reference, bank_name, account_number, account_name, currency, status")
-        .eq("resident_user_id", authData.user.id).eq("estate_id", estateId).maybeSingle();
+        .eq("resident_user_id", authData.user.id).eq("estate_id", estateId).eq("provider", "paystack").maybeSingle();
       if (raced?.status === "active") return reply(200, { virtualAccount: raced, alreadyCreated: true });
       if (raced?.status === "pending") return reply(202, { virtualAccount: raced, pending: true });
       return reply(409, { error: "virtual_account_request_conflict" });
