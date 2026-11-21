@@ -19,25 +19,18 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) {
       setError("Your sign-in session could not be verified. Please sign in again.");
-      setStatus(null);
-      setSessionReady(true);
-      setChecking(false);
-      return;
+      setStatus(null); setSessionReady(true); setChecking(false); return;
     }
     if (!sessionData.session) {
-      setStatus(null);
-      setSessionReady(true);
-      setChecking(false);
-      return;
+      setStatus(null); setReadToEnd([]); setSessionReady(true); setChecking(false); return;
     }
     const { data, error: statusError } = await supabase.rpc("get_legal_consent_status");
     if (statusError || !data) {
       setError("Legal acceptance could not be verified. Refresh the page or sign in again.");
       setStatus(null);
     } else {
-      const next = data as LegalStatus;
-      setStatus(next);
-      setChecked([]);
+      setStatus(data as LegalStatus);
+      setReadToEnd([]);
     }
     setSessionReady(true);
     setChecking(false);
@@ -50,27 +43,19 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (!alive) return;
       if (sessionError) {
-        setStatus(null);
-        setError("Your sign-in session could not be verified. Please sign in again.");
-        setSessionReady(true);
-        if (showLoading) setChecking(false);
-        return;
+        setStatus(null); setError("Your sign-in session could not be verified. Please sign in again.");
+        setSessionReady(true); if (showLoading) setChecking(false); return;
       }
       if (!sessionData.session) {
-        setStatus(null);
-        setError("");
-        setSessionReady(true);
-        if (showLoading) setChecking(false);
-        return;
+        setStatus(null); setReadToEnd([]); setError(""); setSessionReady(true);
+        if (showLoading) setChecking(false); return;
       }
       const { data, error: statusError } = await supabase.rpc("get_legal_consent_status");
       if (!alive) return;
       if (statusError || !data) {
-        setStatus(null);
-        setError("Legal acceptance could not be verified. Refresh the page or sign in again.");
+        setStatus(null); setError("Legal acceptance could not be verified. Refresh the page or sign in again.");
       } else {
-        setStatus(data as LegalStatus);
-        setError("");
+        setStatus(data as LegalStatus); setReadToEnd([]); setError("");
       }
       setSessionReady(true);
       if (showLoading) setChecking(false);
@@ -83,25 +68,18 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
     });
     const onFocus = () => { if (alive) void check(false); };
     window.addEventListener("focus", onFocus);
-    return () => {
-      alive = false;
-      authListener.subscription.unsubscribe();
-      window.removeEventListener("focus", onFocus);
-    };
+    return () => { alive = false; authListener.subscription.unsubscribe(); window.removeEventListener("focus", onFocus); };
   }, []);
 
   async function accept() {
-    if (!status || status.documents.length < 2 || readToEnd.length !== status.documents.length) return;
-    setBusy(true);
-    setError("");
+    if (!status || status.documents.length < 2 || readToEnd.length !== status.documents.length || busy) return;
+    setBusy(true); setError("");
     const { error: acceptError } = await supabase.rpc("accept_legal_documents", {
-      p_document_ids: status.documents.map((document) => document.id),
-      p_source: "web",
+      p_document_ids: status.documents.map((document) => document.id), p_source: "web",
     });
     if (acceptError) {
-      setError("Your acceptance could not be saved. Please try again.");
-      setBusy(false);
-      return;
+      setError("We couldn't save your agreement. Please check your connection and try again.");
+      setBusy(false); return;
     }
     await refresh();
     setBusy(false);
@@ -110,18 +88,35 @@ export default function LegalConsentGate({ children }: { children: ReactNode }) 
   if (!sessionReady || checking) return <main className="legal-gate legal-gate-loading" role="status" aria-label="Loading"><span className="loading-spinner"/></main>;
   if (!status && error) return <main className="legal-gate"><section className="legal-gate-card"><h1>Verification required</h1><p>{error}</p><div className="legal-gate-actions"><button onClick={() => void refresh()}>Retry</button><button className="legal-secondary" onClick={() => void supabase.auth.signOut()}>Sign out</button></div></section></main>;
   if (status?.requiresAcceptance) {
-    return <main className="legal-gate"><section className="legal-gate-card">
-      <span className="legal-eyebrow">ACTION REQUIRED</span><h1>Review and accept our legal documents</h1>
-      <p>You must read and accept the current Terms and Conditions and Privacy Policy before continuing to the management portal.</p>
-      <div className="legal-documents">{status.documents.map((document) => <article className="legal-document" key={document.id}>
-        <div className="legal-document-heading"><div><h2>{document.title}</h2><small>Version {document.version}</small></div><a href={"#legal-content-" + document.id}>Read below</a></div>
-        <pre id={"legal-content-" + document.id}>{document.content}</pre>
-        <label className="legal-check"><input type="checkbox" checked={checked.includes(document.id)} onChange={(event) => setChecked((current) => event.target.checked ? [...current, document.id] : current.filter((id) => id !== document.id))}/><span>I have read and agree to the {document.documentType === "terms" ? "Terms and Conditions" : "Privacy Policy"}.</span></label>
-      </article>)}</div>
-      {error && <p className="legal-error">{error}</p>}
-      <div className="legal-gate-actions"><button disabled={busy || checked.length !== status.documents.length} onClick={() => void accept()}>{busy ? "Saving acceptance…" : "Accept and continue"}</button><button className="legal-secondary" onClick={() => void supabase.auth.signOut()}>Sign out</button></div>
-      <small className="legal-note">Your acceptance is recorded against these exact document versions and cannot be edited or deleted from your account.</small>
-    </section></main>;
+    return <main className="legal-gate legal-gate-modal" role="dialog" aria-modal="true" aria-labelledby="legal-consent-title">
+      <section className="legal-gate-card">
+        <span className="legal-eyebrow">ACTION REQUIRED</span>
+        <h1 id="legal-consent-title">Welcome to CB Nest</h1>
+        <p>Please read the current Terms and Conditions and Privacy Policy. Scroll to the end of each document before agreeing. You must accept to continue using CB Nest.</p>
+        <div className="legal-documents">{status.documents.map((document) => <article className="legal-document" key={document.id}>
+          <div className="legal-document-heading">
+            <div><h2>{document.title}</h2><small>Version {document.version}</small></div>
+            <strong className={readToEnd.includes(document.id) ? "legal-read-status" : "legal-scroll-status"}>{readToEnd.includes(document.id) ? "READ ✓" : "SCROLL TO END"}</strong>
+          </div>
+          <div id={"legal-content-" + document.id} className="legal-document-scroll" tabIndex={0} aria-label={document.title + " content"}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              if (element.scrollTop + element.clientHeight >= element.scrollHeight - 12) {
+                setReadToEnd((current) => current.includes(document.id) ? current : [...current, document.id]);
+              }
+            }}>
+            {document.content}
+            <p className="legal-document-end">End of {document.title}</p>
+          </div>
+        </article>)}</div>
+        {error && <p className="legal-error">{error}</p>}
+        <div className="legal-gate-actions">
+          <button disabled={busy || readToEnd.length !== status.documents.length} onClick={() => void accept()}>{busy ? "Saving agreement…" : "I Agree"}</button>
+          <button className="legal-secondary" onClick={() => void supabase.auth.signOut()}>Sign out</button>
+        </div>
+        <small className="legal-note">{readToEnd.length} of {status.documents.length} documents read. Your agreement is recorded against the exact document versions and acceptance date.</small>
+      </section>
+    </main>;
   }
   return <>{children}</>;
 }
