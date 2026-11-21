@@ -17,8 +17,8 @@ Deno.serve(async (req: Request) => {
   const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
   const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const secret = Deno.env.get("SQUAD_SECRET_KEY");
-  const mode = Deno.env.get("SQUAD_ENVIRONMENT") ?? "sandbox";
-  if (!url || !anon || !service || !secret || !["sandbox", "live"].includes(mode)) {
+  const mode = Deno.env.get("SQUAD_ENVIRONMENT") ?? "";
+  if (!url || !anon || !service || !secret || mode !== "live") {
     return reply(503, { error: "payment_verification_not_configured" });
   }
 
