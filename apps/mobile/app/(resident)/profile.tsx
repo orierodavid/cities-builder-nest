@@ -37,7 +37,6 @@ export default function ProfileScreen() {
     return () => { mounted = false; };
   }, []);
 
-
   return (
     <Screen title="My Profile" subtitle="Your account and resident preferences">
       <Card>
@@ -53,7 +52,7 @@ export default function ProfileScreen() {
       <Card>
         <SectionTitle>Preferences & support</SectionTitle>
         <ListRow icon="bell-outline" title="Notifications" subtitle="Estate updates and alerts" onPress={() => router.push('/notifications' as never)} />
-        <ListRow icon="shield-check-outline" title="Terms & Privacy" subtitle="Review the current legal documents" onPress={() => router.push("/(resident)/legal-documents" as never)} />
+        <ListRow icon="shield-check-outline" title="Terms & Conditions" subtitle="View current documents and your agreement status" onPress={() => router.push('/legal-documents' as never)} />
         <Text style={{ color: "#B9B9B9", fontSize: 11, lineHeight: 17, marginTop: 2 }}>For help with your account or property, contact your estate management team.</Text>
       </Card>
       <Card>
@@ -65,7 +64,7 @@ export default function ProfileScreen() {
             const { error } = await supabase.auth.signOut({ scope: 'local' });
             if (error) throw error;
             router.replace('/' as never);
-          } catch (error) {
+          } catch {
             setLogoutError('Could not sign out. Please try again.');
           } finally { setSigningOut(false); }
         }} style={{ minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: '#74403A', backgroundColor: '#241615', alignItems: 'center', justifyContent: 'center' }}>
