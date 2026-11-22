@@ -1,6 +1,6 @@
 # CB Nest
 
-Building Smarter, Safer Communities, One Step at a Time.\n\nA starter monorepo for an estate and community management app for iOS and Android.
+Building Smarter and Safer Communities, One Step at a Time.\n\nA starter monorepo for an estate and community management app for iOS and Android.
 
 ## Architecture
 - **Mobile:** React Native + Expo + TypeScript
