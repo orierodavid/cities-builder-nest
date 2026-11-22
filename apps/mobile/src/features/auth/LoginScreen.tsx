@@ -65,7 +65,7 @@ export function LoginScreen({ onSubmit, onForgotPassword, onCreateAccount }: Pro
             {onCreateAccount && <Pressable onPress={onCreateAccount} style={s.contact}><Text style={s.contactText}>New to CB Nest? <Text style={s.contactGold}>Create an account</Text></Text></Pressable>}
           </View>
           <View style={s.security}><MaterialCommunityIcons name="shield-check-outline" size={16} color={C.gold}/><Text style={s.securityText}>SECURE ACCESS TO YOUR ESTATE</Text></View>
-          <Text style={s.footer}>BUILDING SMARTER, SAFER COMMUNITIES, ONE STEP AT A TIME.</Text>
+          <Text style={s.footer}>BUILDING SMARTER AND SAFER COMMUNITIES, ONE STEP AT A TIME.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
