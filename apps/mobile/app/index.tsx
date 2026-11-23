@@ -42,14 +42,22 @@ const isTransientRoleError = (error: unknown) => {
 };
 const wait = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
 const ROLE_REQUEST_TIMEOUT_MS = 25_000;
-function fetchWithRoleTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+function fetchWithRoleTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = ROLE_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       const error = new Error("Role verification request timed out.");
       error.name = "TimeoutError";
+      clearTimeout(timeout);
       reject(error);
-    }, ROLE_REQUEST_TIMEOUT_MS);
-    fetch(input, init).then(resolve, reject).finally(() => clearTimeout(timeout));
+    }, timeoutMs);
+    fetch(input, init).then(
+      response => { clearTimeout(timeout); resolve(response); },
+      error => { clearTimeout(timeout); reject(error); },
+    );
   });
 }
 
@@ -60,6 +68,7 @@ export default function MobileEntryRoute() {
   const [roleError, setRoleError] = useState("");
   const [roleErrorKind, setRoleErrorKind] = useState<RoleErrorKind | null>(null);
   const roleCheckInFlight = useRef<{ token: string; promise: Promise<Role> } | null>(null);
+  const roleNetworkProbeDone = useRef(false);
   const [message, setMessage] = useState("");
   const [registration, setRegistration] = useState(false);
 
@@ -113,6 +122,32 @@ export default function MobileEntryRoute() {
           // Avoid AbortSignal.timeout on iOS: native fetch cancellation was
           // previously being surfaced as a false role/access failure.
           console.info("[CB Nest role check] Starting authenticated verification", { attempt, apiBaseUrl });
+          // One-time unauthenticated probe isolates React Native fetch/networking
+          // from bearer-token validation. A 401 is the expected healthy response.
+          if (!roleNetworkProbeDone.current) {
+            roleNetworkProbeDone.current = true;
+            const probeStartedAt = Date.now();
+            console.info("[CB Nest role check] Starting unauthenticated connectivity probe");
+            try {
+              const probeResponse = await fetchWithRoleTimeout(
+                apiBaseUrl + "/v1/me",
+                { headers: { Accept: "application/json" } },
+                8_000,
+              );
+              console.info("[CB Nest role check] Unauthenticated connectivity probe completed", {
+                status: probeResponse.status,
+                expectedUnauthorized: probeResponse.status === 401,
+                durationMs: Date.now() - probeStartedAt,
+              });
+              await probeResponse.body?.cancel().catch(() => undefined);
+            } catch (probeError) {
+              console.warn("[CB Nest role check] Unauthenticated connectivity probe failed", {
+                name: probeError instanceof Error ? probeError.name : typeof probeError,
+                message: probeError instanceof Error ? probeError.message : String(probeError),
+                durationMs: Date.now() - probeStartedAt,
+              });
+            }
+          }
           // /v1/me already returns the authenticated user's active estate memberships
           // and resident units. A second /v1/estates call repeated the full auth
           // middleware (token verification, account status and legal consent),
