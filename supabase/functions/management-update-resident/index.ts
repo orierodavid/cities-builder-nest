@@ -33,7 +33,7 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json(); } catch { return json(400, { error: "invalid_json" }); }
   const estateId = typeof body.estateId === "string" ? body.estateId.trim() : "";
   const userId = typeof body.userId === "string" ? body.userId.trim() : "";
-  const action = body.action === "load" ? "load" : body.action === "update" ? "update" : "";
+  const action = body.action === "load" ? "load" : body.action === "update" ? "update" : body.action === "assign-apartment" ? "assign-apartment" : "";
   if (!estateId || !userId || !action) return json(400, { error: "invalid_input" });
 
   const admin = createClient(url, service, {
@@ -64,6 +64,39 @@ Deno.serve(async (req: Request) => {
 
   const { data: targetAuth, error: targetAuthError } = await admin.auth.admin.getUserById(userId);
   if (targetAuthError || !targetAuth.user) return json(404, { error: "resident_auth_account_not_found" });
+
+  if (action === "assign-apartment") {
+    const buildingName = typeof body.buildingName === "string" ? body.buildingName.trim() : "";
+    const unitCode = typeof body.unitCode === "string" ? body.unitCode.trim() : "";
+    const unitType = typeof body.unitType === "string" ? body.unitType.trim() : "";
+    if (buildingName.length < 1 || buildingName.length > 120 || unitCode.length < 1 || unitCode.length > 80 || unitType.length > 80) {
+      return json(400, { error: "valid_apartment_details_required", message: "Enter the verified building name and apartment number before assigning an Apartment ID." });
+    }
+    const authenticated = createClient(url, anon, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: assignment, error: assignmentError } = await authenticated.rpc("management_assign_resident_apartment", {
+      p_estate_id: estateId,
+      p_resident_user_id: userId,
+      p_building_name: buildingName,
+      p_unit_code: unitCode,
+      p_unit_type: unitType || null,
+    });
+    if (assignmentError) {
+      const duplicate = /already_assigned|resident_limit_reached|unique/i.test(assignmentError.message);
+      return json(duplicate ? 409 : 400, {
+        error: "resident_apartment_assignment_failed",
+        message: /apartment_resident_limit_reached/.test(assignmentError.message)
+          ? "This apartment already has the maximum of two residents."
+          : /resident_already_assigned/.test(assignmentError.message)
+            ? "This resident is already assigned to a different apartment. Estate Management must review the existing assignment first."
+            : assignmentError.message,
+      });
+    }
+    const row = Array.isArray(assignment) ? assignment[0] : assignment;
+    return json(200, { success: true, apartment: row });
+  }
 
   if (action === "load") {
     const { data: profile, error: profileError } = await admin.from("users")
