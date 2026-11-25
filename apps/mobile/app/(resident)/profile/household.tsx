@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Screen, Card, SectionTitle } from '../../../src/components/ui';
 import { supabase } from '../../../src/lib/supabase';
@@ -48,6 +48,7 @@ export default function HouseholdScreen() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const requestVersion = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -68,21 +69,37 @@ export default function HouseholdScreen() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (active) setUserId(session?.user?.id ?? null);
     });
-    return () => { active = false; subscription.unsubscribe(); };
+    return () => { active = false; requestVersion.current += 1; subscription.unsubscribe(); };
   }, []);
 
   const load = useCallback(async () => {
-    if (!userId) return;
+    const version = ++requestVersion.current;
     setLoading(true);
     setError('');
+    let resolvedUserId = userId;
+    if (!resolvedUserId) {
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+      if (version !== requestVersion.current) return;
+      if (authError || !auth.user) {
+        console.warn('[CB Nest Household] Retry session lookup failed', {
+          message: authError?.message, code: authError?.code,
+        });
+        setError('Your session could not be verified. Please sign in again.');
+        setLoading(false);
+        return;
+      }
+      resolvedUserId = auth.user.id;
+      setUserId(resolvedUserId);
+    }
     const { data, error: householdError } = await supabase.rpc('get_my_household_members');
+    if (version !== requestVersion.current) return;
     if (householdError) {
       if (isCancellation(householdError)) {
         setLoading(false);
         return;
       }
       console.warn('[CB Nest Household] Household RPC failed', {
-        userId, message: householdError.message, details: householdError.details,
+        userId: resolvedUserId, message: householdError.message, details: householdError.details,
         hint: householdError.hint, code: householdError.code,
       });
       setMembers([]);
