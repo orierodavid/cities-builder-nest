@@ -23,7 +23,7 @@ export default function SecurityVerifyRoute() {
     && Number.isFinite(from.getTime()) && Number.isFinite(until.getTime())
     && from.getTime() <= Date.now() && Date.now() <= until.getTime();
   const details: Visitor | null = visitor && from && until ? {
-    name: visitor.visitor.name, category: "Personal Visitor", valid, accessCode: gate.visitorCode,
+    name: visitor.visitor.name, phone: visitor.visitor.phone, visitorCount: visitor.pass.visitorCount, frequency: visitor.pass.frequency, scheduleStartDate: visitor.pass.scheduleStartDate, scheduleEndDate: visitor.pass.scheduleEndDate, category: "Personal Visitor", valid, accessCode: gate.visitorCode,
     host: visitor.host.name || "Not available", property: estate?.name || "Assigned estate",
     date: Number.isFinite(from.getTime()) ? from.toLocaleDateString() : "Not available",
     time: Number.isFinite(from.getTime()) && Number.isFinite(until.getTime())
