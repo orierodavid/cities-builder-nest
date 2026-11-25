@@ -37,7 +37,7 @@ export default function VisitorsScreen() {
   const [visitorPhone, setVisitorPhone] = useState('');
   const [contactPickerVisible, setContactPickerVisible] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
-  const [contacts, setContacts] = useState<Contacts.Contact[]>([]);
+  const [contacts, setContacts] = useState<Contacts.ExistingContact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [visitorCount, setVisitorCount] = useState('1');
   const [frequency, setFrequency] = useState<Frequency>('once');
@@ -134,7 +134,7 @@ export default function VisitorsScreen() {
     }
   }
 
-  function selectContact(contact: Contacts.Contact) {
+  function selectContact(contact: Contacts.ExistingContact) {
     const phone = contact.phoneNumbers?.find(item => !!item.number?.trim())?.number || '';
     setVisitorName(contact.name || '');
     setVisitorPhone(phone);
