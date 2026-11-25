@@ -327,6 +327,52 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // The registration form's House Number identifies the building/block,
+  // while Apartment / Suite identifies the unit within that building.
+  // Create the property records and resident_units link in one database
+  // function before registration can be reported as successful.
+  const { data: apartmentAssignment, error: apartmentAssignmentError } = await admin.rpc(
+    "register_resident_apartment",
+    {
+      p_estate_id: estateId,
+      p_resident_user_id: userId,
+      p_building_name: houseNumber,
+      p_unit_code: homeNumber,
+    },
+  );
+  if (apartmentAssignmentError || !apartmentAssignment?.length) {
+    console.error("resident-registration apartment assignment failed", {
+      userId,
+      estateId,
+      code: apartmentAssignmentError?.code,
+      message: apartmentAssignmentError?.message,
+      details: apartmentAssignmentError?.details,
+      hint: apartmentAssignmentError?.hint,
+    });
+    await cleanupIncompleteUser(admin, userId);
+    const detail = [
+      apartmentAssignmentError?.message,
+      apartmentAssignmentError?.details,
+      apartmentAssignmentError?.hint,
+    ].filter(Boolean).join(" ").toLowerCase();
+    if (detail.includes("apartment_already_has_a_primary_resident")) {
+      return reply(409, {
+        error: "apartment_already_registered",
+        message: "This apartment already has a primary resident account. Ask that resident to invite you through My Household.",
+      });
+    }
+    if (detail.includes("resident_already_has_an_apartment_assignment")) {
+      return reply(409, {
+        error: "resident_apartment_assignment_conflict",
+        message: "This account already has an apartment assignment. Please contact estate management.",
+      });
+    }
+    return reply(400, {
+      error: "registration_apartment_assignment_failed",
+      message: "We could not verify and assign this apartment. Check the house number and apartment details, then try again.",
+    });
+  }
+
   const delivery = await sendEmail(admin, userId, estateId, email, fullName);
   const superAdminNotifications = await notifyExistingSuperAdmins(admin, userId, estateId, {
     fullName, email, role: "Resident", estate: estate.name,
