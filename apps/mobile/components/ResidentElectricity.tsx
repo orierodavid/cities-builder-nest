@@ -241,7 +241,8 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
         {transactions.length ? transactions.map((item) => (
           <View key={item.id} style={{ borderTopWidth: 1, borderTopColor: "#3A3020", paddingVertical: 12 }}>
             <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 12 }}>{item.provider} · {item.customer_identifier}</Text>
-            <Text style={{ color: "#F1D28A", marginTop: 4 }}>{money(Number(item.amount_kobo) / 100)}</Text>\n            {item.payment_method === "wallet" ? <Text style={{ color: "#B9B9B9", fontSize: 10, marginTop: 3 }}>Paid from CB Nest wallet</Text> : null}
+            <Text style={{ color: "#F1D28A", marginTop: 4 }}>{money(Number(item.amount_kobo) / 100)}</Text>
+            {item.payment_method === "wallet" ? <Text style={{ color: "#B9B9B9", fontSize: 10, marginTop: 3 }}>Paid from CB Nest wallet</Text> : null}
             <Text style={{ color: item.status === "successful" ? "#79D6A1" : item.status === "failed" ? "#F28B82" : "#F1D28A", fontSize: 10, fontWeight: "900", marginTop: 4 }}>{String(item.status).toUpperCase()}</Text>
             <Text style={{ color: "#999", fontSize: 10, marginTop: 4 }}>{new Date(item.created_at).toLocaleString()}</Text>
             {item.status === "pending" && <TouchableOpacity disabled={busy} onPress={() => void checkStatus(item.merchant_reference)} style={{ paddingTop: 8 }}><Text style={{ color: "#D4A84B", fontWeight: "900", fontSize: 10 }}>CHECK STATUS</Text></TouchableOpacity>}
