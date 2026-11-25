@@ -147,7 +147,7 @@ export default function RentSavings({ residentUserId, estateId }: Props) {
         <View style={styles.noticeIcon}><Ionicons name="shield-checkmark-outline" size={22} color="#D4A84B"/></View>
         <View style={styles.noticeCopy}>
           <Text style={styles.noticeTitle}>A committed savings plan</Text>
-          <Text style={styles.noticeText}>Once started, a goal runs for its full 3- or 6-month term and cannot be paused or cancelled. You can add money at any time during the term. Contributions appear in your history after payment is confirmed. Withdrawals are not available through this feature.</Text>
+          <Text style={styles.noticeText}>Once started, a goal runs for its full 3- or 6-month term and cannot be paused or cancelled. You can add money at any time during the term. Contributions appear in your history after payment is confirmed.</Text>
         </View>
       </View>
 
@@ -220,7 +220,7 @@ export default function RentSavings({ residentUserId, estateId }: Props) {
         </View>
       ))}
       {!!message && <Text style={message.includes("created") ? styles.success : styles.error}>{message}</Text>}
-      <Text style={styles.footnote}>Your contributions count toward your rent goal after payment is confirmed. This feature tracks progress toward your goal and is not a withdrawable wallet.</Text>
+      <Text style={styles.footnote}>Your contributions count toward your rent goal after payment is confirmed.</Text>
     </View>
   );
 }
