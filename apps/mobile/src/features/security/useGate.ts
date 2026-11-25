@@ -4,7 +4,7 @@ import { visitorRequest, type GateVisit } from "./visitor-api";
 
 export type GateVisitorLookup = {
   visitor: { name: string; phone: string | null }; host: { name: string | null };
-  pass: { id: string; validFrom: string; validUntil: string; status: string };
+  pass: { id: string; validFrom: string; validUntil: string; status: string; visitorCount?: number; frequency?: string; scheduleStartDate?: string; scheduleEndDate?: string };
   availabilityError: string | null;
 };
 
