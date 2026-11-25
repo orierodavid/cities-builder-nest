@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import { Screen, SectionTitle, EmptyState, GoldButton, Card } from '../../src/components/ui';
 import { supabase } from '../../lib/supabase';
@@ -34,6 +35,10 @@ export default function VisitorsScreen() {
   const [busy, setBusy] = useState(false);
   const [visitorName, setVisitorName] = useState('');
   const [visitorPhone, setVisitorPhone] = useState('');
+  const [contactPickerVisible, setContactPickerVisible] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
+  const [contacts, setContacts] = useState<Contacts.Contact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
   const [visitorCount, setVisitorCount] = useState('1');
   const [frequency, setFrequency] = useState<Frequency>('once');
   const [startDate, setStartDate] = useState(today());
@@ -85,33 +90,59 @@ export default function VisitorsScreen() {
   useEffect(() => { void initialize(); }, [initialize]);
 
   async function chooseContact() {
+    setMessage('');
+    setContactsLoading(true);
     try {
-      const permission = await Contacts.requestPermissionsAsync();
+      let permission = await Contacts.getPermissionsAsync();
+      if (permission.status !== 'granted' && permission.canAskAgain) {
+        permission = await Contacts.requestPermissionsAsync();
+      }
       if (permission.status !== 'granted') {
-        setMessage('Contact access was not granted. You can still enter visitor details manually.');
+        setMessage('CB Nest needs contacts permission to select a visitor. You can still enter the details manually.');
+        if (!permission.canAskAgain) {
+          Alert.alert(
+            'Allow contact access',
+            'Contact access is turned off for CB Nest. Open your device settings and allow Contacts access to use your address book.',
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'Open settings', onPress: () => { void Linking.openSettings(); } },
+            ],
+          );
+        }
         return;
       }
+
       const result = await Contacts.getContactsAsync({
         fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
         sort: Contacts.SortTypes.FirstName,
-        pageSize: 500,
+        pageSize: 1000,
       });
-      const choices = (result.data || []).filter(contact => !!contact.name && !!contact.phoneNumbers?.length).slice(0, 12);
-      if (!choices.length) { setMessage('No contacts with phone numbers were found.'); return; }
-      Alert.alert('Choose a visitor', 'Select a contact to fill in the visitor details.', [
-        ...choices.slice(0, 10).map(contact => ({
-          text: contact.name || 'Contact',
-          onPress: () => {
-            setVisitorName(contact.name || '');
-            setVisitorPhone(contact.phoneNumbers?.[0]?.number || '');
-          },
-        })),
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    } catch {
-      setMessage('Your contacts could not be opened. Enter the visitor details manually.');
+      const available = (result.data || []).filter(
+        contact => !!contact.name && !!contact.phoneNumbers?.some(phone => !!phone.number?.trim()),
+      );
+      setContacts(available);
+      setContactSearch('');
+      setContactPickerVisible(true);
+      if (!available.length) {
+        setMessage('No contacts with phone numbers were found in the address book.');
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '';
+      setMessage(detail ? 'Contacts could not be loaded. Check CB Nest contact permission in your device settings.' : 'Your contacts could not be opened. Enter the visitor details manually.');
+    } finally {
+      setContactsLoading(false);
     }
   }
+
+  function selectContact(contact: Contacts.Contact) {
+    const phone = contact.phoneNumbers?.find(item => !!item.number?.trim())?.number || '';
+    setVisitorName(contact.name || '');
+    setVisitorPhone(phone);
+    setContactPickerVisible(false);
+    setContactSearch('');
+    setMessage('');
+  }
+
 
   async function shareWhatsApp(code: string, pass?: Pass | null) {
     const details = [
@@ -180,13 +211,24 @@ export default function VisitorsScreen() {
     <Screen title="Visitor Management" subtitle="Create and manage access passes for your visitors">
       <SectionTitle>Generate access code</SectionTitle>
       <Card>
-        <Text style={labelStyle}>Visitor name</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text style={[labelStyle, { marginBottom: 0 }]}>Visitor name</Text>
+          <TouchableOpacity
+            onPress={() => void chooseContact()}
+            disabled={contactsLoading}
+            accessibilityRole="button"
+            accessibilityLabel="Choose visitor from contacts"
+            hitSlop={10}
+            style={{ width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}
+          >
+            {contactsLoading
+              ? <ActivityIndicator size="small" color={theme.gold} />
+              : <Ionicons name="person-add-outline" size={19} color={theme.gold} />}
+          </TouchableOpacity>
+        </View>
         <TextInput value={visitorName} onChangeText={setVisitorName} placeholder="Enter visitor’s full name" placeholderTextColor={theme.muted} autoCapitalize="words" style={inputStyle} />
         <Text style={labelStyle}>Phone number</Text>
         <TextInput value={visitorPhone} onChangeText={setVisitorPhone} placeholder="Visitor phone number" placeholderTextColor={theme.muted} keyboardType="phone-pad" style={inputStyle} />
-        <TouchableOpacity onPress={() => void chooseContact()} style={{ padding: 12, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', marginBottom: 14 }}>
-          <Text style={{ color: theme.gold, fontWeight: '800' }}>SELECT FROM CONTACTS</Text>
-        </TouchableOpacity>
         <Text style={labelStyle}>How many visitors?</Text>
         <TextInput value={visitorCount} onChangeText={setVisitorCount} placeholder="1" placeholderTextColor={theme.muted} keyboardType="number-pad" style={inputStyle} />
         <Text style={labelStyle}>Frequency of visit</Text>
@@ -207,6 +249,53 @@ export default function VisitorsScreen() {
         <GoldButton label={busy ? 'Generating…' : 'Generate visitor code'} onPress={createPass} disabled={busy || loading || !estateId} />
         {busy ? <ActivityIndicator color={theme.gold} style={{ marginTop: 12 }} /> : null}
       </Card>
+      <Modal
+        visible={contactPickerVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setContactPickerVisible(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.72)' }}>
+          <View style={{ maxHeight: '82%', minHeight: '55%', backgroundColor: theme.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: theme.border, padding: 18 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <Text style={{ color: theme.text, fontSize: 17, fontWeight: '800' }}>Choose a contact</Text>
+              <Pressable onPress={() => setContactPickerVisible(false)} accessibilityRole="button" accessibilityLabel="Close contacts">
+                <Ionicons name="close-circle-outline" size={27} color={theme.muted} />
+              </Pressable>
+            </View>
+            <TextInput
+              value={contactSearch}
+              onChangeText={setContactSearch}
+              placeholder="Search name or phone number"
+              placeholderTextColor={theme.muted}
+              autoCapitalize="none"
+              style={[inputStyle, { marginBottom: 12 }]}
+            />
+            <FlatList
+              data={contacts.filter(contact => {
+                const query = contactSearch.trim().toLowerCase();
+                if (!query) return true;
+                return (contact.name || '').toLowerCase().includes(query)
+                  || (contact.phoneNumbers || []).some(phone => (phone.number || '').toLowerCase().includes(query));
+              })}
+              keyExtractor={(contact, index) => contact.id || (contact.name || 'contact') + '-' + index}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={<Text style={{ color: theme.muted, textAlign: 'center', paddingVertical: 24 }}>No matching contacts with phone numbers.</Text>}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => selectContact(item)}
+                  style={{ paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: theme.border }}
+                >
+                  <Text style={{ color: theme.text, fontWeight: '700' }}>{item.name}</Text>
+                  <Text style={{ color: theme.muted, fontSize: 12, marginTop: 4 }}>
+                    {item.phoneNumbers?.find(phone => !!phone.number?.trim())?.number || ''}
+                  </Text>
+                </Pressable>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
       {issuedCode ? <Card>
         <Text style={{ color: theme.gold, fontWeight: '700', marginBottom: 12 }}>Your visitor access code</Text>
         <Text selectable style={{ color: theme.text, fontSize: 30, fontWeight: '800', letterSpacing: 7, textAlign: 'center', marginBottom: 16 }}>{issuedCode}</Text>
