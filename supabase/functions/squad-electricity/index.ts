@@ -305,7 +305,7 @@ Deno.serve(async (req: Request) => {
 
   if (action === "history") {
     const { data, error } = await admin.from("utility_transactions")
-      .select("id,service,provider,customer_identifier,merchant_reference,amount_kobo,currency,status,provider_status,receipt,created_at")
+      .select("id,service,provider,customer_identifier,merchant_reference,amount_kobo,currency,status,provider_status,payment_method,receipt,created_at")
       .eq("resident_user_id", auth.user.id).eq("service", "electricity")
       .order("created_at", { ascending: false }).limit(50);
     if (error) return reply(503, { error: "history_unavailable" });
