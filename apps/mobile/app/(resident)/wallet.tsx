@@ -57,29 +57,10 @@ export default function WalletScreen() {
     setWalletStatus(wallet?.status ?? null);
 
     try {
-      if (membershipResult.error || assignmentResult.error) throw new Error('resident_charge_context_unavailable');
-      const estateIds = [...new Set((membershipResult.data || []).map((row) => row.estate_id).filter(Boolean))];
-      const unitId = assignmentResult.data?.[0]?.unit_id || null;
-      if (!estateIds.length) {
-        setPendingChargeKobo(0);
-      } else {
-        let paymentsQuery = supabase.from('service_charge_payments')
-          .select('charge_id,status,verified_at').in('estate_id', estateIds);
-        paymentsQuery = unitId
-          ? paymentsQuery.or(`unit_id.eq.${unitId},and(unit_id.is.null,resident_user_id.eq.${user.id})`)
-          : paymentsQuery.eq('resident_user_id', user.id);
-        const [chargeResult, paymentResult] = await Promise.all([
-          supabase.from('estate_service_charges').select('id,amount_kobo').in('estate_id', estateIds).eq('is_active', true),
-          paymentsQuery,
-        ]);
-        if (chargeResult.error || paymentResult.error) throw new Error('resident_charge_data_unavailable');
-        const paidIds = new Set((paymentResult.data || [])
-          .filter((row) => row.status === 'successful' && !!row.verified_at)
-          .map((row) => row.charge_id).filter(Boolean));
-        const outstanding = (chargeResult.data || []).reduce((total, charge) =>
-          total + (paidIds.has(charge.id) ? 0 : Number(charge.amount_kobo || 0)), 0);
-        setPendingChargeKobo(outstanding);
-      }
+      const { data: pendingTotal, error: pendingError } = await supabase.rpc('get_my_pending_service_charge_total');
+      if (pendingError) throw pendingError;
+      const value = Array.isArray(pendingTotal) ? pendingTotal[0] : pendingTotal;
+      setPendingChargeKobo(value === null || value === undefined ? 0 : Number(value));
     } catch {
       setPendingChargeKobo(null);
     } finally {
