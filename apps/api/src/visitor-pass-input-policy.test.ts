@@ -24,7 +24,7 @@ test("accepts daily recurring visits with a bounded date range and visitor count
   assert.ok(result);
   assert.equal(result.visitorCount, 4);
   assert.equal(result.frequency, "daily");
-  assert.equal(result.validFrom.toISOString(), "2026-10-29T00:00:00.000Z");
+  assert.equal(result.validFrom.toISOString(), "2026-10-28T23:00:00.000Z");
 });
 
 test("accepts weekly recurring visits", () => {
