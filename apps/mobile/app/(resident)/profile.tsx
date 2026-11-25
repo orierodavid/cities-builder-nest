@@ -48,8 +48,8 @@ export default function ProfileScreen() {
           {!!unitDetails && <Text style={{ color: '#D4A84B', fontSize: 12, fontWeight: '700' }}>Unit {unitDetails}</Text>}
         </View>}
         <ListRow icon="home-city-outline" title="My property" subtitle="View your assigned property" onPress={() => router.push('/property' as never)} />
-        <ListRow icon="card-account-details-outline" title="My ID" subtitle="View your personal CB Nest resident QR ID" onPress={() => router.push('/my-id' as never)} />
-        <ListRow icon="account-group-outline" title="My household" subtitle="Invite and manage the two resident accounts for your apartment" onPress={() => router.push('/household' as never)} />
+        <ListRow icon="card-account-details-outline" title="My ID" subtitle="View your personal CB Nest resident QR ID" onPress={() => router.push('/(resident)/my-id' as never)} />
+        <ListRow icon="account-group-outline" title="My household" subtitle="Invite and manage the two resident accounts for your apartment" onPress={() => router.push('/(resident)/household' as never)} />
       </Card>
       <Card>
         <SectionTitle>Preferences & support</SectionTitle>
