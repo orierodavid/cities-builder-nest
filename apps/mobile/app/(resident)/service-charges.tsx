@@ -5,6 +5,8 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { theme } from '../../src/theme/theme';
 
+type FeeSettings = { enabled: boolean; fee_mode: 'fixed' | 'percentage'; fee_value: number };
+
 type Charge = {
   id: string;
   title: string;
@@ -26,6 +28,7 @@ export default function ServiceChargesScreen() {
   const [pendingPaymentRefs, setPendingPaymentRefs] = useState<Record<string, string>>({});
   const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
   const [paymentMessage, setPaymentMessage] = useState('');
+  const [feeSettings, setFeeSettings] = useState<FeeSettings | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,6 +39,11 @@ export default function ServiceChargesScreen() {
       setLoading(false);
       return;
     }
+
+    const { data: feeRows, error: feeError } = await supabase.rpc('get_my_service_charge_fee_settings');
+    const feeRow = Array.isArray(feeRows) ? feeRows[0] : feeRows;
+    if (feeError || !feeRow) setFeeSettings(null);
+    else setFeeSettings({ enabled: !!feeRow.enabled, fee_mode: feeRow.fee_mode, fee_value: Number(feeRow.fee_value) });
 
     const { data: memberships, error: membershipError } = await supabase
       .from('estate_memberships')
@@ -142,6 +150,13 @@ export default function ServiceChargesScreen() {
     }
   };
 
+  const paymentFeeFor = (principalKobo: number) => {
+    if (!feeSettings?.enabled || feeSettings.fee_value <= 0) return 0;
+    return feeSettings.fee_mode === 'percentage'
+      ? Math.round(principalKobo * feeSettings.fee_value / 10000)
+      : feeSettings.fee_value;
+  };
+
   const payCharge = async (chargeId: string) => {
     setPaymentBusyId(chargeId);
     setPaymentMessage('');
@@ -196,6 +211,12 @@ export default function ServiceChargesScreen() {
             <Text style={{ color: theme.text, fontSize: 15, fontWeight: '700' }}>{charge.title}</Text>
             {!!charge.description && <Text style={{ color: theme.muted, fontSize: 12, marginTop: 5 }}>{charge.description}</Text>}
             <Text style={{ color: theme.goldSoft, fontSize: 22, fontWeight: '800', marginTop: 12 }}>{money(charge.amount_kobo)}</Text>
+            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.border, gap: 6 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: theme.muted, fontSize: 12 }}>Service charge</Text><Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>{money(charge.amount_kobo)}</Text></View>
+              {feeSettings?.enabled && paymentFeeFor(charge.amount_kobo) > 0 ? <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: theme.muted, fontSize: 12 }}>Platform payment fee (online payment)</Text><Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>{money(paymentFeeFor(charge.amount_kobo))}</Text></View> : null}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '800' }}>Total for online payment</Text><Text style={{ color: theme.goldSoft, fontSize: 13, fontWeight: '900' }}>{money(charge.amount_kobo + paymentFeeFor(charge.amount_kobo))}</Text></View>
+              {!feeSettings && <Text style={{ color: '#F2A5A5', fontSize: 11 }}>Payment fee details could not be loaded. Refresh before starting an online payment.</Text>}
+            </View>
             <Text style={{ color: theme.muted, fontSize: 12, marginTop: 5 }}>
               {charge.due_date ? `Due ${new Date(charge.due_date + 'T00:00:00').toLocaleDateString()}` : 'Due date not specified'}
             </Text>
@@ -215,7 +236,7 @@ export default function ServiceChargesScreen() {
               <TouchableOpacity onPress={() => void payChargeWithWallet(charge.id)} disabled={paymentBusyId === charge.id} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
                 {paymentBusyId === charge.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>PAY FROM WALLET</Text>}
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => void payCharge(charge.id)} disabled={paymentBusyId === charge.id} style={{ marginTop: 9, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
+              <TouchableOpacity onPress={() => void payCharge(charge.id)} disabled={paymentBusyId === charge.id || !feeSettings} style={{ marginTop: 9, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
                 <Text style={{ color: theme.goldSoft, fontWeight: '900' }}>PAY NORMALLY</Text>
               </TouchableOpacity>
               </>
