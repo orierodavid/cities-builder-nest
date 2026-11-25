@@ -25,7 +25,7 @@ export function parseVisitorPassInput(input: {
   const visitorPhone = typeof input.visitorPhone === "string" ? input.visitorPhone.trim() : null;
   const frequency = (input.frequency ?? "once") as VisitorFrequency;
   const visitorCount = input.visitorCount === undefined ? 1 : Number(input.visitorCount);
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(nowMs));
+  const today = new Date(nowMs + 60 * 60 * 1000).toISOString().slice(0, 10);
   const start = input.scheduleStartDate === undefined ? today : input.scheduleStartDate;
   const end = input.scheduleEndDate === undefined ? start : input.scheduleEndDate;
   if (!["once", "daily", "weekly"].includes(frequency) ||
