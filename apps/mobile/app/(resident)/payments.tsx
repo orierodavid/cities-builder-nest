@@ -58,7 +58,7 @@ export default function PaymentsScreen() {
       ? householdCharges.or(`unit_id.eq.${unitId},and(unit_id.is.null,resident_user_id.eq.${user.id})`)
       : householdCharges.eq('resident_user_id', user.id);
 
-    const [charges, savings, electricity, walletCredits] = await Promise.all([
+    const [charges, savings, electricity, walletCredits, walletIntents] = await Promise.all([
       householdCharges.order('created_at', { ascending: false }),
       supabase.from('rent_savings_contributions')
         .select('id,amount_kobo,currency,status,provider_reference,verified_at,created_at')
@@ -72,9 +72,10 @@ export default function PaymentsScreen() {
         .select('id,amount_kobo,currency,status,provider_reference,created_at,description,entry_type')
         .eq('resident_user_id', user.id).eq('entry_type', 'credit')
         .order('created_at', { ascending: false }),
+      supabase.rpc('get_my_wallet_funding_history'),
     ]);
 
-    if (charges.error || savings.error || electricity.error || walletCredits.error) {
+    if (charges.error || savings.error || electricity.error || walletCredits.error || walletIntents.error) {
       setPayments([]);
       setError('Your payment history is temporarily unavailable. Please try again.');
       setLoading(false);
@@ -111,7 +112,18 @@ export default function PaymentsScreen() {
       created_at: row.created_at,
       description: 'Electricity purchase' + (row.units_purchased ? ' · ' + row.units_purchased + ' units' : ''),
     }));
-    const walletRows = (walletCredits.data || []).map((row) => ({
+    const fundingReferences = new Set((walletIntents.data || []).map((row) => row.reference));
+    const fundingRows = (walletIntents.data || []).map((row) => ({
+      id: 'wallet-intent-' + row.id,
+      amount_kobo: Number(row.amount_kobo),
+      currency: row.currency || 'NGN',
+      status: row.status,
+      provider_reference: row.reference,
+      verified_at: row.verified_at,
+      created_at: row.created_at,
+      description: 'Wallet top-up',
+    }));
+    const walletRows = (walletCredits.data || []).filter((row) => !fundingReferences.has(row.provider_reference || '')).map((row) => ({
       id: 'wallet-' + row.id,
       amount_kobo: Number(row.amount_kobo),
       currency: row.currency || 'NGN',
@@ -121,7 +133,7 @@ export default function PaymentsScreen() {
       created_at: row.created_at,
       description: row.description || 'Wallet top-up',
     }));
-    setPayments([...chargeRows, ...savingsRows, ...electricityRows, ...walletRows].sort((a, b) =>
+    setPayments([...chargeRows, ...savingsRows, ...electricityRows, ...fundingRows, ...walletRows].sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     ));
     setLoading(false);
