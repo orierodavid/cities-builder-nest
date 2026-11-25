@@ -47,7 +47,7 @@ export default function ServiceChargesPage(){
   const naira=Number(amount);
   if(!Number.isFinite(naira)||naira<=0||naira>100000000){setError("Enter a valid service fee in NGN.");setSaving(false);return;}
   const {error:insertError}=await supabase.from("estate_service_charges").insert({estate_id:estateId,title:title.trim(),description:description.trim()||null,amount_kobo:Math.round(naira*100),due_date:dueDate||null,created_by:user.id});
-  if(insertError){setError("This service charge could not be saved. Please try again.");setSaving(false);return;}
+  if(insertError){console.error("[CB Nest service charge] Insert failed",{code:insertError.code,message:insertError.message,details:insertError.details,hint:insertError.hint,estateId});setError(insertError.code==="42501"?"Your account is not authorised to publish this charge, or the required legal acceptance is missing. Please check your access and try again.":"This service charge could not be saved. Please check the details and try again.");setSaving(false);return;}
   setTitle("");setDescription("");setAmount("");setDueDate("");setNotice("Service charge published. Residents in this estate can now see the amount due.");await load();setSaving(false);
  }
  async function toggle(row:Charge){
