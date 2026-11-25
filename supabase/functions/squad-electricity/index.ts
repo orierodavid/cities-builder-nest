@@ -93,6 +93,24 @@ Deno.serve(async (req: Request) => {
       str(nested.error) || fallback;
   };
 
+  const refundWalletElectricity = async (row: Record<string, unknown>) => {
+    if (row.payment_method !== "wallet" || !row.wallet_debit_reference) return true;
+    const { error } = await admin.rpc("post_verified_wallet_credit", {
+      p_resident_user_id: auth.user.id,
+      p_amount_kobo: Number(row.amount_kobo),
+      p_source: "wallet_refund",
+      p_external_reference: "CBN-EL-REFUND-" + str(row.merchant_reference),
+      p_provider_reference: null,
+      p_description: "Refund for failed electricity purchase",
+      p_metadata: { merchant_reference: row.merchant_reference, wallet_debit_reference: row.wallet_debit_reference },
+    });
+    if (error) {
+      console.error("[squad-electricity] wallet refund requires reconciliation", JSON.stringify({ merchantReference: row.merchant_reference, message: error.message }));
+      return false;
+    }
+    return true;
+  };
+
   if (action === "providers") {
     const { response, data } = await squad("/vending/utilities/electricity/service-providers");
     if (!response.ok || data.success !== true || !Array.isArray(data.data)) {
@@ -153,6 +171,8 @@ Deno.serve(async (req: Request) => {
     const phone = normalizeNigeriaPhone(str(input.phone));
     const email = str(input.email);
     const amount = Number(input.amount);
+    const paymentMethod = input.paymentMethod === undefined ? "external" : str(input.paymentMethod);
+    if (!["external", "wallet"].includes(paymentMethod)) return reply(400, { error: "invalid_payment_method" });
     if (!validationId || !phone || !validEmail(email) ||
         !Number.isSafeInteger(amount) || amount < 100) {
       return reply(400, { error: "invalid_purchase_details", message: "Enter a whole-naira amount of at least ₦100, a valid phone number and email address." });
@@ -182,9 +202,27 @@ Deno.serve(async (req: Request) => {
       validation_id: validation.id, service: "electricity", provider: validation.provider,
       customer_identifier: validation.customer_identifier, merchant_reference: reference,
       amount_kobo: amountKobo, currency: "NGN", status: "pending", provider_status: "SUBMITTING",
+      payment_method: paymentMethod,
+      wallet_debit_reference: paymentMethod === "wallet" ? "CBN-EL-WALLET-" + reference : null,
     }).select("id").single();
     if (transactionError || !transaction) {
       return reply(503, { error: "transaction_record_failed", message: "We could not safely record this purchase. Please verify the meter again." });
+    }
+
+    if (paymentMethod === "wallet") {
+      const walletReference = "CBN-EL-WALLET-" + reference;
+      const { error: debitError } = await admin.rpc("post_wallet_debit_for_electricity", {
+        p_resident_user_id: auth.user.id,
+        p_amount_kobo: amountKobo,
+        p_external_reference: walletReference,
+        p_description: "Electricity purchase",
+        p_metadata: { merchant_reference: reference, estate_id: validation.estate_id, meter_number: validation.customer_identifier },
+      });
+      if (debitError) {
+        await admin.from("utility_transactions").update({ status: "failed", provider_status: "WALLET_DEBIT_FAILED", updated_at: new Date().toISOString() }).eq("id", transaction.id);
+        if (debitError.message.includes("insufficient_wallet_funds")) return reply(402, { error: "insufficient_wallet_funds", message: "Your wallet balance is insufficient. Choose normal payment or top up your wallet." });
+        return reply(409, { error: "wallet_debit_failed", message: "Wallet payment could not be started. Check your wallet balance and transaction history." });
+      }
     }
 
     const purchaseBody = { phone_number: phone, amount, email, reference: str(validation.validation_token) };
@@ -213,6 +251,9 @@ Deno.serve(async (req: Request) => {
     if (updateError) {
       console.error("[squad-electricity] transaction update failed", updateError.message);
       return reply(202, { transaction: { merchantReference: reference, status: "pending" }, message: "The provider responded, but the final status is being reconciled. Do not submit again." });
+    }
+    if (finalStatus === "failed" && paymentMethod === "wallet") {
+      await refundWalletElectricity({ resident_user_id: auth.user.id, amount_kobo: amountKobo, payment_method: "wallet", wallet_debit_reference: "CBN-EL-WALLET-" + reference, merchant_reference: reference });
     }
     if (!response.ok || data.success !== true || finalStatus === "failed") {
       if (finalStatus === "pending") {
@@ -256,7 +297,7 @@ Deno.serve(async (req: Request) => {
           .update({ status: nextStatus, provider_status: providerStatus || "PENDING",
             provider_response: data, receipt, updated_at: new Date().toISOString() })
           .eq("id", row.id).eq("status", "pending").select("*").maybeSingle();
-        if (updated) return reply(200, { transaction: updated });
+        if (updated) {\n          if (nextStatus === "failed" && updated.payment_method === "wallet") await refundWalletElectricity(updated as Record<string, unknown>);\n          return reply(200, { transaction: updated });\n        }
       }
     }
     return reply(200, { transaction: row });
