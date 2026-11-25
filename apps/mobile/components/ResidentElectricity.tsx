@@ -26,7 +26,7 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
   const [validation, setValidation] = useState<MeterValidation | null>(null);
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("");\n  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "external">("external");\n  const [walletBalanceKobo, setWalletBalanceKobo] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<ElectricityTransaction[]>([]);
   const [tab, setTab] = useState<"buy" | "history">("buy");
   const [loading, setLoading] = useState(true);
@@ -72,7 +72,7 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
     }
   }, [invoke]);
 
-  useEffect(() => { void loadCompanies(); }, [loadCompanies]);
+  useEffect(() => {\n    void loadCompanies();\n    void supabase.rpc("get_my_wallet_balance").then(({ data }) => {\n      const wallet = Array.isArray(data) ? data[0] : null;\n      setWalletBalanceKobo(wallet ? Number(wallet.balance_kobo) : null);\n    });\n  }, [loadCompanies]);
 
   const validateMeter = async () => {
     if (!estateId) { setMessage("Select your estate first."); setError(true); return; }
@@ -100,7 +100,7 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError(true); setMessage("Enter a valid email address to receive your electricity token."); return; }
     setBusy(true); setError(false); setMessage(""); setLastReceipt(null);
     try {
-      const result = await invoke({ action: "vend", validationId: validation.validationId, amount: value, phone: phone.trim(), email: email.trim() });
+      const result = await invoke({ action: "vend", validationId: validation.validationId, amount: value, phone: phone.trim(), email: email.trim(), paymentMethod });
       let tx = result.transaction as { merchantReference?: string; status?: string; receipt?: Record<string, unknown> };
       let currentStatus = String(tx?.status ?? "pending").toLowerCase();
       // Only poll a provider-accepted pending transaction. Never resubmit a vend.
@@ -209,12 +209,22 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
             <TextInput accessibilityLabel="Electricity purchase amount" value={amount} onChangeText={setAmount} keyboardType="number-pad" placeholder={validation.minimumVend ? String(Math.ceil(validation.minimumVend)) : "Enter whole-naira amount"} placeholderTextColor="#777" style={field} />
             <Text style={label}>Phone number</Text>
             <TextInput accessibilityLabel="Purchase phone number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="080..." placeholderTextColor="#777" style={field} />
+            <Text style={label}>Payment method</Text>
+            <View style={{ flexDirection: "row", gap: 9, marginBottom: 10 }}>
+              <TouchableOpacity onPress={() => setPaymentMethod("wallet")} style={{ flex: 1, minHeight: 46, borderRadius: 9, borderWidth: 1, borderColor: paymentMethod === "wallet" ? "#D4A84B" : "#494133", backgroundColor: paymentMethod === "wallet" ? "#302719" : "#101010", alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: paymentMethod === "wallet" ? "#F1D28A" : "#B9B9B9", fontSize: 11, fontWeight: "900" }}>CB NEST WALLET</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setPaymentMethod("external")} style={{ flex: 1, minHeight: 46, borderRadius: 9, borderWidth: 1, borderColor: paymentMethod === "external" ? "#D4A84B" : "#494133", backgroundColor: paymentMethod === "external" ? "#302719" : "#101010", alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: paymentMethod === "external" ? "#F1D28A" : "#B9B9B9", fontSize: 11, fontWeight: "900" }}>NORMAL PAYMENT</Text>
+              </TouchableOpacity>
+            </View>
+            {paymentMethod === "wallet" ? <Text style={{ color: "#B9B9B9", fontSize: 11, marginBottom: 10 }}>Available wallet balance: {walletBalanceKobo === null ? "Checking…" : money(walletBalanceKobo / 100)}</Text> : null}
             <Text style={label}>Email address (required)</Text>
             <TextInput accessibilityLabel="Purchase email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholder="Email address for your token" placeholderTextColor="#777" style={field} />
             <TouchableOpacity onPress={() => void purchase()} disabled={busy} style={[goldButton, { opacity: busy ? 0.55 : 1 }]}>
-              {busy ? <ActivityIndicator color="#17130B" /> : <Text style={{ color: "#17130B", fontSize: 12, fontWeight: "900" }}>CONFIRM AND BUY</Text>}
+              {busy ? <ActivityIndicator color="#17130B" /> : <Text style={{ color: "#17130B", fontSize: 12, fontWeight: "900" }}>{paymentMethod === "wallet" ? "PAY FROM WALLET" : "CONTINUE TO PAYMENT"}</Text>}
             </TouchableOpacity>
-            <Text style={{ color: "#AFA89A", fontSize: 10, lineHeight: 16, marginTop: 9 }}>Your meter verification expires after 15 minutes and can only be used once. Do not repeat a purchase while its status is pending.</Text>
+            <Text style={{ color: "#AFA89A", fontSize: 10, lineHeight: 16, marginTop: 9 }}>Your meter verification expires after 15 minutes and can only be used once. If you choose wallet payment, your balance is debited only when the purchase is submitted. A confirmed failed purchase is refunded automatically. Do not repeat a purchase while its status is pending.</Text>
           </View>}
         </>
       ) : <View style={card}>
@@ -223,7 +233,7 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
         {transactions.length ? transactions.map((item) => (
           <View key={item.id} style={{ borderTopWidth: 1, borderTopColor: "#3A3020", paddingVertical: 12 }}>
             <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 12 }}>{item.provider} · {item.customer_identifier}</Text>
-            <Text style={{ color: "#F1D28A", marginTop: 4 }}>{money(Number(item.amount_kobo) / 100)}</Text>
+            <Text style={{ color: "#F1D28A", marginTop: 4 }}>{money(Number(item.amount_kobo) / 100)}</Text>\n            {item.payment_method === "wallet" ? <Text style={{ color: "#B9B9B9", fontSize: 10, marginTop: 3 }}>Paid from CB Nest wallet</Text> : null}
             <Text style={{ color: item.status === "successful" ? "#79D6A1" : item.status === "failed" ? "#F28B82" : "#F1D28A", fontSize: 10, fontWeight: "900", marginTop: 4 }}>{String(item.status).toUpperCase()}</Text>
             <Text style={{ color: "#999", fontSize: 10, marginTop: 4 }}>{new Date(item.created_at).toLocaleString()}</Text>
             {item.status === "pending" && <TouchableOpacity disabled={busy} onPress={() => void checkStatus(item.merchant_reference)} style={{ paddingTop: 8 }}><Text style={{ color: "#D4A84B", fontWeight: "900", fontSize: 10 }}>CHECK STATUS</Text></TouchableOpacity>}
