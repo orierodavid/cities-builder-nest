@@ -38,7 +38,7 @@ export function parseVisitorPassInput(input: {
   const endAt = new Date(end + "T23:59:59.999+01:00");
   if (endAt.getTime() <= nowMs || endAt.getTime() - startAt.getTime() > 366 * 24 * 60 * 60 * 1000) return null;
   const validFrom = frequency === "once" ? new Date(Math.max(nowMs, startAt.getTime())) : startAt;
-  const validUntil = frequency === "once" ? new Date(Math.min(endAt.getTime(), validFrom.getTime() + DEFAULT_VISITOR_PASS_DURATION_MS)) : endAt;
+  const validUntil = frequency === "once" ? new Date(validFrom.getTime() + DEFAULT_VISITOR_PASS_DURATION_MS) : endAt;
   if (validUntil.getTime() <= validFrom.getTime()) return null;
   return { visitorName, visitorPhone: visitorPhone || null, visitorCount, frequency, scheduleStartDate: start, scheduleEndDate: end, validFrom, validUntil };
 }
