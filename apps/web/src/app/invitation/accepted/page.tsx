@@ -59,9 +59,18 @@ export default function InvitationAcceptedPage() {
         throw new Error("Your email address could not be verified. Ask your administrator to send a new invitation.");
       }
 
+      if (params.get("flow") === "household") {
+        const { data: household, error: householdError } = await supabase.rpc("accept_resident_household_invite");
+        if (householdError || !household?.length) {
+          throw new Error("This household invitation could not be linked. It may have expired or already been used. Ask the primary resident to send a new invitation.");
+        }
+      }
+
       if (!active) return;
       setState("accepted");
-      setMessage("Your invitation has been verified. Redirecting you to sign in…");
+      setMessage(params.get("flow") === "household"
+        ? "Your email is verified and you have joined the apartment household. Redirecting you to sign in…"
+        : "Your invitation has been verified. Redirecting you to sign in…");
       await supabase.auth.signOut();
       redirectTimer = setTimeout(() => {
         if (active) window.location.replace(new URL("/?invitation=accepted", window.location.origin).toString());
@@ -106,7 +115,7 @@ export default function InvitationAcceptedPage() {
   return (
     <main className="invite-page">
       <section className="invite-card">
-        <div className="invite-brand"><span>⌂</span><div><strong>CITIES BUILDER NEST</strong><small>COMMUNITY MANAGEMENT</small></div></div>
+        <div className="invite-brand"><span>⌂</span><div><strong>CB NEST</strong><small>COMMUNITY MANAGEMENT</small></div></div>
         <div className="invite-content">
           <div className={state === "accepted" || state === "complete" ? "invite-mark" : state === "invalid" ? "invite-mark invite-mark-error" : "invite-mark invite-mark-loading"}>
             {state === "accepted" || state === "complete" ? "✓" : state === "invalid" ? "!" : "…"}
@@ -125,7 +134,7 @@ export default function InvitationAcceptedPage() {
           )}
           {(state === "invalid" || state === "complete") && <a className="invite-login-link" href="/">Return to sign in</a>}
         </div>
-        <footer className="invite-footer">© {new Date().getFullYear()} Cities Builder Nest</footer>
+        <footer className="invite-footer">© {new Date().getFullYear()} CB Nest</footer>
       </section>
     </main>
   );
