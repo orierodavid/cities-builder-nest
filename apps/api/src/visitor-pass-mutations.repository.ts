@@ -17,6 +17,10 @@ export async function createVisitorPass(
     hostUserId: string;
     visitorName: string;
     visitorPhone: string | null;
+    visitorCount: number;
+    frequency: "once" | "daily" | "weekly";
+    scheduleStartDate: string;
+    scheduleEndDate: string;
     accessCodeHash: string;
     accessCodeCiphertext: string;
     validFrom: string;
@@ -25,11 +29,13 @@ export async function createVisitorPass(
 ): Promise<CreatedVisitorPass | null> {
   const result = await client.query<CreatedVisitorPass>(
     `INSERT INTO public.visitor_passes
-       (estate_id, host_user_id, visitor_name, visitor_phone, access_code_hash,
-        access_code_ciphertext, valid_from, valid_until, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
+       (estate_id, host_user_id, visitor_name, visitor_phone, visitor_count, visit_frequency,
+        schedule_start_date, schedule_end_date, access_code_hash, access_code_ciphertext,
+        valid_from, valid_until, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'active')
      RETURNING id, estate_id, visitor_name, valid_from, valid_until, status, created_at`,
-    [input.estateId, input.hostUserId, input.visitorName, input.visitorPhone, input.accessCodeHash,
+    [input.estateId, input.hostUserId, input.visitorName, input.visitorPhone, input.visitorCount,
+      input.frequency, input.scheduleStartDate, input.scheduleEndDate, input.accessCodeHash,
       input.accessCodeCiphertext, input.validFrom, input.validUntil],
   );
   return result.rows[0] ?? null;
