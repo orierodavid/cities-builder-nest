@@ -107,6 +107,29 @@ export default function ServiceChargesScreen() {
     return () => subscription.remove();
   }, [load]);
 
+  const payChargeWithWallet = async (chargeId: string) => {
+    setPaymentBusyId(chargeId);
+    setPaymentMessage('');
+    try {
+      const { data, error: walletError } = await supabase.rpc('pay_service_charge_from_wallet', { p_charge_id: chargeId });
+      if (walletError) {
+        const detail = walletError.message || '';
+        if (detail.includes('insufficient_wallet_funds')) throw new Error('Your wallet balance is insufficient. Choose normal payment or top up your wallet.');
+        if (detail.includes('service_charge_payment_already_pending_or_paid')) throw new Error('A payment for this charge is already pending or has been confirmed. Refresh to check its status.');
+        if (detail.includes('active_wallet_not_found')) throw new Error('Your CB Nest wallet is not active. Choose normal payment or contact support.');
+        throw new Error('Wallet payment could not be completed. Your balance has not been intentionally changed; refresh and check your transaction history.');
+      }
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row?.payment_id || !row?.wallet_transaction_id) throw new Error('Wallet payment confirmation was not returned. Refresh your payment history before trying again.');
+      setPaymentMessage('Service charge paid successfully from your CB Nest wallet.');
+      await load();
+    } catch (e) {
+      setPaymentMessage(e instanceof Error ? e.message : 'Wallet payment could not be completed. Please try again.');
+    } finally {
+      setPaymentBusyId(null);
+    }
+  };
+
   const payCharge = async (chargeId: string) => {
     setPaymentBusyId(chargeId);
     setPaymentMessage('');
@@ -176,8 +199,11 @@ export default function ServiceChargesScreen() {
                 </TouchableOpacity>
               </>
             ) : (
-              <TouchableOpacity onPress={() => void payCharge(charge.id)} disabled={paymentBusyId === charge.id} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
-                {paymentBusyId === charge.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>Pay Now</Text>}
+              <TouchableOpacity onPress={() => void payChargeWithWallet(charge.id)} disabled={paymentBusyId === charge.id} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
+                {paymentBusyId === charge.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>PAY FROM WALLET</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => void payCharge(charge.id)} disabled={paymentBusyId === charge.id} style={{ marginTop: 9, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
+                <Text style={{ color: theme.goldSoft, fontWeight: '900' }}>PAY NORMALLY</Text>
               </TouchableOpacity>
             )}
           </Card>
