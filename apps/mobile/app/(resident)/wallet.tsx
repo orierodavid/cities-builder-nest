@@ -24,6 +24,8 @@ export default function WalletScreen() {
   const router = useRouter();
   const [balanceKobo, setBalanceKobo] = useState<number | null>(null);
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
+  const [pendingChargeKobo, setPendingChargeKobo] = useState<number | null>(null);
+  const [pendingChargeLoading, setPendingChargeLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState('');
   const [funding, setFunding] = useState(false);
@@ -31,21 +33,59 @@ export default function WalletScreen() {
 
   const loadBalance = useCallback(async () => {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    setPendingChargeLoading(true);
     if (authError || !user) {
       setMessage('Please sign in again to view your wallet.');
       setLoading(false);
+      setPendingChargeLoading(false);
       return;
     }
-    const { data, error } = await supabase.rpc('get_my_wallet_balance');
+    const [walletResult, membershipResult, assignmentResult] = await Promise.all([
+      supabase.rpc('get_my_wallet_balance'),
+      supabase.from('estate_memberships').select('estate_id').eq('user_id', user.id).eq('membership_role', 'resident').eq('status', 'active'),
+      supabase.from('resident_units').select('unit_id').eq('resident_user_id', user.id).is('end_date', null).order('created_at', { ascending: false }).limit(1),
+    ]);
+    const { data, error } = walletResult;
     if (error) {
       setMessage('Wallet balance is temporarily unavailable.');
+      setPendingChargeLoading(false);
       setLoading(false);
       return;
     }
     const wallet = Array.isArray(data) ? data[0] : null;
     setBalanceKobo(wallet ? Number(wallet.balance_kobo) : null);
     setWalletStatus(wallet?.status ?? null);
-    setLoading(false);
+
+    try {
+      if (membershipResult.error || assignmentResult.error) throw new Error('resident_charge_context_unavailable');
+      const estateIds = [...new Set((membershipResult.data || []).map((row) => row.estate_id).filter(Boolean))];
+      const unitId = assignmentResult.data?.[0]?.unit_id || null;
+      if (!estateIds.length) {
+        setPendingChargeKobo(0);
+      } else {
+        let paymentsQuery = supabase.from('service_charge_payments')
+          .select('charge_id,status,verified_at').in('estate_id', estateIds);
+        paymentsQuery = unitId
+          ? paymentsQuery.or(`unit_id.eq.${unitId},and(unit_id.is.null,resident_user_id.eq.${user.id})`)
+          : paymentsQuery.eq('resident_user_id', user.id);
+        const [chargeResult, paymentResult] = await Promise.all([
+          supabase.from('estate_service_charges').select('id,amount_kobo').in('estate_id', estateIds).eq('is_active', true),
+          paymentsQuery,
+        ]);
+        if (chargeResult.error || paymentResult.error) throw new Error('resident_charge_data_unavailable');
+        const paidIds = new Set((paymentResult.data || [])
+          .filter((row) => row.status === 'successful' && !!row.verified_at)
+          .map((row) => row.charge_id).filter(Boolean));
+        const outstanding = (chargeResult.data || []).reduce((total, charge) =>
+          total + (paidIds.has(charge.id) ? 0 : Number(charge.amount_kobo || 0)), 0);
+        setPendingChargeKobo(outstanding);
+      }
+    } catch {
+      setPendingChargeKobo(null);
+    } finally {
+      setPendingChargeLoading(false);
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { void loadBalance(); }, [loadBalance]);
@@ -99,6 +139,7 @@ export default function WalletScreen() {
     }
   };
 
+  const pendingCharge = pendingChargeKobo === null ? '—' : `₦${(pendingChargeKobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const balance = balanceKobo === null ? '—' : `₦${(balanceKobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
@@ -111,6 +152,13 @@ export default function WalletScreen() {
         <TouchableOpacity onPress={() => void loadBalance()} disabled={loading} style={{ alignSelf: 'flex-start', marginTop: 10 }}>
           <Text style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '700' }}>Refresh balance</Text>
         </TouchableOpacity>
+      </Card>
+      <Card>
+        <Text style={{ color: theme.muted, fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>PENDING CHARGE</Text>
+        <Text accessibilityLabel="Pending service charge" style={{ color: '#E53935', fontSize: 24, fontWeight: '900', marginTop: 8 }}>
+          {pendingChargeLoading ? 'Loading…' : pendingCharge}
+        </Text>
+        <Text style={{ color: theme.muted, fontSize: 11, lineHeight: 16, marginTop: 5 }}>Outstanding amount from your estate service charges.</Text>
       </Card>
 
       <Text style={{ color: theme.text, fontSize: 15, fontWeight: '800', marginTop: 8 }}>Top up wallet</Text>
