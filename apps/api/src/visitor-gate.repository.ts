@@ -13,7 +13,7 @@ export async function getGateVisitorPass(client: PoolClient, estateId: string, a
      FROM public.visitor_passes WHERE id = $1 AND estate_id = $2`,
     [pass.id, estateId],
   );
-  return { ...pass, ...(schedule.rows[0] ?? { visitor_count: 1, visit_frequency: "once", schedule_start_date: pass.valid_from.slice(0, 10), schedule_end_date: pass.valid_until.slice(0, 10) }) };
+  return schedule.rows[0] ? { ...pass, ...schedule.rows[0] } : pass;
 }
 
 export interface VisitorPassDenialResult { result: "denied" | "not_active" | "forbidden"; pass_id: string | null; pass_status: string | null }
