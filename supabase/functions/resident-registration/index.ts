@@ -26,8 +26,17 @@ function normalisePhone(value: string) {
 }
 
 async function cleanupIncompleteUser(admin: any, userId: string) {
-  // The auth.users INSERT trigger creates public.users before registration
-  // writes the completed profile. Remove that dependent profile first.
+  // Remove any partial apartment/membership links before the auth profile.
+  const { error: assignmentDeleteError } = await admin.from("resident_units").delete().eq("resident_user_id", userId);
+  if (assignmentDeleteError) {
+    console.error("resident-registration assignment cleanup failed", { userId, message: assignmentDeleteError.message });
+    return false;
+  }
+  const { error: membershipDeleteError } = await admin.from("estate_memberships").delete().eq("user_id", userId);
+  if (membershipDeleteError) {
+    console.error("resident-registration membership cleanup failed", { userId, message: membershipDeleteError.message });
+    return false;
+  }
   const { error: profileDeleteError } = await admin.from("users").delete().eq("id", userId);
   if (profileDeleteError) {
     console.error("resident-registration profile cleanup failed", { userId, message: profileDeleteError.message });
@@ -301,7 +310,8 @@ Deno.serve(async (req: Request) => {
   const userId = created.user.id;
   const { error: profileError } = await admin.from("users").upsert({
     id: userId, full_name: fullName, first_name: firstName, last_name: lastName,
-    phone_e164: phone, home_number: homeNumber, house_number: houseNumber, street_name: streetName, is_active: false,
+    phone_e164: phone, home_number: homeNumber, house_number: houseNumber,
+    building_name: houseNumber, unit_number: homeNumber, street_name: streetName, is_active: false,
   }, { onConflict: "id" });
   if (profileError) {
     const duplicatePhone = profileError.code === "23505" &&
