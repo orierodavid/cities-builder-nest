@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
     if (paid) return reply(409, { error: "service_charge_already_paid" });
 
     const { data: pending, error: pendingError } = await admin.from("service_charge_payments")
-      .select("id,provider_reference,amount_kobo,fee_kobo,total_amount_kobo").eq("charge_id", charge.id)
+      .select("id,provider_reference,amount_kobo,fee_kobo,total_amount_kobo,checkout_url").eq("charge_id", charge.id)
       .eq("resident_user_id", auth.user.id).eq("status", "pending").maybeSingle();
     if (pendingError) return reply(503, { error: "pending_payment_lookup_failed" });
     if (pending?.provider_reference) {
@@ -105,6 +105,7 @@ Deno.serve(async (req: Request) => {
         amountKobo: Number(pending.amount_kobo),
         feeKobo: Number(pending.fee_kobo ?? 0),
         totalAmountKobo: Number(pending.total_amount_kobo ?? pending.amount_kobo),
+        checkoutUrl: typeof pending.checkout_url === "string" ? pending.checkout_url : "",
         currency: "NGN",
         confirmationPending: true,
       });
@@ -123,12 +124,12 @@ Deno.serve(async (req: Request) => {
       currency: "NGN", status: "pending", provider: "squad", provider_reference: ref,
     }).select("id").single();
     if (insertError || !row) {
-      const { data: raced } = await admin.from(table).select("provider_reference,amount_kobo,fee_kobo,total_amount_kobo")
+      const { data: raced } = await admin.from(table).select("provider_reference,amount_kobo,fee_kobo,total_amount_kobo,checkout_url")
         .eq("charge_id", charge.id).eq("resident_user_id", auth.user.id).eq("status", "pending").maybeSingle();
       if (raced?.provider_reference) {
         return reply(202, { status: "pending", transactionReference: raced.provider_reference,
           amountKobo: Number(raced.amount_kobo), feeKobo: Number(raced.fee_kobo ?? 0),
-          totalAmountKobo: Number(raced.total_amount_kobo ?? raced.amount_kobo), currency: "NGN", confirmationPending: true });
+          totalAmountKobo: Number(raced.total_amount_kobo ?? raced.amount_kobo), checkoutUrl: typeof raced.checkout_url === "string" ? raced.checkout_url : "", currency: "NGN", confirmationPending: true });
       }
       return reply(409, { error: "payment_record_create_failed" });
     }
@@ -211,6 +212,13 @@ Deno.serve(async (req: Request) => {
       ? result.data as Record<string, unknown> : result;
     const checkout = resultData.checkout_url;
     if (response.ok && result.success === true && typeof checkout === "string" && checkout.startsWith("https://")) {
+      const { error: checkoutSaveError } = await admin.from(table)
+        .update({ checkout_url: checkout }).eq("id", ledgerId).eq("provider_reference", ref);
+      if (checkoutSaveError) {
+        console.error("[initiate-squad-payment] checkout URL persistence failed", {
+          paymentType: type, ledgerId, reference: ref, code: checkoutSaveError.code,
+        });
+      }
       return reply(200, { checkoutUrl: checkout, transactionReference: ref, amountKobo, feeKobo,
         totalAmountKobo, currency: "NGN", environment: mode, status: "pending" });
     }
