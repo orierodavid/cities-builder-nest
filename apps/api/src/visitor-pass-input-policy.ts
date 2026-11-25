@@ -25,7 +25,7 @@ export function parseVisitorPassInput(input: {
   const visitorPhone = typeof input.visitorPhone === "string" ? input.visitorPhone.trim() : null;
   const frequency = (input.frequency ?? "once") as VisitorFrequency;
   const visitorCount = input.visitorCount === undefined ? 1 : Number(input.visitorCount);
-  const today = new Date(nowMs).toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(nowMs));
   const start = input.scheduleStartDate === undefined ? today : input.scheduleStartDate;
   const end = input.scheduleEndDate === undefined ? start : input.scheduleEndDate;
   if (!["once", "daily", "weekly"].includes(frequency) ||
@@ -34,8 +34,8 @@ export function parseVisitorPassInput(input: {
       (visitorPhone !== null && (visitorPhone.length > 40 || !/^\+?[0-9 ()-]{7,40}$/.test(visitorPhone))) ||
       !validDate(start) || !validDate(end) || end < start) return null;
   if (frequency === "once" && start !== end) return null;
-  const startAt = new Date(start + "T00:00:00.000Z");
-  const endAt = new Date(end + "T23:59:59.999Z");
+  const startAt = new Date(start + "T00:00:00.000+01:00");
+  const endAt = new Date(end + "T23:59:59.999+01:00");
   if (endAt.getTime() <= nowMs || endAt.getTime() - startAt.getTime() > 366 * 24 * 60 * 60 * 1000) return null;
   const validFrom = frequency === "once" ? new Date(Math.max(nowMs, startAt.getTime())) : startAt;
   const validUntil = frequency === "once" ? new Date(Math.min(endAt.getTime(), validFrom.getTime() + DEFAULT_VISITOR_PASS_DURATION_MS)) : endAt;
