@@ -26,6 +26,7 @@ export default function ServiceChargesScreen() {
   const [error, setError] = useState('');
   const [paidChargeIds, setPaidChargeIds] = useState<string[]>([]);
   const [pendingPaymentRefs, setPendingPaymentRefs] = useState<Record<string, string>>({});
+  const [pendingCheckoutUrls, setPendingCheckoutUrls] = useState<Record<string, string>>({});
   const [paymentBusyId, setPaymentBusyId] = useState<string | null>(null);
   const [paymentMessage, setPaymentMessage] = useState('');
   const [feeSettings, setFeeSettings] = useState<FeeSettings | null>(null);
@@ -76,7 +77,7 @@ export default function ServiceChargesScreen() {
     }
 
     let paymentQuery = supabase.from('service_charge_payments')
-      .select('charge_id,status,provider_reference,verified_at,created_at')
+      .select('charge_id,status,provider_reference,checkout_url,verified_at,created_at')
       .in('estate_id', estateIds);
     paymentQuery = unitId
       ? paymentQuery.or(`unit_id.eq.${unitId},and(unit_id.is.null,resident_user_id.eq.${user.id})`)
@@ -93,13 +94,16 @@ export default function ServiceChargesScreen() {
     const verifiedPaid = (paidRows || []).filter((row) => row.status === 'successful' && !!row.verified_at);
     setPaidChargeIds([...new Set(verifiedPaid.map((row) => row.charge_id).filter(Boolean))]);
     const pendingRefs: Record<string, string> = {};
+    const checkoutUrls: Record<string, string> = {};
     for (const row of paidRows || []) {
       if (!pendingRefs[row.charge_id] && row.provider_reference &&
           (row.status === 'pending' || (row.status === 'failed' && !row.verified_at))) {
         pendingRefs[row.charge_id] = row.provider_reference;
+        if (typeof row.checkout_url === 'string' && row.checkout_url.startsWith('https://')) checkoutUrls[row.charge_id] = row.checkout_url;
       }
     }
     setPendingPaymentRefs(pendingRefs);
+    setPendingCheckoutUrls(checkoutUrls);
 
     const { data, error: chargesError } = await supabase
       .from('estate_service_charges')
@@ -237,7 +241,7 @@ export default function ServiceChargesScreen() {
               <>
                 <Text style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '800', marginTop: 12 }}>PAYMENT CONFIRMATION PENDING</Text>
                 <TouchableOpacity onPress={() => router.push({ pathname: "/payment-checkout", params: {
-                  checkoutUrl: "", reference: pendingPaymentRefs[charge.id], paymentType: "service_charge",
+                  checkoutUrl: pendingCheckoutUrls[charge.id] || "", reference: pendingPaymentRefs[charge.id], paymentType: "service_charge",
                 } })} style={{ marginTop: 12, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ color: theme.goldSoft, fontWeight: '900' }}>CHECK PAYMENT STATUS</Text>
                 </TouchableOpacity>
