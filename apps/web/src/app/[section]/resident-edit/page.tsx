@@ -85,7 +85,7 @@ export default function ResidentEditPage() {
       setError("Enter a valid email address. This is the resident's sign-in email.");
       return;
     }
-    if (phone.trim() && phone.trim().length < 7) {
+    if (!buildingName.trim() || !unitNumber.trim()) {\n      setError("Enter the verified building name and apartment number to assign this resident an Apartment ID.");\n      return;\n    }\n    if (phone.trim() && phone.trim().length < 7) {
       setError("Enter a valid phone number, including the country code where possible.");
       return;
     }
@@ -111,17 +111,32 @@ export default function ResidentEditPage() {
       setSaving(false);
       return;
     }
+    const { data: assignment, error: assignmentError } = await supabase.functions.invoke("management-update-resident", {
+      body: {
+        action: "assign-apartment",
+        estateId,
+        userId,
+        buildingName: buildingName.trim(),
+        unitCode: unitNumber.trim(),
+      },
+    });
+    if (assignmentError || assignment?.error) {
+      setError(assignment?.message || assignment?.error || assignmentError?.message ||
+        "The profile was saved, but the Apartment ID could not be assigned. Verify the apartment details and retry.");
+      setSaving(false);
+      return;
+    }
     setSuccess(data?.emailUpdated
-      ? "Resident profile and sign-in email have been updated."
-      : "Resident profile has been updated.");
+      ? `Resident profile updated and Apartment ID ${assignment?.apartment?.apartment_id || ""} assigned.`
+      : `Resident profile saved and Apartment ID ${assignment?.apartment?.apartment_id || ""} assigned.`);
     setSaving(false);
   }
 
   return (
-    <PortalFrame title="Edit Resident" description="Update the resident's account details and home address within this estate.">
+    <PortalFrame title="Edit Resident" description="Update the resident's account details and assign a verified Apartment ID.">
       <section className="panel module-panel">
         <div className="module-toolbar">
-          <div><h3>Resident profile</h3><p>Type every detail directly. No tenant, building or unit dropdowns are used on this form.</p></div>
+          <div><h3>Resident profile</h3><p>Enter the resident's verified building and apartment details. Saving also creates or reuses the apartment record and assigns its Apartment ID.</p></div>
           <button type="button" className="secondary-action" onClick={() => router.back()}>← Back to residents</button>
         </div>
         {error && <div className="user-alert user-alert-error" role="alert">{error}</div>}
@@ -140,10 +155,10 @@ export default function ResidentEditPage() {
               <label>Apartment / Suite<input maxLength={80} value={homeNumber} onChange={(event) => setHomeNumber(event.target.value)} placeholder="e.g. Flat 3B" /></label>
               <label>House number<input maxLength={80} value={houseNumber} onChange={(event) => setHouseNumber(event.target.value)} placeholder="e.g. 12" /></label>
               <label>Street address<input maxLength={160} value={streetName} onChange={(event) => setStreetName(event.target.value)} placeholder="Type street name" /></label>
-              <label>Building name<input maxLength={120} value={buildingName} onChange={(event) => setBuildingName(event.target.value)} placeholder="e.g. Block B" /></label>
-              <label>Unit number<input maxLength={80} value={unitNumber} onChange={(event) => setUnitNumber(event.target.value)} placeholder="Type unit number" /></label>
+              <label>Building name<input required maxLength={120} value={buildingName} onChange={(event) => setBuildingName(event.target.value)} placeholder="e.g. Block B" /></label>
+              <label>Apartment number / unit code<input required maxLength={80} value={unitNumber} onChange={(event) => setUnitNumber(event.target.value)} placeholder="Type unit number" /></label>
             </div>
-            <p className="notice-line">Building name and unit number are saved as typed resident address details. They do not create or reassign an inventory unit or affect another resident's assignment.</p>
+            <p className="notice-line">The verified building and apartment number are used to create or reuse the estate's apartment record. The resident is then linked to that Apartment ID. An apartment can have no more than two active residents.</p>
             <div className="user-form-actions">
               <button type="button" className="secondary-action" onClick={() => router.back()} disabled={saving}>Cancel</button>
               <button type="submit" className="primary-action" disabled={saving}>{saving ? "Saving changes…" : "Save changes"}</button>
