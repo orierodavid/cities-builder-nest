@@ -297,7 +297,10 @@ Deno.serve(async (req: Request) => {
           .update({ status: nextStatus, provider_status: providerStatus || "PENDING",
             provider_response: data, receipt, updated_at: new Date().toISOString() })
           .eq("id", row.id).eq("status", "pending").select("*").maybeSingle();
-        if (updated) {\n          if (nextStatus === "failed" && updated.payment_method === "wallet") await refundWalletElectricity(updated as Record<string, unknown>);\n          return reply(200, { transaction: updated });\n        }
+        if (updated) {
+          if (nextStatus === "failed" && updated.payment_method === "wallet") await refundWalletElectricity(updated as Record<string, unknown>);
+          return reply(200, { transaction: updated });
+        }
       }
     }
     return reply(200, { transaction: row });
