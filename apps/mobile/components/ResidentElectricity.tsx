@@ -26,7 +26,9 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
   const [validation, setValidation] = useState<MeterValidation | null>(null);
   const [amount, setAmount] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");\n  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "external">("external");\n  const [walletBalanceKobo, setWalletBalanceKobo] = useState<number | null>(null);
+  const [email, setEmail] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "external">("external");
+  const [walletBalanceKobo, setWalletBalanceKobo] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<ElectricityTransaction[]>([]);
   const [tab, setTab] = useState<"buy" | "history">("buy");
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,13 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
     }
   }, [invoke]);
 
-  useEffect(() => {\n    void loadCompanies();\n    void supabase.rpc("get_my_wallet_balance").then(({ data }) => {\n      const wallet = Array.isArray(data) ? data[0] : null;\n      setWalletBalanceKobo(wallet ? Number(wallet.balance_kobo) : null);\n    });\n  }, [loadCompanies]);
+  useEffect(() => {
+    void loadCompanies();
+    void supabase.rpc("get_my_wallet_balance").then(({ data }) => {
+      const wallet = Array.isArray(data) ? data[0] : null;
+      setWalletBalanceKobo(wallet ? Number(wallet.balance_kobo) : null);
+    });
+  }, [loadCompanies]);
 
   const validateMeter = async () => {
     if (!estateId) { setMessage("Select your estate first."); setError(true); return; }
