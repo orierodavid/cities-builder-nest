@@ -148,8 +148,8 @@ export default function VisitorsScreen() {
     const count = Number(visitorCount);
     if (!name) { setMessage('Enter your visitor’s name.'); return; }
     if (!Number.isInteger(count) || count < 1 || count > 50) { setMessage('Enter a visitor count between 1 and 50.'); return; }
-    if (!/^\\+?[0-9 ()-]{7,40}$/.test(visitorPhone.trim())) { setMessage('Enter a valid visitor phone number.'); return; }
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(endDate) || endDate < startDate) { setMessage('Choose valid visit start and end dates.'); return; }
+    if (!/^\+?[0-9 ()-]{7,40}$/.test(visitorPhone.trim())) { setMessage('Enter a valid visitor phone number.'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate) { setMessage('Choose valid visit start and end dates.'); return; }
     if (frequency === 'once' && endDate !== startDate) { setMessage('For a one-time visit, the start and end dates must be the same.'); return; }
     setBusy(true); setMessage(''); setIssuedCode(''); setIssuedPass(null);
     try {
