@@ -11,6 +11,7 @@ export default function InvitationAcceptedPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [setupFlow, setSetupFlow] = useState(false);
+  const [householdFlow, setHouseholdFlow] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -60,10 +61,12 @@ export default function InvitationAcceptedPage() {
       }
 
       if (params.get("flow") === "household") {
-        const { data: household, error: householdError } = await supabase.rpc("accept_resident_household_invite");
-        if (householdError || !household?.length) {
-          throw new Error("This household invitation could not be linked. It may have expired or already been used. Ask the primary resident to send a new invitation.");
-        }
+        if (!active) return;
+        setHouseholdFlow(true);
+        setSetupFlow(true);
+        setState("setup");
+        setMessage("Your email is verified. Create your own password to continue. Your estate and apartment will be prefilled from the invitation and cannot be changed. Household access will require estate management approval.");
+        return;
       }
 
       if (!active) return;
@@ -108,7 +111,9 @@ export default function InvitationAcceptedPage() {
       return;
     }
     setState("complete");
-    setMessage("Your password has been set successfully. You can now sign in.");
+    setMessage(householdFlow
+      ? "Your password has been set. Sign in to CB Nest, complete the required legal acceptance, then open My Household to review the invitation and accept it. Your apartment access will remain pending until the Facility Manager/Admin approves it."
+      : "Your password has been set successfully. You can now sign in.");
     await supabase.auth.signOut();
   };
 
