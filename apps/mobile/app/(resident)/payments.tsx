@@ -42,11 +42,24 @@ export default function PaymentsScreen() {
       return;
     }
 
+    const { data: assignments, error: assignmentError } = await supabase
+      .from('resident_units').select('unit_id').eq('resident_user_id', user.id)
+      .is('end_date', null).order('created_at', { ascending: false }).limit(1);
+    if (assignmentError) {
+      setPayments([]);
+      setError('Your apartment payment history is temporarily unavailable. Please try again.');
+      setLoading(false);
+      return;
+    }
+    const unitId = assignments?.[0]?.unit_id || null;
+    let householdCharges = supabase.from('service_charge_payments')
+      .select('id,amount_kobo,currency,status,provider_reference,verified_at,created_at,charge:estate_service_charges(title)');
+    householdCharges = unitId
+      ? householdCharges.or(`unit_id.eq.${unitId},and(unit_id.is.null,resident_user_id.eq.${user.id})`)
+      : householdCharges.eq('resident_user_id', user.id);
+
     const [charges, savings, electricity] = await Promise.all([
-      supabase.from('service_charge_payments')
-        .select('id,amount_kobo,currency,status,provider_reference,verified_at,created_at,charge:estate_service_charges(title)')
-        .eq('resident_user_id', user.id)
-        .order('created_at', { ascending: false }),
+      householdCharges.order('created_at', { ascending: false }),
       supabase.from('rent_savings_contributions')
         .select('id,amount_kobo,currency,status,provider_reference,verified_at,created_at')
         .eq('resident_user_id', user.id)
