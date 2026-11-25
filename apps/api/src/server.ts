@@ -1381,7 +1381,7 @@ app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, r
     pass = result.error ? null : result.data;
   }
   if (!pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
-  const todayInEstate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const todayInEstate = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10);
   const scheduleStart = pass.schedule_start_date || pass.valid_from.slice(0, 10);
   const scheduleEnd = pass.schedule_end_date || pass.valid_until.slice(0, 10);
   const scheduledDay = todayInEstate >= scheduleStart && todayInEstate <= scheduleEnd;
