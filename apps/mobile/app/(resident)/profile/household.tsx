@@ -11,6 +11,9 @@ type HouseholdMember = {
   invitation_email: string | null;
   invitation_expires_at: string | null;
   invitation_id: string | null;
+  invitation_estate_name: string | null;
+  invitation_building_name: string | null;
+  invitation_unit_code: string | null;
 };
 
 function errorDetails(error: any) {
@@ -114,9 +117,10 @@ export default function HouseholdScreen() {
 
   const currentMember = members.find((member) => member.member_user_id === userId);
   const isPrimary = currentMember?.member_role === 'primary';
-  const activeMembers = members.filter((member) => !!member.member_user_id);
+  const activeMembers = members.filter((member) => !!member.member_user_id && ['primary', 'resident'].includes(member.member_role));
   const pendingInvite = members.find((member) => member.member_role === 'pending');
   const incomingInvites = members.filter((member) => member.member_role === 'incoming');
+  const awaitingApproval = members.filter((member) => member.member_role === 'awaiting_approval');
   const unassigned = members.some((member) => member.member_role === 'unassigned');
   const atLimit = activeMembers.length >= 2 || !!pendingInvite;
 
@@ -157,7 +161,7 @@ export default function HouseholdScreen() {
       });
       setError(friendlyError(acceptError));
     } else {
-      setMessage('You have joined the apartment household.');
+      setMessage('Invitation accepted. Your estate and apartment are reserved, pending Facility Manager/Admin approval. You will receive apartment access after approval.');
     }
     await load();
     setActing(false);
@@ -237,11 +241,26 @@ export default function HouseholdScreen() {
             {incomingInvites.map((invite) => (
               <View key={invite.invitation_id || invite.invitation_expires_at || 'incoming'} style={{ padding: 12, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, backgroundColor: '#17130A' }}>
                 <Text style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '800' }}>APARTMENT INVITATION</Text>
-                <Text style={{ color: theme.text, fontSize: 13, marginTop: 5 }}>You have been invited to join a household. Accept to link your account to that apartment.</Text>
-                {!!invite.invitation_expires_at && <Text style={{ color: theme.muted, fontSize: 11, marginTop: 4 }}>Expires {new Date(invite.invitation_expires_at).toLocaleDateString('en-NG')}</Text>}
+                <Text style={{ color: theme.text, fontSize: 13, marginTop: 5 }}>You have been invited to join a household. These details are prefilled from the invitation and cannot be changed.</Text>
+                <Text style={{ color: theme.muted, fontSize: 12, marginTop: 8 }}>ESTATE</Text>
+                <Text style={{ color: theme.text, fontSize: 13, fontWeight: '700' }}>{invite.invitation_estate_name || '—'}</Text>
+                <Text style={{ color: theme.muted, fontSize: 12, marginTop: 6 }}>BUILDING / APARTMENT</Text>
+                <Text style={{ color: theme.text, fontSize: 13, fontWeight: '700' }}>{[invite.invitation_building_name, invite.invitation_unit_code].filter(Boolean).join(' · ') || '—'}</Text>
+                {!!invite.invitation_expires_at && <Text style={{ color: theme.muted, fontSize: 11, marginTop: 6 }}>Expires {new Date(invite.invitation_expires_at).toLocaleDateString('en-NG')}</Text>}
                 <TouchableOpacity disabled={acting} onPress={() => void acceptInvite()} style={{ minHeight: 44, marginTop: 10, borderRadius: 9, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: acting ? 0.5 : 1 }}>
                   <Text style={{ color: '#080808', fontWeight: '900' }}>{acting ? 'PLEASE WAIT…' : 'ACCEPT INVITATION'}</Text>
                 </TouchableOpacity>
+              </View>
+            ))}
+            {awaitingApproval.map((invite) => (
+              <View key={invite.invitation_id || invite.member_user_id || 'awaiting-approval'} style={{ padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#A97924', backgroundColor: '#17130A' }}>
+                <Text style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '900' }}>AWAITING ESTATE APPROVAL</Text>
+                <Text style={{ color: theme.text, fontSize: 13, marginTop: 6 }}>{invite.member_name || 'Household member'} has accepted the household invitation.</Text>
+                <Text style={{ color: theme.muted, fontSize: 11, marginTop: 8 }}>ESTATE</Text>
+                <Text style={{ color: theme.text, fontSize: 13, fontWeight: '700' }}>{invite.invitation_estate_name || '—'}</Text>
+                <Text style={{ color: theme.muted, fontSize: 11, marginTop: 6 }}>BUILDING / APARTMENT</Text>
+                <Text style={{ color: theme.text, fontSize: 13, fontWeight: '700' }}>{[invite.invitation_building_name, invite.invitation_unit_code].filter(Boolean).join(' · ') || '—'}</Text>
+                <Text style={{ color: theme.muted, fontSize: 11, marginTop: 8 }}>The apartment assignment will become active after the Facility Manager/Admin approves the request.</Text>
               </View>
             ))}
             {unassigned && (
