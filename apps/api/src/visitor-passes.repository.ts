@@ -5,6 +5,10 @@ export interface VisitorPassRecord {
   estate_id: string;
   visitor_name: string;
   visitor_phone: string | null;
+  visitor_count: number;
+  visit_frequency: string;
+  schedule_start_date: string;
+  schedule_end_date: string;
   valid_from: string;
   valid_until: string;
   status: string;
@@ -30,8 +34,8 @@ export async function getVisitorPassesForHost(
   offset: number,
 ): Promise<VisitorPassPage> {
   const result = await client.query<VisitorPassRecord>(
-    `SELECT id, estate_id, visitor_name, visitor_phone, valid_from,
-            valid_until, status, created_at, access_code_ciphertext
+    `SELECT id, estate_id, visitor_name, visitor_phone, visitor_count, visit_frequency,
+            schedule_start_date::text, schedule_end_date::text, valid_from, valid_until, status, created_at, access_code_ciphertext
      FROM public.visitor_passes
      WHERE estate_id = $1
        AND host_user_id = $2
