@@ -122,7 +122,7 @@ export default function HouseholdScreen() {
   const incomingInvites = members.filter((member) => member.member_role === 'incoming');
   const awaitingApproval = members.filter((member) => member.member_role === 'awaiting_approval');
   const unassigned = members.some((member) => member.member_role === 'unassigned');
-  const atLimit = activeMembers.length >= 2 || !!pendingInvite;
+  const atLimit = activeMembers.length >= 2 || !!pendingInvite || awaitingApproval.length > 0;
 
   const sendInvite = async () => {
     setMessage('');
