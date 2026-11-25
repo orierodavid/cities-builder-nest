@@ -289,6 +289,17 @@ function UsersPage() {
   setSuccess(data?.emailSent===true?"Resident account approved. The activation email has been sent.":"Resident account approved and activated, but the activation email could not be sent. Check email delivery configuration.");
   await load();setApprovingUserId(null);
  }
+ async function rejectResident(person:PendingResident){
+  if(!window.confirm(`Reject the pending resident request for ${person.name}? Their apartment access will not be activated.`))return;
+  setApprovingUserId(person.userId);setError("");setSuccess("");
+  const {data,error:invokeError}=await supabase.functions.invoke("resident-approval",{body:{action:"reject",estateId:person.estateId,userId:person.userId}});
+  if(invokeError||data?.error){
+   setError("The resident request could not be rejected. Please refresh and try again.");
+   setApprovingUserId(null);return;
+  }
+  setSuccess("Resident request rejected. No apartment access was activated.");
+  await load();setApprovingUserId(null);
+ }
  async function reviewVenueRequest(event:{id:string;venue_approval_publish_requested:boolean},decision:"approved"|"rejected"){
   setError("");setSuccess("");
   const {data:{user}}=await supabase.auth.getUser();
@@ -407,7 +418,7 @@ function UsersPage() {
    <section style={{marginTop:18}}>
     <div className="module-toolbar"><div><h3>Pending resident approvals</h3><p>Review new resident registrations and activate accounts with one click.</p></div><span className="status-pill status-invited">{pendingResidents.length} awaiting approval</span></div>
     <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Resident</th><th>Estate</th><th>Email</th><th>Phone</th><th>Apartment / Suite</th><th>House Number</th><th>Street Address</th><th>Submitted</th><th>Action</th></tr></thead><tbody>
-     {loading?<tr><td colSpan={9} className="empty-cell">Loading pending registrations…</td></tr>:pendingResidents.length?pendingResidents.map(person=><tr key={person.membershipId}><td><strong>{person.name}</strong></td><td>{person.estateName}</td><td>{person.email||"—"}</td><td>{person.phone||"—"}</td><td>{person.homeNumber||"—"}</td><td>{person.houseNumber||"—"}</td><td>{person.streetName||"—"}</td><td>{new Date(person.submittedAt).toLocaleDateString("en-NG")}</td><td><button type="button" className="primary-action" disabled={approvingUserId===person.userId} onClick={()=>void approveResident(person)}>{approvingUserId===person.userId?"Approving…":"Approve account"}</button></td></tr>):<tr><td colSpan={9} className="empty-cell"><strong>No pending resident registrations</strong><small>New self-registered residents will appear here.</small></td></tr>}
+     {loading?<tr><td colSpan={9} className="empty-cell">Loading pending registrations…</td></tr>:pendingResidents.length?pendingResidents.map(person=><tr key={person.membershipId}><td><strong>{person.name}</strong></td><td>{person.estateName}</td><td>{person.email||"—"}</td><td>{person.phone||"—"}</td><td>{person.homeNumber||"—"}</td><td>{person.houseNumber||"—"}</td><td>{person.streetName||"—"}</td><td>{new Date(person.submittedAt).toLocaleDateString("en-NG")}</td><td><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="primary-action" disabled={approvingUserId===person.userId} onClick={()=>void approveResident(person)}>{approvingUserId===person.userId?"Processing…":"Approve account"}</button><button type="button" className="secondary-action" disabled={approvingUserId===person.userId} onClick={()=>void rejectResident(person)}>Reject</button></div></td></tr>):<tr><td colSpan={9} className="empty-cell"><strong>No pending resident registrations</strong><small>New self-registered residents will appear here.</small></td></tr>}
     </tbody></table></div>
    </section>
    {showForm&&<form className="user-form" onSubmit={createUser}>
