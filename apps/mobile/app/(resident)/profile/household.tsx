@@ -33,6 +33,8 @@ function friendlyError(error: any) {
   if (detail.includes('household_member_not_found')) return 'That household member is no longer linked to this apartment. Refresh the list and try again.';
   if (detail.includes('cannot_invite_yourself')) return 'You cannot add your own email address to your household.';
   if (detail.includes('household_invitation_already_pending')) return 'An invitation is already pending for that email address.';
+  if (detail.includes('verified_invited_email_required')) return 'Verify the email address linked to your CB Nest account before accepting this apartment invitation.';
+  if (detail.includes('valid_household_invitation_not_found')) return 'This apartment invitation has expired or is no longer available. Ask the primary resident to send a new invitation.';
   return 'Your apartment household could not be loaded. Check your connection and try again.';
 }
 
