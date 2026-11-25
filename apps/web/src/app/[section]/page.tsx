@@ -435,53 +435,161 @@ function UsersPage() {
 type PropertyUnitRow = { id:string; estate_id:string; building_id:string; unit_code:string; unit_type:string|null; status:string };
 function PropertiesPage(){
  const [estates,setEstates]=useState<Estate[]>([]);
- const [selected,setSelected]=useState("");
+ const [buildings,setBuildings]=useState<Array<{id:string;estate_id:string;name:string}>>([]);
+ const [units,setUnits]=useState<PropertyUnitRow[]>([]);
  const [rows,setRows]=useState<Array<{id:string;estate:string;building:string;unit:string;type:string;resident:string;status:string}>>([]);
- const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [search,setSearch]=useState("");
+ const [residents,setResidents]=useState<Array<{user_id:string;full_name:string;phone_e164:string|null}>>([]);
+ const [selectedEstate,setSelectedEstate]=useState("");
+ const [selectedBuilding,setSelectedBuilding]=useState("");
+ const [selectedUnit,setSelectedUnit]=useState("");
+ const [selectedResident,setSelectedResident]=useState("");
+ const [buildingName,setBuildingName]=useState("");
+ const [unitCode,setUnitCode]=useState("");
+ const [unitType,setUnitType]=useState("");
+ const [loading,setLoading]=useState(true);
+ const [saving,setSaving]=useState(false);
+ const [error,setError]=useState("");
+ const [success,setSuccess]=useState("");
+ const [search,setSearch]=useState("");
+
  const load=useCallback(async()=>{
   setLoading(true);setError("");
   try{
-   const {data:{user},error:authError}=await supabase.auth.getUser();if(authError)throw authError;if(!user)throw new Error("Your session has expired. Sign in again.");
+   const {data:{user},error:authError}=await supabase.auth.getUser();
+   if(authError||!user)throw new Error("Your session has expired. Sign in again.");
    const [{data:globalRoles,error:roleError},{data:ownMemberships,error:membershipError}]=await Promise.all([
     supabase.from("user_roles").select("role").eq("user_id",user.id),
     supabase.from("estate_memberships").select("estate_id,membership_role,status").eq("user_id",user.id).eq("status","active")
    ]);
-   if(roleError||membershipError)throw new Error("Your property access could not be verified.");
+   if(roleError||membershipError)throw new Error("Your property-management access could not be verified.");
    const admin=(globalRoles||[]).some(x=>x.role==="platform_admin");
    const allowed=admin?[]:(ownMemberships||[]).filter(x=>["facility_manager","estate_manager","estate_admin"].includes(x.membership_role)).map(x=>x.estate_id);
-   if(!admin&&!allowed.length)throw new Error("You do not have permission to view property records.");
-   let estateQuery=supabase.from("estates").select("id,name").order("name");if(!admin)estateQuery=estateQuery.in("id",allowed);
-   const {data:estateData,error:estateError}=await estateQuery;if(estateError)throw new Error("Estate records could not be loaded.");
-   const estateList=(estateData||[]) as Estate[];setEstates(estateList);const estateIds=estateList.map(x=>x.id);
-   if(!estateIds.length){setRows([]);return;}
-   const [{data:buildings,error:buildingError},{data:units,error:unitError}]=await Promise.all([
-    supabase.from("buildings").select("id,estate_id,name").in("estate_id",estateIds).order("name"),
-    supabase.from("units").select("id,estate_id,building_id,unit_code,unit_type,status").in("estate_id",estateIds).order("unit_code")
+   if(!admin&&!allowed.length)throw new Error("Only authorised estate management accounts can manage apartment assignments.");
+   let estateQuery=supabase.from("estates").select("id,name").order("name");
+   if(!admin)estateQuery=estateQuery.in("id",allowed);
+   const {data:estateData,error:estateError}=await estateQuery;
+   if(estateError)throw new Error("Estate records could not be loaded.");
+   const estateList=(estateData||[]) as Estate[];
+   setEstates(estateList);
+   const estateId=selectedEstate&&estateList.some(x=>x.id===selectedEstate)?selectedEstate:(estateList[0]?.id||"");
+   if(estateId!==selectedEstate)setSelectedEstate(estateId);
+   if(!estateList.length){setBuildings([]);setUnits([]);setResidents([]);setRows([]);return;}
+   const [{data:buildingData,error:buildingError},{data:unitData,error:unitError}]=await Promise.all([
+    supabase.from("buildings").select("id,estate_id,name").in("estate_id",estateList.map(x=>x.id)).order("name"),
+    supabase.from("units").select("id,estate_id,building_id,unit_code,unit_type,status").in("estate_id",estateList.map(x=>x.id)).order("unit_code")
    ]);
-   if(buildingError||unitError)throw new Error("Property details could not be loaded. Please refresh and try again.");
-   const unitRows=(units||[]) as PropertyUnitRow[];const unitIds=unitRows.map(x=>x.id);
-   let assignments:Array<{unit_id:string;resident_user_id:string}>=[];
-   if(unitIds.length){const {data,error}=await supabase.from("resident_units").select("unit_id,resident_user_id").in("unit_id",unitIds).is("end_date",null);if(error)throw new Error("Resident-to-property assignments could not be loaded.");assignments=data||[];}
-   const residentIds=[...new Set(assignments.map(x=>x.resident_user_id))];
-   const {data:profiles,error:profileError}=residentIds.length?await supabase.from("users").select("id,full_name").in("id",residentIds):{data:[],error:null};
-   if(profileError)throw new Error("Resident names could not be loaded for property assignments.");
-   const buildingMap=new Map((buildings||[]).map(x=>[x.id,x.name]));
+   if(buildingError||unitError)throw new Error("Building and apartment inventory could not be loaded.");
+   const buildingRows=buildingData||[];
+   const unitRows=(unitData||[]) as PropertyUnitRow[];
+   setBuildings(buildingRows);setUnits(unitRows);
+   const unitIds=unitRows.map(x=>x.id);
+   const {data:assignments,error:assignmentError}=unitIds.length
+    ?await supabase.from("resident_units").select("unit_id,resident_user_id").in("unit_id",unitIds).is("end_date",null)
+    :{data:[],error:null};
+   if(assignmentError)throw new Error("Resident apartment assignments could not be loaded.");
+   const assignedIds=[...new Set((assignments||[]).map(x=>x.resident_user_id))];
+   const {data:profiles,error:profileError}=assignedIds.length
+    ?await supabase.from("users").select("id,full_name").in("id",assignedIds)
+    :{data:[],error:null};
+   if(profileError)throw new Error("Assigned resident names could not be loaded.");
+   const buildingMap=new Map(buildingRows.map(x=>[x.id,x.name]));
    const estateMap=new Map(estateList.map(x=>[x.id,x.name]));
    const profileMap=new Map((profiles||[]).map(x=>[x.id,x.full_name]));
-   const residentByUnit=new Map(assignments.map(x=>[x.unit_id,profileMap.get(x.resident_user_id)||"Resident name unavailable"]));
-   setRows(unitRows.map(unit=>({id:unit.id,estate:estateMap.get(unit.estate_id)||"Estate unavailable",building:buildingMap.get(unit.building_id)||"Building unavailable",unit:unit.unit_code,type:unit.unit_type||"Not specified",resident:residentByUnit.get(unit.id)||"Unassigned",status:unit.status||"Unknown"})));
-  }catch(e){setRows([]);setError("Property records could not be loaded. Please refresh and try again.");}
-  finally{setLoading(false);}
- },[]);
+   const residentByUnit=new Map((assignments||[]).map(x=>[x.unit_id,profileMap.get(x.resident_user_id)||"Resident name unavailable"]));
+   setRows(unitRows.map(unit=>({
+    id:unit.id,estate:estateMap.get(unit.estate_id)||"Estate unavailable",
+    building:buildingMap.get(unit.building_id)||"Building unavailable",unit:unit.unit_code,
+    type:unit.unit_type||"Not specified",resident:residentByUnit.get(unit.id)||"Unassigned",
+    status:unit.status||"Unknown"
+   })));
+   if(estateId){
+    const {data:candidates,error:candidateError}=await supabase.rpc("get_unassigned_primary_residents",{p_estate_id:estateId});
+    if(candidateError)throw new Error("Unassigned primary residents could not be loaded. Check estate-management permissions.");
+    setResidents((candidates||[]) as Array<{user_id:string;full_name:string;phone_e164:string|null}>);
+   }else setResidents([]);
+  }catch(cause){
+   setRows([]);setResidents([]);
+   setError(cause instanceof Error?cause.message:"Property records could not be loaded.");
+  }finally{setLoading(false);}
+ },[selectedEstate]);
  useEffect(()=>{void load();},[load]);
- const visible=rows.filter(x=>(!selected||estates.find(e=>e.id===selected)?.name===x.estate)&&(!search||[x.estate,x.building,x.unit,x.type,x.resident,x.status].join(" ").toLowerCase().includes(search.toLowerCase())));
- return <PortalFrame title="Properties" description="Live buildings, units and resident assignments across your authorized estates.">
-  <section className="panel module-panel"><div className="module-toolbar"><div><h3>Property register</h3><p>Live estate buildings, property units and resident assignments.</p></div><button className="secondary-action" onClick={()=>void load()}>Refresh records</button></div>
+
+ const estateBuildings=buildings.filter(x=>x.estate_id===selectedEstate);
+ const availableUnits=units.filter(x=>x.estate_id===selectedEstate&&x.status==="available");
+ const visible=rows.filter(x=>(!selectedEstate||estates.find(e=>e.name===x.estate)?.id===selectedEstate)&&(!search||[x.estate,x.building,x.unit,x.type,x.resident,x.status].join(" ").toLowerCase().includes(search.toLowerCase())));
+
+ const createBuilding=async()=>{
+  setError("");setSuccess("");
+  if(!selectedEstate||buildingName.trim().length<2){setError("Choose an estate and enter the official building or block name.");return;}
+  setSaving(true);
+  const {error:insertError}=await supabase.from("buildings").insert({estate_id:selectedEstate,name:buildingName.trim()});
+  if(insertError){setError(insertError.code==="23505"?"That building name already exists in this estate.":"The building could not be created. Check your estate-management access.");}
+  else{setBuildingName("");setSuccess("Building added. You can now register its apartment units.");}
+  setSaving(false);await load();
+ };
+ const createUnit=async()=>{
+  setError("");setSuccess("");
+  if(!selectedEstate||!selectedBuilding||unitCode.trim().length<1){setError("Select a building and enter the official apartment or unit code.");return;}
+  setSaving(true);
+  const {error:insertError}=await supabase.from("units").insert({
+   estate_id:selectedEstate,building_id:selectedBuilding,unit_code:unitCode.trim(),
+   unit_type:unitType.trim()||null,status:"available"
+  });
+  if(insertError){setError(insertError.code==="23505"?"That unit code already exists in this building.":"The apartment unit could not be created. Check the selected building and your permissions.");}
+  else{setUnitCode("");setUnitType("");setSuccess("Apartment unit added to the estate inventory.");}
+  setSaving(false);await load();
+ };
+ const assignResident=async()=>{
+  setError("");setSuccess("");
+  if(!selectedEstate||!selectedUnit||!selectedResident){setError("Select a primary resident and an available apartment.");return;}
+  setSaving(true);
+  const {error:assignError}=await supabase.rpc("assign_primary_resident_to_unit",{
+   p_estate_id:selectedEstate,p_resident_user_id:selectedResident,p_unit_id:selectedUnit
+  });
+  if(assignError){
+   const message=assignError.message||"";
+   setError(message.includes("household_member_inherits_primary_assignment")
+    ?"This account is already a household member. It inherits the primary resident's apartment."
+    :message.includes("resident_already_has_active_assignment")
+    ?"This resident already has an active apartment assignment. Review the existing assignment before changing it."
+    :message.includes("unit_already_has_primary_resident")
+    ?"This apartment already has a primary resident assigned."
+    :"The apartment assignment was not saved. Confirm the resident and unit details, then try again.");
+  }else{
+   const residentName=residents.find(x=>x.user_id===selectedResident)?.full_name||"Resident";
+   const unitName=units.find(x=>x.id===selectedUnit)?.unit_code||"apartment";
+   setSuccess(residentName+" has been assigned to "+unitName+". The household invitation and My ID features can now use this verified apartment.");
+   setSelectedResident("");setSelectedUnit("");
+  }
+  setSaving(false);await load();
+ };
+
+ return <PortalFrame title="Properties" description="Maintain the official estate building and apartment register, then assign each primary resident to their verified apartment.">
+  <section className="panel module-panel">
+   <div className="module-toolbar"><div><h3>Estate apartment assignments</h3><p>Estate Management must use the estate's official property register. CB Nest does not guess apartments from free-text profile addresses.</p></div><button className="secondary-action" onClick={()=>void load()} disabled={loading}>{loading?"Refreshing…":"Refresh records"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
-   <div className="user-list-toolbar"><select aria-label="Filter by estate" value={selected} onChange={e=>setSelected(e.target.value)}><option value="">All estates</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search estate, building, unit or resident…" aria-label="Search properties"/></div>
-   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Building</th><th>Unit / Property</th><th>Property type</th><th>Assigned resident</th><th>Status</th></tr></thead><tbody>
-    {loading?<tr><td colSpan={6} className="empty-cell">Loading live property records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td>{x.estate}</td><td><strong>{x.building}</strong></td><td>{x.unit}</td><td>{x.type}</td><td>{x.resident}</td><td><span className={"status-pill status-"+x.status.toLowerCase().replace(/[^a-z0-9]+/g,"-")}>{x.status}</span></td></tr>):<tr><td colSpan={6} className="empty-cell"><strong>No property units found</strong><small>{estates.length?"No building or unit records match this estate and search.":"No estates are assigned to this account."}</small></td></tr>}
-   </tbody></table></div><p className="notice-line">Read-only property register. This view does not create, edit or delete buildings, units or resident assignments.</p>
+   {success&&<div className="user-alert user-alert-success" role="status">{success}</div>}
+   <div className="user-form-grid" style={{marginBottom:18}}>
+    <label>Estate<select value={selectedEstate} onChange={e=>{setSelectedEstate(e.target.value);setSelectedBuilding("");setSelectedUnit("");setSelectedResident("");setSuccess("");}}><option value="">Select estate</option>{estates.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+    <label>Building / block<select value={selectedBuilding} onChange={e=>{setSelectedBuilding(e.target.value);setSelectedUnit("");}}><option value="">Select building</option>{estateBuildings.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+   </div>
+   <div className="user-form-grid" style={{marginBottom:18}}>
+    <label>Add building / block<input value={buildingName} onChange={e=>setBuildingName(e.target.value)} placeholder="Official building or block name" maxLength={120}/></label>
+    <div style={{display:"flex",alignItems:"end"}}><button type="button" className="secondary-action" disabled={saving||!selectedEstate||buildingName.trim().length<2} onClick={()=>void createBuilding()}>{saving?"Saving…":"Add building"}</button></div>
+    <label>Apartment / unit code<input value={unitCode} onChange={e=>setUnitCode(e.target.value)} placeholder="Official unit code e.g. Flat 4" maxLength={80}/></label>
+    <label>Property type (optional)<input value={unitType} onChange={e=>setUnitType(e.target.value)} placeholder="Flat, house, duplex…" maxLength={80}/></label>
+    <div style={{display:"flex",alignItems:"end"}}><button type="button" className="secondary-action" disabled={saving||!selectedBuilding||!unitCode.trim()} onClick={()=>void createUnit()}>{saving?"Saving…":"Add apartment"}</button></div>
+   </div>
+   <div className="user-form-grid" style={{marginBottom:18}}>
+    <label>Unassigned primary resident<select value={selectedResident} onChange={e=>setSelectedResident(e.target.value)}><option value="">Select resident</option>{residents.map(x=><option key={x.user_id} value={x.user_id}>{x.full_name}{x.phone_e164?" · "+x.phone_e164:""}</option>)}</select></label>
+    <label>Available apartment<select value={selectedUnit} onChange={e=>setSelectedUnit(e.target.value)}><option value="">Select apartment</option>{availableUnits.map(x=><option key={x.id} value={x.id}>{(estateBuildings.find(b=>b.id===x.building_id)?.name||"Building")+" · "+x.unit_code}</option>)}</select></label>
+    <div style={{display:"flex",alignItems:"end"}}><button type="button" className="primary-action" disabled={saving||!selectedResident||!selectedUnit} onClick={()=>void assignResident()}>{saving?"Saving…":"Assign primary resident"}</button></div>
+   </div>
+   <p className="notice-line">Only active resident accounts without an existing apartment assignment are listed. Accepted household members are excluded because they inherit the primary resident's apartment. A resident or apartment cannot be assigned twice.</p>
+   <div className="user-list-toolbar"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search estate, building, unit or resident…" aria-label="Search property records"/></div>
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Building</th><th>Apartment</th><th>Property type</th><th>Primary resident</th><th>Status</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={6} className="empty-cell">Loading estate apartment records…</td></tr>:visible.length?visible.map(x=><tr key={x.id}><td>{x.estate}</td><td><strong>{x.building}</strong></td><td>{x.unit}</td><td>{x.type}</td><td>{x.resident}</td><td><span className={"status-pill status-"+x.status.toLowerCase().replace(/[^a-z0-9]+/g,"-")}>{x.status}</span></td></tr>):<tr><td colSpan={6} className="empty-cell"><strong>No apartment units found</strong><small>Choose an estate, add its official buildings and apartments, then assign primary residents from the verified estate register.</small></td></tr>}
+   </tbody></table></div>
   </section>
  </PortalFrame>;
 }
@@ -517,13 +625,14 @@ function ManagementPaymentsPage(){
   setEstates(estateList);
   const estateIds=estateList.map(x=>x.id);
   if(!estateIds.length){setRows([]);setLoading(false);return;}
-  const [charges,savings,electricity]=await Promise.all([
+  const [charges,savings,electricity,walletFunding]=await Promise.all([
    supabase.from("service_charge_payments").select("id,estate_id,resident_user_id,charge_id,amount_kobo,currency,status,provider_reference,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200),
    supabase.from("rent_savings_contributions").select("id,estate_id,resident_user_id,amount_kobo,currency,status,provider_reference,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200),
-   supabase.from("electricity_recharge_orders").select("id,estate_id,resident_user_id,amount_kobo,currency,status,units_purchased,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200)
+   supabase.from("electricity_recharge_orders").select("id,estate_id,resident_user_id,amount_kobo,currency,status,units_purchased,verified_at,created_at").in("estate_id",estateIds).order("created_at",{ascending:false}).limit(200),
+   supabase.rpc("get_management_wallet_funding_payments")
   ]);
-  if(charges.error||savings.error||electricity.error){setRows([]);setError("Payment records could not be loaded. Please refresh and try again.");setLoading(false);return;}
-  const residentIds=[...new Set([...(charges.data||[]).map(x=>x.resident_user_id),...(savings.data||[]).map(x=>x.resident_user_id),...(electricity.data||[]).map(x=>x.resident_user_id)])];
+  if(charges.error||savings.error||electricity.error||walletFunding.error){setRows([]);setError("Payment records could not be loaded. Please refresh and try again.");setLoading(false);return;}
+  const residentIds=[...new Set([...(charges.data||[]).map(x=>x.resident_user_id),...(savings.data||[]).map(x=>x.resident_user_id),...(electricity.data||[]).map(x=>x.resident_user_id),...(walletFunding.data||[]).map(x=>x.resident_user_id)])];
   const chargeIds=[...new Set((charges.data||[]).map(x=>x.charge_id).filter(Boolean))];
   const [{data:profiles},{data:chargeNames}]=await Promise.all([
    residentIds.length?supabase.from("users").select("id,full_name").in("id",residentIds):Promise.resolve({data:[],error:null}),
@@ -542,13 +651,14 @@ function ManagementPaymentsPage(){
   const chargeRows=(charges.data||[]).map(x=>({id:"charge-"+x.id,estateId:x.estate_id,type:"Service charge",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:titles.get(x.charge_id)||"Service charge"}));
   const savingsRows=(savings.data||[]).map(x=>({id:"savings-"+x.id,estateId:x.estate_id,type:"Rent savings",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:"Rent savings contribution"}));
   const electricityRows=(electricity.data||[]).map(x=>({id:"electricity-"+x.id,estateId:x.estate_id,type:"Electricity",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:null,createdAt:x.verified_at||x.created_at,description:"Electricity purchase"+(x.units_purchased?" · "+x.units_purchased+" units":"")}));
-  setRows([...chargeRows,...savingsRows,...electricityRows].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
+  const walletRows=(walletFunding.data||[]).map(x=>({id:"wallet-"+x.id,estateId:x.estate_id,type:"Wallet top-up",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.status==="successful"?x.created_at:null),reference:x.reference,createdAt:x.created_at,description:"Wallet funding"}));
+  setRows([...chargeRows,...savingsRows,...electricityRows,...walletRows].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
   setLoading(false);
  },[]);
  useEffect(()=>{void load();},[load]);
  const visible=rows.filter(row=>(!selectedEstate||selectedEstate===row.estateId)&&(status==="all"||row.status.toLowerCase()===status)&&(!search||[row.resident,row.estate,row.type,row.description,row.reference].join(" ").toLowerCase().includes(search.toLowerCase())));
  const money=(amount:number,currency:string)=>new Intl.NumberFormat("en-NG",{style:"currency",currency:currency||"NGN",maximumFractionDigits:2}).format(amount/100);
- return <PortalFrame title="Payments" description="Review service charge, rent savings and electricity transactions across your authorised estates.">
+ return <PortalFrame title="Payments" description="Review wallet top-ups, service charges, rent savings and electricity transactions across your authorised estates.">
   <section className="panel module-panel">
    <div className="module-toolbar"><div><h3>Payment history</h3><p>Recent transactions and their current payment status.</p></div><button className="secondary-action" onClick={()=>void load()} disabled={loading}>{loading?"Refreshing…":"Refresh records"}</button></div>
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
