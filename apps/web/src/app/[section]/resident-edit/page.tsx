@@ -85,7 +85,10 @@ export default function ResidentEditPage() {
       setError("Enter a valid email address. This is the resident's sign-in email.");
       return;
     }
-    if (!buildingName.trim() || !unitNumber.trim()) {\n      setError("Enter the verified building name and apartment number to assign this resident an Apartment ID.");\n      return;\n    }\n    if (phone.trim() && phone.trim().length < 7) {
+    if (!buildingName.trim() || !unitNumber.trim()) {
+      setError("Enter the verified building name and apartment number to assign this resident an Apartment ID.");
+      return;
+    }\n    if (phone.trim() && phone.trim().length < 7) {
       setError("Enter a valid phone number, including the country code where possible.");
       return;
     }
