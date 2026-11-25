@@ -227,7 +227,13 @@ BEGIN
   IF home_unit IS NULL THEN RAISE EXCEPTION 'active_resident_apartment_required' USING ERRCODE = '42501'; END IF;
 
   RETURN QUERY
-  SELECT ru.resident_user_id, u.full_name, 'resident'::text, NULL::text, NULL::timestamptz
+  SELECT ru.resident_user_id, u.full_name,
+    CASE WHEN NOT EXISTS (
+      SELECT 1 FROM public.resident_units earlier
+      WHERE earlier.unit_id=ru.unit_id AND earlier.end_date IS NULL
+        AND (earlier.created_at,earlier.id) < (ru.created_at,ru.id)
+    ) THEN 'primary'::text ELSE 'resident'::text END,
+    NULL::text, NULL::timestamptz
   FROM public.resident_units ru
   JOIN public.users u ON u.id=ru.resident_user_id
   JOIN public.estate_memberships em ON em.estate_id=ru.estate_id AND em.user_id=ru.resident_user_id
