@@ -30,7 +30,10 @@ export default function HouseholdScreen() {
       supabase.rpc('get_my_household_members'),
     ]);
     if (householdError) {
-      setError('Your apartment household could not be loaded. Please try again.');
+      const detail = householdError.message || '';
+      setError(detail.includes('active_resident_apartment_required')
+        ? 'Your resident account is not linked to an apartment yet. Ask your estate management team to assign the correct apartment before inviting a second user.'
+        : 'Your apartment household could not be loaded. Please try again.');
       setMembers([]);
     } else {
       setCurrentUserId(auth.user?.id || '');
