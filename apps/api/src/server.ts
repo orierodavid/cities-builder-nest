@@ -1400,7 +1400,7 @@ app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, r
       hostName = host?.full_name ?? null;
     }
   }
-  res.status(200).json({ visitor: { name: pass.visitor_name, phone: pass.visitor_phone }, host: { name: hostName }, pass: { id: pass.id, validFrom: pass.valid_from, validUntil: pass.valid_until, status: pass.status }, visitorCount: pass.visitor_count, frequency: pass.visit_frequency, scheduleStartDate: scheduleStart, scheduleEndDate: scheduleEnd, availabilityError: scheduleAllowed ? visitorPassAvailabilityError(pass) : "visitor_pass_not_scheduled_for_today" });
+  res.status(200).json({ visitor: { name: pass.visitor_name, phone: pass.visitor_phone }, host: { name: hostName }, pass: { id: pass.id, validFrom: pass.valid_from, validUntil: pass.valid_until, status: pass.status, visitorCount: pass.visitor_count, frequency: pass.visit_frequency, scheduleStartDate: scheduleStart, scheduleEndDate: scheduleEnd }, availabilityError: scheduleAllowed ? visitorPassAvailabilityError(pass) : "visitor_pass_not_scheduled_for_today" });
 });
 
 app.post("/v1/estates/:estateId/gate/visitor-passes/:passId/deny", requireAuth, async (req, res) => {
