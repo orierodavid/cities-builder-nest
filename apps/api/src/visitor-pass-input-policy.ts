@@ -10,7 +10,7 @@ export type VisitorPassInput = {
   validUntil: Date;
 };
 const DEFAULT_VISITOR_PASS_DURATION_MS = 12 * 60 * 60 * 1000;
-const DATE_PATTERN = /^\\d{4}-\\d{2}-\\d{2}$/;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 function validDate(value: unknown): value is string {
   if (typeof value !== "string" || !DATE_PATTERN.test(value)) return false;
   const date = new Date(value + "T00:00:00.000Z");
@@ -31,7 +31,7 @@ export function parseVisitorPassInput(input: {
   if (!["once", "daily", "weekly"].includes(frequency) ||
       !Number.isSafeInteger(visitorCount) || visitorCount < 1 || visitorCount > 50 ||
       visitorName.length < 2 || visitorName.length > 120 ||
-      (visitorPhone !== null && (visitorPhone.length > 40 || !/^\\+?[0-9 ()-]{7,40}$/.test(visitorPhone))) ||
+      (visitorPhone !== null && (visitorPhone.length > 40 || !/^\+?[0-9 ()-]{7,40}$/.test(visitorPhone))) ||
       !validDate(start) || !validDate(end) || end < start) return null;
   if (frequency === "once" && start !== end) return null;
   const startAt = new Date(start + "T00:00:00.000Z");
