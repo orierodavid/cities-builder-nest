@@ -101,7 +101,7 @@ export default function HouseholdScreen() {
         <Card>
           <SectionTitle>Invite the second resident</SectionTitle>
           <Text style={{ color: theme.muted, fontSize: 12, lineHeight: 18, marginBottom: 12 }}>
-            Send an invitation to your spouse or another household member. They will have their own secure login and personal CB Nest ID, while sharing this apartment’s property details and service-charge status.
+            Send an invitation to your spouse or another household member. The invitation is locked to your currently assigned apartment and estate; the invited person cannot choose a different estate or apartment. They will have their own secure login and personal CB Nest ID, while sharing this apartment’s property details and service-charge status.
           </Text>
           <Text style={{ color: theme.muted, fontSize: 11, marginBottom: 5 }}>FULL NAME</Text>
           <TextInput value={fullName} onChangeText={setFullName} placeholder="Second resident’s full name" placeholderTextColor={theme.muted} autoCapitalize="words" style={{ minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, color: theme.text, marginBottom: 12, backgroundColor: '#080808' }} />
