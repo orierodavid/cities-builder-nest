@@ -632,7 +632,8 @@ function ManagementPaymentsPage(){
    supabase.rpc("get_management_wallet_funding_payments")
   ]);
   if(charges.error||savings.error||electricity.error||walletFunding.error){setRows([]);setError("Payment records could not be loaded. Please refresh and try again.");setLoading(false);return;}
-  const residentIds=[...new Set([...(charges.data||[]).map(x=>x.resident_user_id),...(savings.data||[]).map(x=>x.resident_user_id),...(electricity.data||[]).map(x=>x.resident_user_id),...(walletFunding.data||[]).map(x=>x.resident_user_id)])];
+  const walletFundingRows=(walletFunding.data||[]) as Array<{id:string;estate_id:string;resident_user_id:string;amount_kobo:number;currency:string;status:string;reference:string;created_at:string}>;
+  const residentIds=[...new Set([...(charges.data||[]).map(x=>x.resident_user_id),...(savings.data||[]).map(x=>x.resident_user_id),...(electricity.data||[]).map(x=>x.resident_user_id),...walletFundingRows.map(x=>x.resident_user_id)])];
   const chargeIds=[...new Set((charges.data||[]).map(x=>x.charge_id).filter(Boolean))];
   const [{data:profiles},{data:chargeNames}]=await Promise.all([
    residentIds.length?supabase.from("users").select("id,full_name").in("id",residentIds):Promise.resolve({data:[],error:null}),
@@ -651,8 +652,8 @@ function ManagementPaymentsPage(){
   const chargeRows=(charges.data||[]).map(x=>({id:"charge-"+x.id,estateId:x.estate_id,type:"Service charge",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:titles.get(x.charge_id)||"Service charge"}));
   const savingsRows=(savings.data||[]).map(x=>({id:"savings-"+x.id,estateId:x.estate_id,type:"Rent savings",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:x.provider_reference,createdAt:x.verified_at||x.created_at,description:"Rent savings contribution"}));
   const electricityRows=(electricity.data||[]).map(x=>({id:"electricity-"+x.id,estateId:x.estate_id,type:"Electricity",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.verified_at),reference:null,createdAt:x.verified_at||x.created_at,description:"Electricity purchase"+(x.units_purchased?" · "+x.units_purchased+" units":"")}));
-  const walletRows=(walletFunding.data||[]).map(x=>({id:"wallet-"+x.id,estateId:x.estate_id,type:"Wallet top-up",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.status==="successful"?x.created_at:null),reference:x.reference,createdAt:x.created_at,description:"Wallet funding"}));
-  setRows([...chargeRows,...savingsRows,...electricityRows,...walletRows].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
+  const walletRows=walletFundingRows.map(x=>({id:"wallet-"+x.id,estateId:x.estate_id,type:"Wallet top-up",resident:names.get(x.resident_user_id)||"Resident",estate:estateNames.get(x.estate_id)||"Estate",amount:Number(x.amount_kobo),currency:x.currency||"NGN",status:statusName(x.status,x.status==="successful"?x.created_at:null),reference:x.reference,createdAt:x.created_at,description:"Wallet funding"}));
+  setRows([...chargeRows,...savingsRows,...electricityRows,...walletRows].sort((a:ManagementPayment,b:ManagementPayment)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()));
   setLoading(false);
  },[]);
  useEffect(()=>{void load();},[load]);
