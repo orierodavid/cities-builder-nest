@@ -21,6 +21,12 @@
           "recordAudioAndroid": false
         }
       ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow CB Nest to access your contacts only when you choose a visitor from your address book."
+        }
+      ],
       "expo-asset",
       [
         "expo-splash-screen",
@@ -45,7 +51,8 @@
         "backgroundColor": "#000000"
       },
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.READ_CONTACTS"
       ]
     },
     "icon": "./assets/cb-nest-logo.png",
