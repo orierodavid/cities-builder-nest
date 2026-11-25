@@ -147,14 +147,14 @@ Deno.serve(async (req: Request) => {
     }
 
     const { data: pending, error: pendingError } = await admin.from("rent_savings_contributions")
-      .select("id,provider_reference,amount_kobo,fee_kobo,total_amount_kobo").eq("goal_id", goal.id)
+      .select("id,provider_reference,amount_kobo,fee_kobo,total_amount_kobo,checkout_url").eq("goal_id", goal.id)
       .eq("resident_user_id", auth.user.id).eq("amount_kobo", requested)
       .eq("status", "pending").maybeSingle();
     if (pendingError) return reply(503, { error: "pending_contribution_lookup_failed" });
     if (pending?.provider_reference) {
       return reply(202, { status: "pending", transactionReference: pending.provider_reference,
         amountKobo: Number(pending.amount_kobo), feeKobo: Number(pending.fee_kobo ?? 0),
-        totalAmountKobo: Number(pending.total_amount_kobo ?? pending.amount_kobo), currency: "NGN", confirmationPending: true });
+        totalAmountKobo: Number(pending.total_amount_kobo ?? pending.amount_kobo), checkoutUrl: typeof pending.checkout_url === "string" ? pending.checkout_url : "", currency: "NGN", confirmationPending: true });
     }
 
     estateId = goal.estate_id;
