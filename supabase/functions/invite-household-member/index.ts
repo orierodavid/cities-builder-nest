@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
     return reply(400, { error: "invalid_invitation_details", message: "Enter the second resident's full name and a valid email address." });
   }
   if (email === auth.user.email.toLowerCase()) {
-    return reply(400, { error: "cannot_invite_your_own_email" });
+    return reply(400, { error: "cannot_invite_yourself", message: "You cannot add your own email address to your household." });
   }
 
   const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -50,6 +50,49 @@ Deno.serve(async (req: Request) => {
     return reply(403, { error: "active_resident_account_required" });
   }
 
+  // Existing CB Nest accounts receive an in-app household invitation. New users
+  // continue through Supabase's verified-email invitation flow.
+  let existingUser: { id: string; email?: string } | null = null;
+  for (let page = 1; page <= 20; page += 1) {
+    const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (usersError) return reply(503, { error: "invitee_account_lookup_unavailable" });
+    existingUser = usersPage.users.find((candidate) => candidate.email?.toLowerCase() === email) ?? null;
+    if (existingUser || usersPage.users.length < 1000) break;
+  }
+
+  if (existingUser) {
+    const { data: inviteRows, error: reservationError } = await user.rpc("create_resident_household_invite", {
+      p_email: email,
+      p_full_name: fullName,
+    });
+    if (reservationError) {
+      const detail = reservationError.message || "";
+      if (detail.includes("primary_resident_only")) return reply(403, { error: "primary_resident_only", message: "Only the primary resident can invite the second household account." });
+      if (detail.includes("apartment_resident_limit_reached")) return reply(409, { error: "apartment_resident_limit_reached", message: "This apartment already has two resident accounts or a pending invitation." });
+      if (detail.includes("invitee_already_assigned_to_another_apartment")) return reply(409, { error: "invitee_already_assigned_to_another_apartment", message: "That person already belongs to another apartment and cannot be added here." });
+      if (detail.includes("invitee_already_in_household")) return reply(409, { error: "invitee_already_in_household", message: "That person is already a member of this apartment." });
+      if (detail.includes("household_invitation_already_pending")) return reply(409, { error: "household_invitation_already_pending", message: "An invitation is already pending for that email address." });
+      if (detail.includes("active_resident_apartment_required")) return reply(403, { error: "active_resident_apartment_required", message: "Your account must be assigned to an apartment before inviting another resident." });
+      return reply(403, { error: "household_invitation_not_allowed", message: "Your account cannot invite another resident for this apartment." });
+    }
+    const invite = Array.isArray(inviteRows) ? inviteRows[0] : inviteRows;
+    if (!invite?.invite_id) return reply(503, { error: "invitation_reservation_failed" });
+    const { error: linkError } = await admin.from("resident_household_invites")
+      .update({ invitee_user_id: existingUser.id })
+      .eq("id", invite.invite_id).eq("status", "pending");
+    if (linkError) {
+      await admin.from("resident_household_invites").update({ status: "cancelled" }).eq("id", invite.invite_id);
+      return reply(503, { error: "invitation_link_setup_failed", message: "The in-app invitation could not be linked securely. Please try again." });
+    }
+    return reply(201, {
+      success: true,
+      existingAccount: true,
+      email,
+      expiresAt: invite.expires_at,
+      message: "An in-app invitation is ready for this existing CB Nest account. Ask the invited resident to open My Household and accept it.",
+    });
+  }
+
   const { data: reservation, error: reservationError } = await user.rpc("create_resident_household_invite", {
     p_email: email,
     p_full_name: fullName,
@@ -58,8 +101,10 @@ Deno.serve(async (req: Request) => {
     const detail = reservationError.message || "";
     if (detail.includes("primary_resident_only")) return reply(403, { error: "primary_resident_only", message: "Only the primary resident can invite the second household account." });
     if (detail.includes("apartment_resident_limit_reached")) return reply(409, { error: "apartment_resident_limit_reached", message: "This apartment already has two resident accounts or a pending invitation." });
-    if (detail.includes("household_invitation_already_pending")) return reply(409, { error: "household_invitation_already_pending" });
-    if (detail.includes("active_resident_apartment_required")) return reply(403, { error: "active_resident_apartment_required" });
+    if (detail.includes("invitee_already_assigned_to_another_apartment")) return reply(409, { error: "invitee_already_assigned_to_another_apartment", message: "That person already belongs to another apartment and cannot be added here." });
+    if (detail.includes("invitee_already_in_household")) return reply(409, { error: "invitee_already_in_household", message: "That person is already a member of this apartment." });
+    if (detail.includes("household_invitation_already_pending")) return reply(409, { error: "household_invitation_already_pending", message: "An invitation is already pending for that email address." });
+    if (detail.includes("active_resident_apartment_required")) return reply(403, { error: "active_resident_apartment_required", message: "Your account must be assigned to an apartment before inviting another resident." });
     return reply(403, { error: "household_invitation_not_allowed", message: "Your account cannot invite another resident for this apartment." });
   }
   const invite = Array.isArray(reservation) ? reservation[0] : reservation;
@@ -76,7 +121,7 @@ Deno.serve(async (req: Request) => {
     return reply(duplicate ? 409 : 502, {
       error: duplicate ? "email_already_registered" : "invitation_email_failed",
       message: duplicate
-        ? "That email already has a CB Nest account. Use a different email address for this invitation."
+        ? "That email already has a CB Nest account. Ask them to open My Household and check for an in-app invitation."
         : "The invitation email could not be sent. No second resident account has been added.",
     });
   }
