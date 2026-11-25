@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
   const action = input.action;
   const estateId = typeof input.estateId === "string" ? input.estateId.trim() : "";
   const userId = typeof input.userId === "string" ? input.userId.trim() : "";
-  if (!estateId || !["list", "approve"].includes(String(action))) return reply(400, { error: "invalid_request" });
+  if (!estateId || !["list", "approve", "reject"].includes(String(action))) return reply(400, { error: "invalid_request" });
 
   const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data: accountStatus, error: accountStatusError } = await admin.from("users")
@@ -125,6 +125,17 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!userId) return reply(400, { error: "resident_user_id_required" });
+  if (action === "reject") {
+    const { data: rejected, error: rejectionError } = await admin.rpc("reject_resident_account", {
+      p_estate_id: estateId, p_user_id: userId, p_approver_id: auth.user.id,
+    });
+    if (rejectionError) {
+      const denied = /not_authorized/i.test(rejectionError.message || "");
+      return reply(denied ? 403 : 503, { error: denied ? "resident_approval_not_authorized" : "resident_rejection_failed" });
+    }
+    if (rejected !== true) return reply(409, { error: "resident_already_reviewed" });
+    return reply(200, { success: true, rejected: true });
+  }
   const { data: approved, error: approvalError } = await admin.rpc("approve_resident_account", {
     p_estate_id: estateId, p_user_id: userId, p_approver_id: auth.user.id,
   });
