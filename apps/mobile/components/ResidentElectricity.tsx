@@ -9,7 +9,7 @@ type MeterValidation = {
   minimumVend: number | null; outstandingDebt: number | null; expiresAt: string;
 };
 type ElectricityTransaction = {
-  id: string; provider: string; customer_identifier: string; merchant_reference: string;
+  id: string; provider: string; customer_identifier: string; merchant_reference: string; payment_method?: string;
   amount_kobo: number; status: string; receipt: Record<string, unknown> | null; created_at: string;
 };
 const money = (n: number) => new Intl.NumberFormat("en-NG", {
