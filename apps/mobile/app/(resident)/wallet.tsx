@@ -5,6 +5,7 @@ import Svg, { Circle, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { Screen, Card } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
 import { theme } from '../../src/theme/theme';
+import { loadPendingServiceChargeTotalKobo } from '../../src/lib/pending-service-charge';
 
 function PaystackMark() {
   return <Svg width={34} height={34} viewBox="0 0 34 34">
@@ -31,20 +32,38 @@ export default function WalletScreen() {
   const [funding, setFunding] = useState(false);
   const [message, setMessage] = useState('');
 
-  const loadBalance = useCallback(async () => {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const loadPendingCharge = useCallback(async () => {
     setPendingChargeLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('get_my_pending_service_charge_total');
+      if (error) throw error;
+      const value = Array.isArray(data) ? data[0] : data;
+      setPendingChargeKobo(value === null || value === undefined ? 0 : Number(value));
+    } catch (error) {
+      console.warn('[CB Nest pending charge] RPC unavailable; using resident charge records.', error instanceof Error ? error.message : 'Unknown error');
+      try {
+        setPendingChargeKobo(await loadPendingServiceChargeTotalKobo());
+      } catch (fallbackError) {
+        console.warn('[CB Nest pending charge] Could not load charge records.', fallbackError instanceof Error ? fallbackError.message : 'Unknown error');
+        setPendingChargeKobo(null);
+      }
+    } finally {
+      setPendingChargeLoading(false);
+    }
+  }, []);
+
+  const loadBalance = useCallback(async () => {
+    void loadPendingCharge();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       setMessage('Please sign in again to view your wallet.');
       setLoading(false);
-      setPendingChargeLoading(false);
       return;
     }
     const walletResult = await supabase.rpc('get_my_wallet_balance');
     const { data, error } = walletResult;
     if (error) {
       setMessage('Wallet balance is temporarily unavailable.');
-      setPendingChargeLoading(false);
       setLoading(false);
       return;
     }
@@ -52,18 +71,8 @@ export default function WalletScreen() {
     setBalanceKobo(wallet ? Number(wallet.balance_kobo) : null);
     setWalletStatus(wallet?.status ?? null);
 
-    try {
-      const { data: pendingTotal, error: pendingError } = await supabase.rpc('get_my_pending_service_charge_total');
-      if (pendingError) throw pendingError;
-      const value = Array.isArray(pendingTotal) ? pendingTotal[0] : pendingTotal;
-      setPendingChargeKobo(value === null || value === undefined ? 0 : Number(value));
-    } catch {
-      setPendingChargeKobo(null);
-    } finally {
-      setPendingChargeLoading(false);
-      setLoading(false);
-    }
-  }, []);
+    setLoading(false);
+  }, [loadPendingCharge]);
 
   useEffect(() => { void loadBalance(); }, [loadBalance]);
   useEffect(() => {
@@ -130,13 +139,13 @@ export default function WalletScreen() {
           <Text style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '700' }}>Refresh balance</Text>
         </TouchableOpacity>
       </Card>
-      <Card>
-        <Text style={{ color: theme.muted, fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>PENDING CHARGE</Text>
-        <Text accessibilityLabel="Pending service charge" style={{ color: '#E53935', fontSize: 24, fontWeight: '900', marginTop: 8 }}>
-          {pendingChargeLoading ? 'Loading…' : pendingCharge}
+      <View style={{ borderWidth: 1, borderColor: '#7A2424', backgroundColor: '#170D0D', padding: 16, borderRadius: 14 }}>
+        <Text style={{ color: '#F08A8A', fontSize: 11, fontWeight: '900', letterSpacing: 1 }}>PENDING CHARGE</Text>
+        <Text accessibilityLabel="Pending service charge" style={{ color: '#FF3B30', fontSize: 28, fontWeight: '900', marginTop: 9 }}>
+          {pendingChargeLoading ? 'Loading…' : pendingChargeKobo === null ? 'Unavailable' : pendingCharge}
         </Text>
         <Text style={{ color: theme.muted, fontSize: 11, lineHeight: 16, marginTop: 5 }}>Outstanding amount from your estate service charges.</Text>
-      </Card>
+      </View>
 
       <Text style={{ color: theme.text, fontSize: 15, fontWeight: '800', marginTop: 8 }}>Top up wallet</Text>
       <Card>
