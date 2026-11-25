@@ -10,8 +10,8 @@ export async function getGateVisitorPass(client: PoolClient, estateId: string, a
   if (!pass) return null;
   const schedule = await client.query<Pick<GateVisitorPass, "visitor_count" | "visit_frequency" | "schedule_start_date" | "schedule_end_date">>(
     `SELECT visitor_count, visit_frequency, schedule_start_date::text, schedule_end_date::text
-     FROM public.visitor_passes WHERE id = $1 AND estate_id = $2`,
-    [pass.id, estateId],
+     FROM public.get_visitor_pass_schedule_for_security($1, $2)`,
+    [estateId, pass.id],
   );
   return schedule.rows[0] ? { ...pass, ...schedule.rows[0] } : pass;
 }
