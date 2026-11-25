@@ -211,22 +211,22 @@ export default function VisitorsScreen() {
     <Screen title="Visitor Management" subtitle="Create and manage access passes for your visitors">
       <SectionTitle>Generate access code</SectionTitle>
       <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text style={[labelStyle, { marginBottom: 0 }]}>Visitor name</Text>
+        <Text style={labelStyle}>Visitor name</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <TextInput value={visitorName} onChangeText={setVisitorName} placeholder="Enter visitor’s full name" placeholderTextColor={theme.muted} autoCapitalize="words" style={[inputStyle, { flex: 1, marginBottom: 0, marginRight: 9 }]} />
           <TouchableOpacity
             onPress={() => void chooseContact()}
             disabled={contactsLoading}
             accessibilityRole="button"
             accessibilityLabel="Choose visitor from contacts"
-            hitSlop={10}
-            style={{ width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}
+            hitSlop={8}
+            style={{ width: 46, height: 46, borderRadius: 12, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center' }}
           >
             {contactsLoading
               ? <ActivityIndicator size="small" color={theme.gold} />
-              : <Ionicons name="person-add-outline" size={19} color={theme.gold} />}
+              : <Ionicons name="person-add-outline" size={21} color={theme.gold} />}
           </TouchableOpacity>
         </View>
-        <TextInput value={visitorName} onChangeText={setVisitorName} placeholder="Enter visitor’s full name" placeholderTextColor={theme.muted} autoCapitalize="words" style={inputStyle} />
         <Text style={labelStyle}>Phone number</Text>
         <TextInput value={visitorPhone} onChangeText={setVisitorPhone} placeholder="Visitor phone number" placeholderTextColor={theme.muted} keyboardType="phone-pad" style={inputStyle} />
         <Text style={labelStyle}>How many visitors?</Text>
