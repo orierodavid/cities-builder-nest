@@ -199,12 +199,14 @@ export default function ServiceChargesScreen() {
                 </TouchableOpacity>
               </>
             ) : (
+              <>
               <TouchableOpacity onPress={() => void payChargeWithWallet(charge.id)} disabled={paymentBusyId === charge.id} style={{ marginTop: 14, minHeight: 46, borderRadius: 10, backgroundColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
                 {paymentBusyId === charge.id ? <ActivityIndicator color="#071A3A" /> : <Text style={{ color: '#071A3A', fontWeight: '900' }}>PAY FROM WALLET</Text>}
               </TouchableOpacity>
               <TouchableOpacity onPress={() => void payCharge(charge.id)} disabled={paymentBusyId === charge.id} style={{ marginTop: 9, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center', opacity: paymentBusyId === charge.id ? 0.65 : 1 }}>
                 <Text style={{ color: theme.goldSoft, fontWeight: '900' }}>PAY NORMALLY</Text>
               </TouchableOpacity>
+              </>
             )}
           </Card>
         ))
