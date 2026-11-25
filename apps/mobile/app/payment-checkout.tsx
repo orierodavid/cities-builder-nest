@@ -127,7 +127,7 @@ export default function PaymentCheckoutScreen() {
             <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>{money(amountKobo)}</Text>
           </View>
           <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-            <Text style={{ color: "#A8A8A8", fontSize: 12 }}>Merchant fee</Text>
+            <Text style={{ color: "#A8A8A8", fontSize: 12 }}>CB Nest payment fee</Text>
             <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>{money(feeKobo)}</Text>
           </View>
           <View style={{ height: 1, backgroundColor: "#3A2E12", marginVertical: 7 }} />
