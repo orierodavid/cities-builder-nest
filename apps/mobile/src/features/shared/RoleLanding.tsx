@@ -47,14 +47,16 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   }
   setPendingChargeLoading(true);
   try{
-   const {data,error}=await supabase.rpc('get_my_pending_service_charge_total');
-   if(error)throw error;
-   const value=Array.isArray(data)?data[0]:data;
-   setPendingChargeKobo(value===null||value===undefined?0:Number(value));
+   // Use the same RLS-protected resident charge/payment records as the Service Charges screen.
+   setPendingChargeKobo(await loadPendingServiceChargeTotalKobo());
   }catch(error){
-   console.warn('[CB Nest pending charge] RPC unavailable; using resident charge records.', error instanceof Error ? error.message : 'Unknown error');
-   try{setPendingChargeKobo(await loadPendingServiceChargeTotalKobo());}
-   catch(fallbackError){console.warn('[CB Nest pending charge] Could not load charge records.', fallbackError instanceof Error ? fallbackError.message : 'Unknown error');setPendingChargeKobo(null);}
+   console.warn('[CB Nest pending charge] Resident records unavailable; trying the summary RPC.', error instanceof Error ? error.message : 'Unknown error');
+   try{
+    const {data,error:rpcError}=await supabase.rpc('get_my_pending_service_charge_total');
+    if(rpcError)throw rpcError;
+    const value=Array.isArray(data)?data[0]:data;
+    setPendingChargeKobo(value===null||value===undefined?0:Number(value));
+   }catch(fallbackError){console.warn('[CB Nest pending charge] Both charge sources failed.', fallbackError instanceof Error ? fallbackError.message : 'Unknown error');setPendingChargeKobo(null);}
   }finally{
    setPendingChargeLoading(false);
   }
