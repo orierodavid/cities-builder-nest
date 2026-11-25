@@ -1194,7 +1194,7 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
     schedule_start_date: scheduleStartDate, schedule_end_date: scheduleEndDate,
     access_code_hash: accessCodeHash, access_code_ciphertext: accessCodeCiphertext,
     valid_from: validFrom.toISOString(), valid_until: validUntil.toISOString(), status: "active",
-  }).select("id, estate_id, visitor_name, valid_from, valid_until, status, created_at").single();
+  }).select("id, estate_id, visitor_name, visitor_phone, visitor_count, visit_frequency, schedule_start_date, schedule_end_date, valid_from, valid_until, status, created_at").single();
   if (error || !data) { res.status(400).json({ error: "visitor_pass_create_failed" }); return; }
   const { access_code_ciphertext: _ciphertext, ...safeVisitorPass } = data as typeof data & { access_code_ciphertext?: string };
   res.status(201).json({ visitorPass: safeVisitorPass, accessCode });
