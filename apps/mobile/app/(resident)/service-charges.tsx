@@ -164,15 +164,26 @@ export default function ServiceChargesScreen() {
       const { data, error: invokeError } = await supabase.functions.invoke('initiate-squad-payment', {
         body: { paymentType: 'service_charge', chargeId },
       });
-      if (invokeError) throw invokeError;
-      if (typeof data?.transactionReference !== "string" || !data.transactionReference) {
-        throw new Error('We could not confirm the payment attempt. Please try again.');
+      if (invokeError) {
+        console.error("[CB Nest service charge] Payment initiation failed", {
+          message: invokeError.message, name: invokeError.name,
+        });
+        throw new Error("We could not start checkout. Please refresh the charge and try again.");
       }
-      if (data.checkoutUrl && (typeof data.checkoutUrl !== 'string' || !data.checkoutUrl.startsWith('https://'))) {
-        throw new Error('The payment link could not be validated.');
+      if (typeof data?.transactionReference !== "string" || !data.transactionReference) {
+        throw new Error(typeof data?.message === "string" ? data.message : "We could not confirm the payment attempt. Please try again.");
+      }
+      if (data.checkoutUrl && (typeof data.checkoutUrl !== "string" || !data.checkoutUrl.startsWith("https://"))) {
+        throw new Error("The payment link could not be validated.");
+      }
+      if (!data.checkoutUrl) {
+        setPendingPaymentRefs((current) => ({ ...current, [chargeId]: data.transactionReference }));
+        setPaymentMessage("Your payment attempt is awaiting confirmation from the payment provider. Use CHECK PAYMENT STATUS before trying again; do not make a duplicate payment.");
+        await load();
+        return;
       }
       router.push({ pathname: "/payment-checkout", params: {
-        checkoutUrl: typeof data.checkoutUrl === "string" ? data.checkoutUrl : "",
+        checkoutUrl: data.checkoutUrl,
         reference: data.transactionReference,
         paymentType: "service_charge",
         amountKobo: String(data.amountKobo ?? 0),
