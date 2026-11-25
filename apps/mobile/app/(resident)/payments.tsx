@@ -58,7 +58,7 @@ export default function PaymentsScreen() {
       ? householdCharges.or(`unit_id.eq.${unitId},and(unit_id.is.null,resident_user_id.eq.${user.id})`)
       : householdCharges.eq('resident_user_id', user.id);
 
-    const [charges, savings, electricity] = await Promise.all([
+    const [charges, savings, electricity, walletCredits] = await Promise.all([
       householdCharges.order('created_at', { ascending: false }),
       supabase.from('rent_savings_contributions')
         .select('id,amount_kobo,currency,status,provider_reference,verified_at,created_at')
@@ -68,9 +68,13 @@ export default function PaymentsScreen() {
         .select('id,amount_kobo,currency,status,units_purchased,verified_at,created_at')
         .eq('resident_user_id', user.id)
         .order('created_at', { ascending: false }),
+      supabase.from('wallet_transactions')
+        .select('id,amount_kobo,currency,status,provider_reference,created_at,description,entry_type')
+        .eq('resident_user_id', user.id).eq('entry_type', 'credit')
+        .order('created_at', { ascending: false }),
     ]);
 
-    if (charges.error || savings.error || electricity.error) {
+    if (charges.error || savings.error || electricity.error || walletCredits.error) {
       setPayments([]);
       setError('Your payment history is temporarily unavailable. Please try again.');
       setLoading(false);
@@ -107,7 +111,17 @@ export default function PaymentsScreen() {
       created_at: row.created_at,
       description: 'Electricity purchase' + (row.units_purchased ? ' · ' + row.units_purchased + ' units' : ''),
     }));
-    setPayments([...chargeRows, ...savingsRows, ...electricityRows].sort((a, b) =>
+    const walletRows = (walletCredits.data || []).map((row) => ({
+      id: 'wallet-' + row.id,
+      amount_kobo: Number(row.amount_kobo),
+      currency: row.currency || 'NGN',
+      status: 'successful',
+      provider_reference: row.provider_reference,
+      verified_at: row.created_at,
+      created_at: row.created_at,
+      description: row.description || 'Wallet top-up',
+    }));
+    setPayments([...chargeRows, ...savingsRows, ...electricityRows, ...walletRows].sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     ));
     setLoading(false);
@@ -116,7 +130,7 @@ export default function PaymentsScreen() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <Screen title="Payment History" subtitle="Your rent savings, service charge and electricity transactions">
+    <Screen title="Payment History" subtitle="Your wallet top-ups, rent savings, service charges and electricity transactions">
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <SectionTitle>All transactions</SectionTitle>
         <Text onPress={() => void load()} style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '700', padding: 8 }}>REFRESH</Text>
@@ -132,7 +146,7 @@ export default function PaymentsScreen() {
           <Text onPress={() => void load()} style={{ color: theme.goldSoft, fontWeight: '700', marginTop: 12 }}>Try again</Text>
         </Card>
       ) : payments.length === 0 ? (
-        <EmptyState icon="cash-multiple" title="No transactions yet" message="Your rent savings contributions, service charge payments and electricity purchases will appear here." />
+        <EmptyState icon="cash-multiple" title="No transactions yet" message="Your wallet top-ups, rent savings contributions, service charge payments and electricity purchases will appear here." />
       ) : (
         payments.map((payment) => {
           const label = statusLabel(payment.status, payment.verified_at);
