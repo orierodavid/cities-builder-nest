@@ -245,7 +245,7 @@ export default function ResidentElectricity({ estateId, onBack }: { estateId: st
             {item.payment_method === "wallet" ? <Text style={{ color: "#B9B9B9", fontSize: 10, marginTop: 3 }}>Paid from CB Nest wallet</Text> : null}
             <Text style={{ color: item.status === "successful" ? "#79D6A1" : item.status === "failed" ? "#F28B82" : "#F1D28A", fontSize: 10, fontWeight: "900", marginTop: 4 }}>{String(item.status).toUpperCase()}</Text>
             <Text style={{ color: "#999", fontSize: 10, marginTop: 4 }}>{new Date(item.created_at).toLocaleString()}</Text>
-            {item.status === "pending" && <TouchableOpacity disabled={busy} onPress={() => void checkStatus(item.merchant_reference)} style={{ paddingTop: 8 }}><Text style={{ color: "#D4A84B", fontWeight: "900", fontSize: 10 }}>CHECK STATUS</Text></TouchableOpacity>}
+            {(item.status === "pending" || (item.status === "failed" && item.payment_method === "wallet")) && <TouchableOpacity disabled={busy} onPress={() => void checkStatus(item.merchant_reference)} style={{ paddingTop: 8 }}><Text style={{ color: "#D4A84B", fontWeight: "900", fontSize: 10 }}>{item.status === "failed" ? "RETRY REFUND CHECK" : "CHECK STATUS"}</Text></TouchableOpacity>}
             {item.receipt && receiptText("Token", item.receipt.token)}
             {item.receipt && receiptText("Units", item.receipt.units)}
             {item.receipt && receiptText("Receipt number", item.receipt.receiptNumber)}
