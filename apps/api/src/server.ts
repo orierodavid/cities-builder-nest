@@ -1382,8 +1382,8 @@ app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, r
   }
   if (!pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
   const todayInEstate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  const scheduleStart = pass.schedule_start_date;
-  const scheduleEnd = pass.schedule_end_date;
+  const scheduleStart = pass.schedule_start_date || pass.valid_from.slice(0, 10);
+  const scheduleEnd = pass.schedule_end_date || pass.valid_until.slice(0, 10);
   const scheduledDay = todayInEstate >= scheduleStart && todayInEstate <= scheduleEnd;
   const weeklyDayAllowed = pass.visit_frequency !== "weekly" ||
     (new Date(todayInEstate + "T00:00:00Z").getUTCDay() === new Date(scheduleStart + "T00:00:00Z").getUTCDay() ||
