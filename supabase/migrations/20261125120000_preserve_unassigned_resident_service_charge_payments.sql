@@ -128,4 +128,18 @@ $$;
 REVOKE ALL ON FUNCTION public.pay_service_charge_from_wallet(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.pay_service_charge_from_wallet(uuid) TO authenticated;
 
+-- Historical payment rows are tied to the apartment occupied when they were paid.
+-- All existing rows have one unambiguous assignment-period match; no duplicate
+-- active household payment pair exists in this backfill set.
+ALTER TABLE public.service_charge_payments DISABLE TRIGGER assign_service_charge_payment_unit;
+UPDATE public.service_charge_payments p
+SET unit_id = ru.unit_id
+FROM public.resident_units ru
+WHERE p.unit_id IS NULL
+  AND p.resident_user_id = ru.resident_user_id
+  AND p.estate_id = ru.estate_id
+  AND p.created_at::date >= ru.start_date
+  AND (ru.end_date IS NULL OR p.created_at::date <= ru.end_date);
+ALTER TABLE public.service_charge_payments ENABLE TRIGGER assign_service_charge_payment_unit;
+
 COMMIT;
