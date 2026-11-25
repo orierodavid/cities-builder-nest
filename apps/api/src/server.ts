@@ -1389,7 +1389,7 @@ app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, r
     (new Date(todayInEstate + "T00:00:00Z").getUTCDay() === new Date(scheduleStart + "T00:00:00Z").getUTCDay() ||
       todayInEstate === scheduleStart);
   const scheduleAllowed = pass.visit_frequency === "once"
-    ? todayInEstate === scheduleStart
+    ? (todayInEstate >= scheduleStart && todayInEstate <= scheduleEnd)
     : scheduledDay && (pass.visit_frequency !== "weekly" || weeklyDayAllowed);
   let hostName: string | null = pass.host_full_name ?? null;
   if (process.env.NATIVE_POSTGRES_READS !== "true") {
