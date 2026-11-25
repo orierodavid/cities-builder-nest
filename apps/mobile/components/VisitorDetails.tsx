@@ -15,6 +15,11 @@ import { theme as t } from "../src/theme/theme";
 
 export type Visitor = {
   name: string;
+  phone?: string | null;
+  visitorCount?: number;
+  frequency?: string;
+  scheduleStartDate?: string;
+  scheduleEndDate?: string;
   category: string;
   photoUrl?: string;
   valid: boolean;
@@ -82,6 +87,10 @@ export default function VisitorDetails({ visitor: v, busy = false, denyDisabled 
         <View style={styles.detailsCard}>
           <Text style={styles.sectionTitle}>VISIT INFORMATION</Text>
           <DetailRow label="Access code" value={v.accessCode} />
+          <DetailRow label="Phone number" value={v.phone || undefined} />
+          <DetailRow label="Number of visitors" value={v.visitorCount ? String(v.visitorCount) : undefined} />
+          <DetailRow label="Visit frequency" value={v.frequency?.toUpperCase()} />
+          <DetailRow label="Visit date range" value={v.scheduleStartDate ? v.scheduleStartDate + (v.scheduleEndDate && v.scheduleEndDate !== v.scheduleStartDate ? " – " + v.scheduleEndDate : "") : undefined} />
           <DetailRow label="Host" value={v.host} />
           <DetailRow label="Property" value={v.property} />
           <DetailRow label="Date" value={v.date} />
