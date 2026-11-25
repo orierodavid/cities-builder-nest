@@ -88,7 +88,8 @@ export default function ResidentEditPage() {
     if (!buildingName.trim() || !unitNumber.trim()) {
       setError("Enter the verified building name and apartment number to assign this resident an Apartment ID.");
       return;
-    }\n    if (phone.trim() && phone.trim().length < 7) {
+    }
+    if (phone.trim() && phone.trim().length < 7) {
       setError("Enter a valid phone number, including the country code where possible.");
       return;
     }
