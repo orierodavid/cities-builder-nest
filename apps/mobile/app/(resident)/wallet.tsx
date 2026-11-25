@@ -40,11 +40,7 @@ export default function WalletScreen() {
       setPendingChargeLoading(false);
       return;
     }
-    const [walletResult, membershipResult, assignmentResult] = await Promise.all([
-      supabase.rpc('get_my_wallet_balance'),
-      supabase.from('estate_memberships').select('estate_id').eq('user_id', user.id).eq('membership_role', 'resident').eq('status', 'active'),
-      supabase.from('resident_units').select('unit_id').eq('resident_user_id', user.id).is('end_date', null).order('created_at', { ascending: false }).limit(1),
-    ]);
+    const walletResult = await supabase.rpc('get_my_wallet_balance');
     const { data, error } = walletResult;
     if (error) {
       setMessage('Wallet balance is temporarily unavailable.');
