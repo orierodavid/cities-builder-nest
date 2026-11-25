@@ -82,7 +82,13 @@ Deno.serve(async (req: Request) => {
       .eq("id", invite.invite_id).eq("status", "pending");
     if (linkError) {
       await admin.from("resident_household_invites").update({ status: "cancelled" }).eq("id", invite.invite_id);
-      return reply(503, { error: "invitation_link_setup_failed", message: "The in-app invitation could not be linked securely. Please try again." });
+      const alreadyPending = linkError.code === "23505";
+      return reply(alreadyPending ? 409 : 503, {
+        error: alreadyPending ? "household_invitation_already_pending" : "invitation_link_setup_failed",
+        message: alreadyPending
+          ? "This CB Nest account already has a pending apartment invitation. Ask the other primary resident to cancel it or accept it first."
+          : "The in-app invitation could not be linked securely. Please try again.",
+      });
     }
     return reply(201, {
       success: true,
@@ -131,7 +137,13 @@ Deno.serve(async (req: Request) => {
     .eq("id", invite.invite_id).eq("status", "pending");
   if (linkError) {
     await admin.from("resident_household_invites").update({ status: "cancelled" }).eq("id", invite.invite_id);
-    return reply(503, { error: "invitation_link_setup_failed", message: "The invitation was created but could not be linked securely. Please contact support before sending another invitation." });
+    const alreadyPending = linkError.code === "23505";
+    return reply(alreadyPending ? 409 : 503, {
+      error: alreadyPending ? "household_invitation_already_pending" : "invitation_link_setup_failed",
+      message: alreadyPending
+        ? "This CB Nest account already has a pending apartment invitation. Ask the other primary resident to cancel it or accept it first."
+        : "The invitation was created but could not be linked securely. Please contact support before sending another invitation.",
+    });
   }
 
   return reply(201, {
