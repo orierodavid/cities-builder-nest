@@ -1165,9 +1165,9 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
   if (!estateEnabled) { rejectInactiveEstate(res); return; }
   const visitorInput = parseVisitorPassInput(req.body ?? {});
   if (!visitorInput) {
-    res.status(400).json({ error: "invalid_visitor_pass", message: "Provide a visitor name and a valid time window of up to 7 days." }); return;
+    res.status(400).json({ error: "invalid_visitor_pass", message: "Provide a visitor name, visitor count and valid one-time or recurring schedule (up to 366 days)." }); return;
   }
-  const { visitorName, visitorPhone, validFrom, validUntil } = visitorInput;
+  const { visitorName, visitorPhone, visitorCount, frequency, scheduleStartDate, scheduleEndDate, validFrom, validUntil } = visitorInput;
   const encryptionSecret = process.env.VISITOR_PASS_ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!encryptionSecret) { res.status(503).json({ error: "visitor_code_storage_not_configured" }); return; }
   const accessCode = String(randomInt(100000, 1000000));
@@ -1177,7 +1177,7 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
     try {
       const data = await withAuthenticatedTransaction(authenticated.authUser.id, (client) =>
         createVisitorPass(client, {
-          estateId, hostUserId: authenticated.authUser.id, visitorName, visitorPhone,
+          estateId, hostUserId: authenticated.authUser.id, visitorName, visitorPhone, visitorCount, frequency, scheduleStartDate, scheduleEndDate,
           accessCodeHash, accessCodeCiphertext, validFrom: validFrom.toISOString(), validUntil: validUntil.toISOString(),
         }),
       );
@@ -1190,7 +1190,9 @@ app.post("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =
   }
   const { data, error } = await authenticated.userSupabase.from("visitor_passes").insert({
     estate_id: estateId, host_user_id: authenticated.authUser.id, visitor_name: visitorName,
-    visitor_phone: visitorPhone, access_code_hash: accessCodeHash, access_code_ciphertext: accessCodeCiphertext,
+    visitor_phone: visitorPhone, visitor_count: visitorCount, visit_frequency: frequency,
+    schedule_start_date: scheduleStartDate, schedule_end_date: scheduleEndDate,
+    access_code_hash: accessCodeHash, access_code_ciphertext: accessCodeCiphertext,
     valid_from: validFrom.toISOString(), valid_until: validUntil.toISOString(), status: "active",
   }).select("id, estate_id, visitor_name, valid_from, valid_until, status, created_at").single();
   if (error || !data) { res.status(400).json({ error: "visitor_pass_create_failed" }); return; }
@@ -1265,7 +1267,7 @@ app.get("/v1/estates/:estateId/visitor-passes", requireAuth, async (req, res) =>
 
   const { data, error } = await authenticated.userSupabase
     .from("visitor_passes")
-    .select("id, estate_id, visitor_name, visitor_phone, valid_from, valid_until, status, created_at, access_code_ciphertext")
+    .select("id, estate_id, visitor_name, visitor_phone, visitor_count, visit_frequency, schedule_start_date, schedule_end_date, valid_from, valid_until, status, created_at, access_code_ciphertext")
     .eq("estate_id", estateId)
     .eq("host_user_id", authenticated.authUser.id)
     .order("created_at", { ascending: false })
@@ -1368,17 +1370,27 @@ app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, r
   const accessCode = typeof req.body?.accessCode === "string" ? req.body.accessCode.trim() : "";
   if (!isValidVisitorAccessCode(accessCode)) { res.status(400).json({ error: "invalid_access_code" }); return; }
   const hash = createHash("sha256").update(accessCode).digest("hex");
-  let pass: { id: string; host_user_id: string; visitor_name: string; visitor_phone: string | null; valid_from: string; valid_until: string; status: string; host_full_name?: string | null } | null = null;
+  let pass: { id: string; host_user_id: string; visitor_name: string; visitor_phone: string | null; visitor_count: number; visit_frequency: string; schedule_start_date: string; schedule_end_date: string; valid_from: string; valid_until: string; status: string; host_full_name?: string | null } | null = null;
   if (process.env.NATIVE_POSTGRES_READS === "true") {
     try { pass = await withAuthenticatedTransaction(authenticated.authUser.id, (client) => getGateVisitorPass(client, estateId, hash)); }
     catch { res.status(503).json({ error: "visitor_pass_lookup_failed" }); return; }
   } else {
     const result = await authenticated.userSupabase.from("visitor_passes")
-      .select("id, host_user_id, visitor_name, visitor_phone, valid_from, valid_until, status")
+      .select("id, host_user_id, visitor_name, visitor_phone, visitor_count, visit_frequency, schedule_start_date, schedule_end_date, valid_from, valid_until, status")
       .eq("estate_id", estateId).eq("access_code_hash", hash).maybeSingle();
     pass = result.error ? null : result.data;
   }
   if (!pass) { res.status(404).json({ error: "visitor_pass_not_found_or_invalid" }); return; }
+  const todayInEstate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const scheduleStart = pass.schedule_start_date;
+  const scheduleEnd = pass.schedule_end_date;
+  const scheduledDay = todayInEstate >= scheduleStart && todayInEstate <= scheduleEnd;
+  const weeklyDayAllowed = pass.visit_frequency !== "weekly" ||
+    (new Date(todayInEstate + "T00:00:00Z").getUTCDay() === new Date(scheduleStart + "T00:00:00Z").getUTCDay() ||
+      todayInEstate === scheduleStart);
+  const scheduleAllowed = pass.visit_frequency === "once"
+    ? todayInEstate === scheduleStart
+    : scheduledDay && (pass.visit_frequency !== "weekly" || weeklyDayAllowed);
   let hostName: string | null = pass.host_full_name ?? null;
   if (process.env.NATIVE_POSTGRES_READS !== "true") {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -1388,7 +1400,7 @@ app.post("/v1/estates/:estateId/gate/visitor-lookup", requireAuth, async (req, r
       hostName = host?.full_name ?? null;
     }
   }
-  res.status(200).json({ visitor: { name: pass.visitor_name, phone: pass.visitor_phone }, host: { name: hostName }, pass: { id: pass.id, validFrom: pass.valid_from, validUntil: pass.valid_until, status: pass.status }, availabilityError: visitorPassAvailabilityError(pass) });
+  res.status(200).json({ visitor: { name: pass.visitor_name, phone: pass.visitor_phone }, host: { name: hostName }, pass: { id: pass.id, validFrom: pass.valid_from, validUntil: pass.valid_until, status: pass.status }, visitorCount: pass.visitor_count, frequency: pass.visit_frequency, scheduleStartDate: scheduleStart, scheduleEndDate: scheduleEnd, availabilityError: scheduleAllowed ? visitorPassAvailabilityError(pass) : "visitor_pass_not_scheduled_for_today" });
 });
 
 app.post("/v1/estates/:estateId/gate/visitor-passes/:passId/deny", requireAuth, async (req, res) => {
