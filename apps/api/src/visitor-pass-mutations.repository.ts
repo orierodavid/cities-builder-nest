@@ -4,6 +4,11 @@ export interface CreatedVisitorPass {
   id: string;
   estate_id: string;
   visitor_name: string;
+  visitor_phone: string | null;
+  visitor_count: number;
+  visit_frequency: string;
+  schedule_start_date: string;
+  schedule_end_date: string;
   valid_from: string;
   valid_until: string;
   status: string;
@@ -33,7 +38,7 @@ export async function createVisitorPass(
         schedule_start_date, schedule_end_date, access_code_hash, access_code_ciphertext,
         valid_from, valid_until, status)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'active')
-     RETURNING id, estate_id, visitor_name, valid_from, valid_until, status, created_at`,
+     RETURNING id, estate_id, visitor_name, visitor_phone, visitor_count, visit_frequency, schedule_start_date::text, schedule_end_date::text, valid_from, valid_until, status, created_at`,
     [input.estateId, input.hostUserId, input.visitorName, input.visitorPhone, input.visitorCount,
       input.frequency, input.scheduleStartDate, input.scheduleEndDate, input.accessCodeHash,
       input.accessCodeCiphertext, input.validFrom, input.validUntil],
