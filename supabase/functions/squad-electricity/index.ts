@@ -273,6 +273,7 @@ Deno.serve(async (req: Request) => {
       .eq("resident_user_id", auth.user.id).eq("service", "electricity")
       .eq("merchant_reference", reference).maybeSingle();
     if (error || !row) return reply(404, { error: "transaction_not_found" });
+    if (row.status === "failed" && row.payment_method === "wallet") await refundWalletElectricity(row as Record<string, unknown>);
     if (row.status === "pending") {
       const { data: validation } = await admin.from("utility_validations").select("validation_token")
         .eq("id", row.validation_id).eq("resident_user_id", auth.user.id).maybeSingle();
