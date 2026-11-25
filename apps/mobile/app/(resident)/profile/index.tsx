@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View, TouchableOpacity } from 'react-native';
 import { Screen, Card, SectionTitle, ListRow } from '../../../src/components/ui';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 import AccountDeletionCard from '../../../src/components/AccountDeletionCard';
 
@@ -12,6 +12,7 @@ export default function ProfileScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [unitDetails, setUnitDetails] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState('');
 
@@ -37,6 +38,22 @@ export default function ProfileScreen() {
     return () => { mounted = false; };
   }, []);
 
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    async function loadTermsAcceptance() {
+      const { data, error } = await supabase.rpc('get_legal_consent_status');
+      if (!active) return;
+      if (error || !data) { setTermsAccepted(null); return; }
+      const status = data as { documents?: Array<{ id: string; documentType?: string; document_type?: string }>; acceptedDocumentIds?: string[] };
+      const termsDocument = (status.documents || []).find((document) =>
+        (document.documentType || document.document_type || '').toLowerCase() === 'terms'
+      );
+      setTermsAccepted(!!termsDocument && (status.acceptedDocumentIds || []).includes(termsDocument.id));
+    }
+    void loadTermsAcceptance();
+    return () => { active = false; };
+  }, []));
+
   return (
     <Screen title="My Profile" subtitle="Your account and resident preferences">
       <Card>
@@ -54,7 +71,13 @@ export default function ProfileScreen() {
       <Card>
         <SectionTitle>Preferences & support</SectionTitle>
         <ListRow icon="bell-outline" title="Notifications" subtitle="Estate updates and alerts" onPress={() => router.push('/notifications' as never)} />
-        <ListRow icon="shield-check-outline" title="Terms & Conditions" subtitle="View current documents and your agreement status" onPress={() => router.push('/legal-documents' as never)} />
+        <ListRow
+          icon="shield-check-outline"
+          title="Terms & Conditions"
+          subtitle="View current documents and your agreement status"
+          right={termsAccepted === true ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Text style={{ color: '#2FB36D', fontSize: 17, fontWeight: '900' }}>✓</Text><Text style={{ color: '#2FB36D', fontSize: 10, fontWeight: '900' }}>ACCEPTED</Text></View> : undefined}
+          onPress={() => router.push('/legal-documents' as never)}
+        />
         <Text style={{ color: "#B9B9B9", fontSize: 11, lineHeight: 17, marginTop: 2 }}>For help with your account or property, contact your estate management team.</Text>
       </Card>
       <Card>
