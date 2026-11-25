@@ -60,10 +60,24 @@ export default function MyIdScreen() {
   }, []);
 
   const load = useCallback(async () => {
-    if (!userId) return;
     const version = ++requestVersion.current;
     setLoading(true);
     setError('');
+    let resolvedUserId = userId;
+    if (!resolvedUserId) {
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+      if (version !== requestVersion.current) return;
+      if (authError || !auth.user) {
+        console.warn('[CB Nest My ID] Retry session lookup failed', {
+          message: authError?.message, code: authError?.code,
+        });
+        setError('Your session could not be verified. Please sign in again.');
+        setLoading(false);
+        return;
+      }
+      resolvedUserId = auth.user.id;
+      setUserId(resolvedUserId);
+    }
     const { data, error: identityError } = await supabase.rpc('get_my_resident_identity');
     if (version !== requestVersion.current) return;
     if (identityError) {
@@ -72,7 +86,7 @@ export default function MyIdScreen() {
         return;
       }
       console.warn('[CB Nest My ID] Identity RPC failed', {
-        userId, message: identityError.message, details: identityError.details,
+        userId: resolvedUserId, message: identityError.message, details: identityError.details,
         hint: identityError.hint, code: identityError.code,
       });
       const detail = errorDetails(identityError);
@@ -94,7 +108,7 @@ export default function MyIdScreen() {
       setIdentity(row as Identity);
       setError('');
     } else {
-      console.warn('[CB Nest My ID] Identity RPC returned no identity row', { userId });
+      console.warn('[CB Nest My ID] Identity RPC returned no identity row', { userId: resolvedUserId });
       setIdentity(null);
       setError('Your CB Nest ID is not available yet. Please try again.');
     }
