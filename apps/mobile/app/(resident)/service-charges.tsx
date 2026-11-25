@@ -50,6 +50,16 @@ export default function ServiceChargesScreen() {
       return;
     }
 
+    const { data: assignments, error: assignmentError } = await supabase
+      .from('resident_units').select('unit_id').eq('resident_user_id', user.id)
+      .is('end_date', null).order('created_at', { ascending: false }).limit(1);
+    if (assignmentError) {
+      setError('We could not load your apartment assignment. Please try again.');
+      setLoading(false);
+      return;
+    }
+    const unitId = assignments?.[0]?.unit_id || null;
+
     const estateIds = [...new Set((memberships || []).map((item) => item.estate_id).filter(Boolean))];
     if (!estateIds.length) {
       setCharges([]);
@@ -57,11 +67,13 @@ export default function ServiceChargesScreen() {
       return;
     }
 
-    const { data: paidRows, error: paidError } = await supabase
-      .from('service_charge_payments')
-       .select('charge_id,status,provider_reference,verified_at,created_at')
-      .eq('resident_user_id', user.id)
-      .in('estate_id', estateIds)
+    let paymentQuery = supabase.from('service_charge_payments')
+      .select('charge_id,status,provider_reference,verified_at,created_at')
+      .in('estate_id', estateIds);
+    paymentQuery = unitId
+      ? paymentQuery.or(`unit_id.eq.${unitId},and(unit_id.is.null,resident_user_id.eq.${user.id})`)
+      : paymentQuery.eq('resident_user_id', user.id);
+    const { data: paidRows, error: paidError } = await paymentQuery
       .order('created_at', { ascending: false });
 
     if (paidError) {
