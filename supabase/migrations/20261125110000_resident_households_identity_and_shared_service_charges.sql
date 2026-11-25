@@ -131,6 +131,11 @@ BEGIN
     WHERE ru.unit_id = home.unit_id AND ru.end_date IS NULL;
   SELECT count(*) INTO pending_count FROM public.resident_household_invites i
     WHERE i.unit_id = home.unit_id AND i.status = 'pending' AND i.expires_at > now();
+  UPDATE public.resident_household_invites
+    SET status='expired'
+    WHERE unit_id=home.unit_id AND status='pending' AND expires_at <= now();
+  SELECT count(*) INTO pending_count FROM public.resident_household_invites i
+    WHERE i.unit_id = home.unit_id AND i.status = 'pending' AND i.expires_at > now();
   IF resident_count + pending_count >= 2 THEN
     RAISE EXCEPTION 'apartment_resident_limit_reached' USING ERRCODE = '23505';
   END IF;
@@ -185,10 +190,10 @@ BEGIN
 
   UPDATE public.resident_household_invites SET status = 'accepted', accepted_at = now()
   WHERE id = invite.id;
-  INSERT INTO public.users(id, full_name, is_active)
+  INSERT INTO public.users AS existing_user(id, full_name, is_active)
   VALUES(actor_id, invite.invitee_full_name, true)
   ON CONFLICT (id) DO UPDATE SET
-    full_name = coalesce(nullif(public.users.full_name,''), EXCLUDED.full_name),
+    full_name = coalesce(nullif(existing_user.full_name,''), EXCLUDED.full_name),
     is_active = true;
   INSERT INTO public.estate_memberships(estate_id,user_id,membership_role,status)
   VALUES(invite.estate_id,actor_id,'resident','active')
