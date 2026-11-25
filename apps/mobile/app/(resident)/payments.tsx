@@ -112,8 +112,10 @@ export default function PaymentsScreen() {
       created_at: row.created_at,
       description: 'Electricity purchase' + (row.units_purchased ? ' · ' + row.units_purchased + ' units' : ''),
     }));
-    const fundingReferences = new Set((walletIntents.data || []).map((row) => row.reference));
-    const fundingRows = (walletIntents.data || []).map((row) => ({
+    const walletIntentRows = (walletIntents.data || []) as Array<{id:string;amount_kobo:number;currency:string;status:string;reference:string;created_at:string;verified_at:string|null}>;
+    const walletCreditRows = (walletCredits.data || []) as Array<{id:string;amount_kobo:number;currency:string|null;status:string;provider_reference:string|null;created_at:string;description:string|null}>;
+    const fundingReferences = new Set(walletIntentRows.map((row) => row.reference));
+    const fundingRows = walletIntentRows.map((row) => ({
       id: 'wallet-intent-' + row.id,
       amount_kobo: Number(row.amount_kobo),
       currency: row.currency || 'NGN',
@@ -123,7 +125,7 @@ export default function PaymentsScreen() {
       created_at: row.created_at,
       description: 'Wallet top-up',
     }));
-    const walletRows = (walletCredits.data || []).filter((row) => !fundingReferences.has(row.provider_reference || '')).map((row) => ({
+    const walletRows = walletCreditRows.filter((row) => !fundingReferences.has(row.provider_reference || '')).map((row) => ({
       id: 'wallet-' + row.id,
       amount_kobo: Number(row.amount_kobo),
       currency: row.currency || 'NGN',
