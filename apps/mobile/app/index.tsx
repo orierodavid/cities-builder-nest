@@ -82,8 +82,19 @@ export default function MobileEntryRoute() {
 
   useEffect(() => {
     let active = true;
+    let settled = false;
+    const sessionTimeout = setTimeout(() => {
+      if (!active || settled) return;
+      settled = true;
+      console.warn("[CB Nest Supabase session restore] Timed out after 5 seconds.");
+      setMessage("Session restoration timed out. You can sign in again.");
+      setSession(null);
+      setRestoring(false);
+    }, 5_000);
     supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return;
+      if (!active || settled) return;
+      settled = true;
+      clearTimeout(sessionTimeout);
       if (error) {
         console.error("[CB Nest Supabase session restore] Failed", {
           name: error.name,
@@ -94,11 +105,17 @@ export default function MobileEntryRoute() {
       }
       setSession(data.session);
       setRestoring(false);
-    }).catch(() => {
-      if (active) { setMessage("We couldn't restore your session. Please sign in again."); setRestoring(false); }
+    }).catch((error) => {
+      if (active && !settled) {
+        settled = true;
+        clearTimeout(sessionTimeout);
+        console.error("[CB Nest Supabase session restore] Failed:", error);
+        setMessage("We couldn't restore your session. Please sign in again.");
+        setRestoring(false);
+      }
     });
     const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
-    return () => { active = false; data.subscription.unsubscribe(); };
+    return () => { active = false; clearTimeout(sessionTimeout); data.subscription.unsubscribe(); };
   }, []);
 
   const refreshRole = useCallback((token: string): Promise<Role> => {
