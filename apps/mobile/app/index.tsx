@@ -48,15 +48,29 @@ function fetchWithRoleTimeout(
   timeoutMs = ROLE_REQUEST_TIMEOUT_MS,
 ): Promise<Response> {
   return new Promise((resolve, reject) => {
+    const controller = new AbortController();
+    let settled = false;
     const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       const error = new Error("Role verification request timed out.");
       error.name = "TimeoutError";
-      clearTimeout(timeout);
+      controller.abort();
       reject(error);
     }, timeoutMs);
-    fetch(input, init).then(
-      response => { clearTimeout(timeout); resolve(response); },
-      error => { clearTimeout(timeout); reject(error); },
+    fetch(input, { ...init, signal: controller.signal }).then(
+      response => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(response);
+      },
+      error => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(error);
+      },
     );
   });
 }
@@ -144,21 +158,26 @@ export default function MobileEntryRoute() {
           if (!roleNetworkProbeDone.current) {
             roleNetworkProbeDone.current = true;
             const probeStartedAt = Date.now();
-            console.info("[CB Nest role check] Starting unauthenticated connectivity probe");
+            console.info("[CB Nest role check] Starting unauthenticated API health probe");
             try {
               const probeResponse = await fetchWithRoleTimeout(
-                apiBaseUrl + "/v1/me",
-                { headers: { Accept: "application/json" } },
+                apiBaseUrl + "/health",
+                { headers: { Accept: "application/json", "Cache-Control": "no-cache" } },
                 8_000,
               );
-              console.info("[CB Nest role check] Unauthenticated connectivity probe completed", {
-                status: probeResponse.status,
-                expectedUnauthorized: probeResponse.status === 401,
+              const healthBody = await probeResponse.json().catch(() => ({})) as {
+                status?: string; service?: string; database?: string; authentication?: string;
+              };
+              console.info("[CB Nest role check] API health probe completed", {
+                httpStatus: probeResponse.status,
+                apiStatus: healthBody.status,
+                service: healthBody.service,
+                database: healthBody.database,
+                authentication: healthBody.authentication,
                 durationMs: Date.now() - probeStartedAt,
               });
-              await probeResponse.body?.cancel().catch(() => undefined);
             } catch (probeError) {
-              console.warn("[CB Nest role check] Unauthenticated connectivity probe failed", {
+              console.warn("[CB Nest role check] API health probe failed", {
                 name: probeError instanceof Error ? probeError.name : typeof probeError,
                 message: probeError instanceof Error ? probeError.message : String(probeError),
                 durationMs: Date.now() - probeStartedAt,
