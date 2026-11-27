@@ -231,7 +231,7 @@ export default function VisitorsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Choose visitor from contacts"
             hitSlop={8}
-            style={{ position: 'absolute', right: 10, top: 0, bottom: 12, width: 24, alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'absolute', right: 10, top: 0, bottom: 0, width: 24, alignItems: 'center', justifyContent: 'center' }}
           >
             {contactsLoading
               ? <ActivityIndicator size="small" color={theme.gold} />
