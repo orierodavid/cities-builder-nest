@@ -7,7 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { theme } from '../../theme/theme';
 import AppLogo from './AppLogo';
 import { supabase } from '../../../lib/supabase';
-import { readDashboardCache, writeDashboardCache, clearDashboardCache } from '../../lib/dashboard-cache';
+import { readDashboardCache, writeDashboardCache, clearDashboardCache, readDashboardCacheValue, writeDashboardCacheValue } from '../../lib/dashboard-cache';
 import { subscribeConnectionRestored } from '../../lib/connection-events';
 import { loadPendingServiceChargeTotalKobo } from '../../lib/pending-service-charge';
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -37,10 +37,16 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
    const {data:{session},error:sessionError}=await supabase.auth.getSession();
    if(sessionError)throw sessionError;
    if(!session?.user)throw new Error('Session unavailable');
-   const {data,error}=await supabase.rpc('get_my_wallet_balance');
-   if(error)throw error;
-   const wallet=Array.isArray(data)?data[0]:null;
-   setWalletBalanceKobo(wallet?Number(wallet.balance_kobo):null);
+   const cachedWallet=forceRefresh?null:await readDashboardCacheValue<{balanceKobo:number|null;status:string|null}>('resident',session.user.id,'walletBalance',30_000);
+   if(cachedWallet){setWalletBalanceKobo(cachedWallet.balanceKobo);}
+   else {
+    const {data,error}=await supabase.rpc('get_my_wallet_balance');
+    if(error)throw error;
+    const wallet=Array.isArray(data)?data[0]:null;
+    const balanceKobo=wallet?Number(wallet.balance_kobo):null;
+    setWalletBalanceKobo(balanceKobo);
+    await writeDashboardCacheValue('resident',session.user.id,'walletBalance',{balanceKobo,status:wallet?.status??null});
+   }
   }catch{
    setWalletBalanceKobo(null);
   }finally{
@@ -91,12 +97,15 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
    if(sessionError)throw sessionError;
    const user=session?.user;
    if(!user)throw new Error('Your session has expired. Please sign in again.');
-   const cached=await readDashboardCache<{name?:string;unit?:string}>('resident',user.id);
-   if(cached){
-    setResidentName(cached.name||providedName||'');
-    setResidentUnit(cached.unit||providedUnit||'');
+   const freshDetails=await readDashboardCacheValue<{name?:string;unit?:string}>('resident',user.id,'residentDetails',300_000);
+   if(freshDetails){
+    setResidentName(freshDetails.name||providedName||'');
+    setResidentUnit(freshDetails.unit||providedUnit||'');
     setProfileLoading(false);
+    return;
    }
+   const cached=await readDashboardCache<{name?:string;unit?:string}>('resident',user.id);
+   if(cached){setResidentName(cached.name||providedName||'');setResidentUnit(cached.unit||providedUnit||'');}
    const {data:profile,error:profileQueryError}=await supabase.from('users')
     .select('full_name,home_number,house_number,street_name').eq('id',user.id).maybeSingle();
    if(profileQueryError)throw profileQueryError;
@@ -107,7 +116,9 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
     setResidentName(profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
     const unitLabel=[homeNumber,houseNumber,streetName].filter(Boolean).join(' · ')||providedUnit||'';
     setResidentUnit(unitLabel);
-    await writeDashboardCache('resident',user.id,{name:profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim(),unit:unitLabel});
+    const details={name:profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim(),unit:unitLabel};
+    await writeDashboardCache('resident',user.id,details);
+    await writeDashboardCacheValue('resident',user.id,'residentDetails',details);
     return;
    }
    // Legacy residents without self-reported home details retain their existing
@@ -133,7 +144,9 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
    }
    setResidentName(profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim());
    setResidentUnit(unitLabel||providedUnit||'');
-   await writeDashboardCache('resident',user.id,{name:profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim(),unit:unitLabel||providedUnit||''});
+   const details={name:profile?.full_name?.trim()||providedName||String(user.user_metadata?.full_name||user.user_metadata?.name||'').trim(),unit:unitLabel||providedUnit||''};
+   await writeDashboardCache('resident',user.id,details);
+   await writeDashboardCacheValue('resident',user.id,'residentDetails',details);
   }catch(e){setProfileError(e instanceof Error?e.message:'Resident details could not be loaded.');}
   finally{setProfileLoading(false);}
  };
