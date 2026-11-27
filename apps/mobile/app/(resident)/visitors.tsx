@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Contacts from 'expo-contacts';
+import * as Contacts from 'expo-contacts/legacy';
 import { Screen, SectionTitle, EmptyState, GoldButton, Card } from '../../src/components/ui';
 import { supabase } from '../../lib/supabase';
 import * as Clipboard from 'expo-clipboard';
