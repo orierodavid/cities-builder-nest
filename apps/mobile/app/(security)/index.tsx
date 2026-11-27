@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import SecurityHome from "../../components/SecurityHome";
 import { supabase } from "../../lib/supabase";
 import { useSecurityContext } from "../../src/features/security/SecurityContext";
-import { readDashboardCache, writeDashboardCache, readDashboardCacheValue, writeDashboardCacheValue } from "../../src/lib/dashboard-cache";
+import { writeDashboardCache, readDashboardCacheValue, writeDashboardCacheValue } from "../../src/lib/dashboard-cache";
 
 export default function SecurityHomeRoute() {
   const router = useRouter();
