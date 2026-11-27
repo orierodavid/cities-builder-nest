@@ -43,7 +43,10 @@ export default function WalletScreen() {
         const { data, error: rpcError } = await supabase.rpc('get_my_pending_service_charge_total');
         if (rpcError) throw rpcError;
         const value = Array.isArray(data) ? data[0] : data;
-        setPendingChargeKobo(value === null || value === undefined ? 0 : Number(value));
+        const fallbackTotal = value === null || value === undefined ? 0 : Number(value);
+        setPendingChargeKobo(fallbackTotal);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) await writeDashboardCacheValue('resident', session.user.id, 'pendingChargeKobo', fallbackTotal);
       } catch (fallbackError) {
         console.warn('[CB Nest pending charge] Both charge sources failed.', fallbackError instanceof Error ? fallbackError.message : 'Unknown error');
         setPendingChargeKobo(null);
