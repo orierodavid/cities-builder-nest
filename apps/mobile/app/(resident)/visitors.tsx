@@ -34,8 +34,7 @@ export default function VisitorsScreen() {
   const [estateId, setEstateId] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [visitorFirstName, setVisitorFirstName] = useState('');
-  const [visitorLastName, setVisitorLastName] = useState('');
+  const [visitorName, setVisitorName] = useState('');
   const [visitorPhone, setVisitorPhone] = useState('');
   const [contactPickerVisible, setContactPickerVisible] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
@@ -144,8 +143,7 @@ export default function VisitorsScreen() {
     const fullName = (contact.fullName || '').trim();
     const givenName = (contact.givenName || '').trim();
     const familyName = (contact.familyName || '').trim();
-    setVisitorFirstName(givenName || (fullName ? fullName.split(/\s+/)[0] : ''));
-    setVisitorLastName(familyName || (fullName ? fullName.split(/\s+/).slice(1).join(' ') : ''));
+    setVisitorName(fullName || [givenName, familyName].filter(Boolean).join(' '));
     setVisitorPhone(phone);
     setContactPickerVisible(false);
     setContactSearch('');
@@ -156,7 +154,7 @@ export default function VisitorsScreen() {
   async function shareWhatsApp(code: string, pass?: Pass | null) {
     const details = [
       'CB Nest Visitor Access Pass',
-      'Visitor: ' + (pass?.visitor_name || [visitorFirstName, visitorLastName].filter(Boolean).join(' ') || 'Visitor'),
+      'Visitor: ' + (pass?.visitor_name || visitorName || 'Visitor'),
       'Phone: ' + (pass?.visitor_phone || visitorPhone || 'Not provided'),
       'Number of visitors: ' + String(pass?.visitor_count || visitorCount || 1),
       'Frequency: ' + String(pass?.visit_frequency || frequency).toUpperCase(),
@@ -184,7 +182,7 @@ export default function VisitorsScreen() {
   }
 
   async function createPass() {
-    const name = [visitorFirstName.trim(), visitorLastName.trim()].filter(Boolean).join(' ');
+    const name = visitorName.trim().replace(/\s+/g, ' ');
     const count = Number(visitorCount);
     if (!name) { setMessage('Enter your visitor’s name.'); return; }
     if (!Number.isInteger(count) || count < 1 || count > 50) { setMessage('Enter a visitor count between 1 and 50.'); return; }
@@ -202,7 +200,7 @@ export default function VisitorsScreen() {
       const code = result.accessCode || '';
       if (!code) throw new Error('The visitor pass was created, but its access code is not available yet. Please refresh your visitor history.');
       const pass = result.visitorPass || null;
-      setIssuedCode(code); setIssuedPass(pass); setVisitorFirstName(''); setVisitorLastName(''); setVisitorPhone(''); setVisitorCount('1');
+      setIssuedCode(code); setIssuedPass(pass); setVisitorName(''); setVisitorPhone(''); setVisitorCount('1');
       await Clipboard.setStringAsync(code);
       setMessage('Visitor pass generated. The access code has been copied to your clipboard.');
       await loadPasses(session.access_token);
@@ -220,11 +218,9 @@ export default function VisitorsScreen() {
     <Screen title="Visitor Management" subtitle="Create and manage access passes for your visitors">
       <SectionTitle>Generate access code</SectionTitle>
       <Card>
-        <Text style={labelStyle}>First name</Text>
-        <TextInput value={visitorFirstName} onChangeText={setVisitorFirstName} placeholder="Enter visitor’s first name" placeholderTextColor={theme.muted} autoCapitalize="words" style={inputStyle} />
-        <Text style={labelStyle}>Last name</Text>
+        <Text style={labelStyle}>Visitor name</Text>
         <View style={{ position: 'relative', marginBottom: 12, justifyContent: 'center' }}>
-          <TextInput value={visitorLastName} onChangeText={setVisitorLastName} placeholder="Enter visitor’s last name" placeholderTextColor={theme.muted} autoCapitalize="words" style={[inputStyle, { paddingRight: 48, marginBottom: 0 }]} />
+          <TextInput value={visitorName} onChangeText={setVisitorName} placeholder="Enter visitor’s full name" placeholderTextColor={theme.muted} autoCapitalize="words" style={[inputStyle, { paddingRight: 48, marginBottom: 0 }]} />
           <TouchableOpacity
             onPress={() => void chooseContact()}
             disabled={contactsLoading}
