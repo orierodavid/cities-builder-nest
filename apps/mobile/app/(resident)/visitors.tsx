@@ -139,7 +139,7 @@ export default function VisitorsScreen() {
     }
   }
 
-  function selectContact(contact: Contacts.ExistingContact) {
+  function selectContact(contact: VisitorContact) {
     const phone = contact.phones?.find(item => !!item.number?.trim())?.number || '';
     const fullName = (contact.fullName || '').trim();
     const givenName = (contact.givenName || '').trim();
