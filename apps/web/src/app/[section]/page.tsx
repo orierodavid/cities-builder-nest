@@ -79,6 +79,8 @@ function EstatesPage() {
  const [locationOptions,setLocationOptions]=useState<EstateLocationOptions>({states:[],lgas:{}});
  const [bulkBusy,setBulkBusy]=useState(false);
  const [bulkResult,setBulkResult]=useState("");
+ const [editingEstate,setEditingEstate]=useState<EstateRecord|null>(null);
+ const [deletingEstateId,setDeletingEstateId]=useState<string|null>(null);
 
  const load=useCallback(async()=>{
   setLoading(true);setError("");
@@ -108,18 +110,45 @@ function EstatesPage() {
   if(!user){setError("Your session has expired. Sign in again.");setSaving(false);return;}
   const {data:roles,error:roleError}=await supabase.from("user_roles").select("role").eq("user_id",user.id);
   if(roleError||!(roles||[]).some((r:{role:string})=>r.role==="platform_admin")){
-   setError("Your account is not authorized to create estates.");setSaving(false);return;
+   setError("Your account is not authorized to manage estates.");setSaving(false);return;
   }
   const validLgas=locationOptions.lgas[state]||[];
   if(!validLgas.includes(city)){setError("Select an LGA that belongs to the chosen State.");setSaving(false);return;}
-  const {data,error:insertError}=await supabase.from("estates").insert({
-   name:name.trim(),address:address.trim(),city:city.trim(),lga:city.trim(),state:state.trim(),country_code:country.trim().toUpperCase(),is_enabled:true
-  }).select("id,name,address,city,lga,state,country_code,is_enabled,created_at").single();
-  if(insertError){setError(insertError.message.includes("duplicate")?"An estate with these details may already exist. Please check the estate list.":"The estate could not be created. Please check the details and try again.");setSaving(false);return;}
-  setPage(0);
-  if(page===0)void load();
-  setSuccess("Estate created successfully. You can now open User Management and assign its Facility Manager.");
-  setName("");setAddress("");setCity("");setState("");setCountry("NG");setShowForm(false);setSaving(false);
+  const values={name:name.trim(),address:address.trim(),city:city.trim(),lga:city.trim(),state:state.trim(),country_code:country.trim().toUpperCase()};
+  if(editingEstate){
+   const {error:updateError}=await supabase.from("estates").update(values).eq("id",editingEstate.id);
+   if(updateError){setError("The estate could not be updated. Please check the details and try again.");setSaving(false);return;}
+   setSuccess("Estate details updated successfully.");
+  }else{
+   const {error:insertError}=await supabase.from("estates").insert({...values,is_enabled:true});
+   if(insertError){setError(insertError.message.includes("duplicate")?"An estate with these details may already exist. Please check the estate list.":"The estate could not be created. Please check the details and try again.");setSaving(false);return;}
+   setSuccess("Estate created successfully. You can now open User Management and assign its Facility Manager.");
+  }
+  setShowForm(false);setEditingEstate(null);
+  setName("");setAddress("");setCity("");setState("");setCountry("NG");
+  await load();setSaving(false);
+ }
+ function beginEditEstate(estate:EstateRecord){
+  setEditingEstate(estate);setName(estate.name);setAddress(estate.address||"");
+  setCity(estate.lga||estate.city||"");setState(estate.state||"");setCountry(estate.country_code||"NG");
+  setError("");setSuccess("");setShowForm(true);
+ }
+ async function deleteEstate(estate:EstateRecord){
+  const confirmed=window.confirm("Delete "+estate.name+"? This is allowed only when the estate has no linked records. Estates with residents, staff, properties, payments or other history will be protected.");
+  if(!confirmed)return;
+  setDeletingEstateId(estate.id);setError("");setSuccess("");
+  const {error:deleteError}=await supabase.rpc("delete_empty_estate",{p_estate_id:estate.id});
+  if(deleteError){
+   const message=deleteError.message||"";
+   setError(message.includes("ESTATE_HAS_LINKED_RECORDS")
+    ?"This estate cannot be deleted because it has linked records. Disable it instead to preserve residents, payments and history."
+    :message.includes("FORBIDDEN")
+    ?"Only a Super Administrator can delete an estate."
+    :"The estate could not be deleted. Please refresh and try again.");
+   setDeletingEstateId(null);return;
+  }
+  setSuccess(estate.name+" was deleted.");
+  await load();setDeletingEstateId(null);
  }
  async function bulkUploadEstates(file:File|null){
   if(!file)return;setError("");setSuccess("");setBulkResult("");
@@ -144,13 +173,13 @@ function EstatesPage() {
  }
  return <PortalFrame title="Estates" description="Create and manage estates across the CB Nest platform.">
   <section className="panel module-panel">
-   <div className="module-toolbar"><div><h3>Estate directory</h3><p>Create estates using the same State and LGA selection used during resident registration. You can add one estate or bulk upload a CSV; assign Facility Managers later.</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><label className="secondary-action" style={{cursor:"pointer"}}>{bulkBusy?"Uploading…":"Bulk upload CSV"}<input type="file" accept=".csv,text/csv" disabled={bulkBusy} onChange={e=>{void bulkUploadEstates(e.target.files?.[0]||null);e.currentTarget.value="";}} style={{display:"none"}}/></label><button className="primary-action" onClick={()=>{setShowForm(v=>!v);setError("");setSuccess("");}}>{showForm?"Close":"＋ Create estate"}</button></div></div>
+   <div className="module-toolbar"><div><h3>Estate directory</h3><p>Create estates using the same State and LGA selection used during resident registration. You can add one estate or bulk upload a CSV; assign Facility Managers later.</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><label className="secondary-action" style={{cursor:"pointer"}}>{bulkBusy?"Uploading…":"Bulk upload CSV"}<input type="file" accept=".csv,text/csv" disabled={bulkBusy} onChange={e=>{void bulkUploadEstates(e.target.files?.[0]||null);e.currentTarget.value="";}} style={{display:"none"}}/></label><button className="primary-action" onClick={()=>{if(showForm){setShowForm(false);setEditingEstate(null);}else{setEditingEstate(null);setName("");setAddress("");setCity("");setState("");setCountry("NG");setShowForm(true);}setError("");setSuccess("");}}>{showForm?"Close":"＋ Create estate"}</button></div></div>
    <p className="notice-line">CSV columns: estate_name, address, state, lga. <a download="cbnest-estates-template.csv" href={"data:text/csv;charset=utf-8,"+encodeURIComponent("estate_name,address,state,lga\nExample Estate,12 Example Road,Lagos,Ikeja\n")}>Download CSV template</a>. Up to 500 estates per upload.</p>
    {bulkResult&&<div className="user-alert user-alert-success" role="status">{bulkResult}</div>}
    {error&&<div className="user-alert user-alert-error" role="alert">{error}</div>}
    {success&&<div className="user-alert user-alert-success" role="status">{success}<div style={{marginTop:8}}><a href="/users" style={{color:"inherit",fontWeight:700,textDecoration:"underline"}}>Continue to User Management →</a></div></div>}
    {showForm&&<form className="user-form" onSubmit={createEstate}>
-    <div className="user-form-heading"><strong>New estate details</strong><span>Enter the estate's official name and location. It will be enabled immediately.</span></div>
+    <div className="user-form-heading"><strong>{editingEstate?"Edit estate details":"New estate details"}</strong><span>{editingEstate?"Update the estate's official name and location.":"Enter the estate's official name and location. It will be enabled immediately."}</span></div>
     <div className="user-form-grid">
      <label>Estate name<input required minLength={2} maxLength={160} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. CB Nest Estate"/></label>
      <label>Street address<input required minLength={3} maxLength={240} value={address} onChange={e=>setAddress(e.target.value)} placeholder="Estate street address"/></label>
@@ -158,10 +187,10 @@ function EstatesPage() {
      <label>LGA<select required value={city} disabled={!state} onChange={e=>setCity(e.target.value)}><option value="">Select LGA</option>{(locationOptions.lgas[state]||[]).map(x=><option key={x} value={x}>{x}</option>)}</select></label>
      <label>Country code<input required minLength={2} maxLength={2} pattern="[A-Za-z]{2}" value={country} onChange={e=>setCountry(e.target.value.toUpperCase())} placeholder="NG"/></label>
     </div>
-    <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>setShowForm(false)}>Cancel</button><button type="submit" className="primary-action" disabled={saving}>{saving?"Creating estate…":"Create estate"}</button></div>
+    <div className="user-form-actions"><button type="button" className="secondary-action" onClick={()=>{setShowForm(false);setEditingEstate(null);}}>Cancel</button><button type="submit" className="primary-action" disabled={saving}>{saving?(editingEstate?"Saving changes…":"Creating estate…"):(editingEstate?"Save changes":"Create estate")}</button></div>
    </form>}
-   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Address</th><th>LGA</th><th>State</th><th>Status</th><th>Created</th></tr></thead><tbody>
-    {loading?<tr><td colSpan={7} className="empty-cell">Loading estates…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.address}</td><td>{x.lga||x.city||"—"}</td><td>{x.state}</td><td><span className={"status-pill "+(x.is_enabled?"status-active":"status-suspended")}>{x.is_enabled?"Enabled":"Disabled"}</span></td><td>{new Date(x.created_at).toLocaleDateString()}</td></tr>):<tr><td colSpan={6} className="empty-cell"><span className="empty-mark">▦</span><strong>No estates created yet</strong><small>Create your first estate, then add its Facility Manager under User Management.</small></td></tr>}
+   <div className="table-wrap"><table className="data-table user-data-table"><thead><tr><th>Estate</th><th>Address</th><th>LGA</th><th>State</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody>
+    {loading?<tr><td colSpan={7} className="empty-cell">Loading estates…</td></tr>:rows.length?rows.map(x=><tr key={x.id}><td><strong>{x.name}</strong></td><td>{x.address}</td><td>{x.lga||x.city||"—"}</td><td>{x.state}</td><td><span className={"status-pill "+(x.is_enabled?"status-active":"status-suspended")}>{x.is_enabled?"Enabled":"Disabled"}</span></td><td>{new Date(x.created_at).toLocaleDateString()}</td><td><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" className="secondary-action" onClick={()=>beginEditEstate(x)}>Edit</button><button type="button" className="secondary-action" disabled={deletingEstateId===x.id} onClick={()=>void deleteEstate(x)}>{deletingEstateId===x.id?"Deleting…":"Delete"}</button></div></td></tr>):<tr><td colSpan={7} className="empty-cell"><span className="empty-mark">▦</span><strong>No estates created yet</strong><small>Create your first estate, then add its Facility Manager under User Management.</small></td></tr>}
    </tbody></table></div>
    <div className="module-toolbar" style={{marginTop:16,alignItems:"center"}}>
     <p className="notice-line" style={{margin:0}}>
