@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Contacts from 'expo-contacts/legacy';
+import * as ContactsLegacy from 'expo-contacts/legacy';
+import { Contact } from 'expo-contacts';
 import { Screen, SectionTitle, EmptyState, GoldButton, Card } from '../../src/components/ui';
 import { supabase } from '../../lib/supabase';
 import * as Clipboard from 'expo-clipboard';
@@ -38,7 +39,8 @@ export default function VisitorsScreen() {
   const [visitorPhone, setVisitorPhone] = useState('');
   const [contactPickerVisible, setContactPickerVisible] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
-  const [contacts, setContacts] = useState<Contacts.ExistingContact[]>([]);
+  type VisitorContact = { id: string; givenName?: string | null; familyName?: string | null; fullName?: string | null; phones?: { number?: string | null }[] | null };
+  const [contacts, setContacts] = useState<VisitorContact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [visitorCount, setVisitorCount] = useState('1');
   const [frequency, setFrequency] = useState<Frequency>('once');
@@ -94,9 +96,9 @@ export default function VisitorsScreen() {
     setMessage('');
     setContactsLoading(true);
     try {
-      let permission = await Contacts.getPermissionsAsync();
+      let permission = await ContactsLegacy.getPermissionsAsync();
       if (permission.status !== 'granted' && permission.canAskAgain) {
-        permission = await Contacts.requestPermissionsAsync();
+        permission = await ContactsLegacy.requestPermissionsAsync();
       }
       if (permission.status !== 'granted') {
         setMessage('CB Nest needs contacts permission to select a visitor. You can still enter the details manually.');
@@ -113,14 +115,14 @@ export default function VisitorsScreen() {
         return;
       }
 
-      const result = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.FirstName, Contacts.Fields.LastName, Contacts.Fields.PhoneNumbers],
-        sort: Contacts.SortTypes.FirstName,
-        pageSize: 500,
+      // Use SDK 58's supported class-based reader; legacy is used only for permission prompts.
+      const result = await Contact.getAllDetails(['givenName', 'familyName', 'fullName', 'phones'], {
+        limit: 500,
+        offset: 0,
       });
-      const available = (result.data || []).filter(
-        contact => !!(contact.firstName?.trim() || contact.lastName?.trim())
-          && !!contact.phoneNumbers?.some(phone => !!phone.number?.trim()),
+      const available = result.filter(
+        contact => !!(contact.givenName?.trim() || contact.familyName?.trim() || contact.fullName?.trim())
+          && !!contact.phones?.some(phone => !!phone.number?.trim()),
       );
       setContacts(available);
       setContactSearch('');
@@ -130,16 +132,20 @@ export default function VisitorsScreen() {
       }
     } catch (error) {
       console.warn('[CB Nest contacts] Unable to read device contacts:', error);
-      setMessage('CB Nest could not read your address book. Check that Contacts access is allowed in your device settings, then try again. You can also enter the visitor details manually.');
+      const detail = error instanceof Error ? error.message : String(error);
+      setMessage('Contacts could not be loaded: ' + detail + '. You can still enter visitor details manually.');
     } finally {
       setContactsLoading(false);
     }
   }
 
   function selectContact(contact: Contacts.ExistingContact) {
-    const phone = contact.phoneNumbers?.find(item => !!item.number?.trim())?.number || '';
-    setVisitorFirstName(contact.firstName || '');
-    setVisitorLastName(contact.lastName || '');
+    const phone = contact.phones?.find(item => !!item.number?.trim())?.number || '';
+    const fullName = (contact.fullName || '').trim();
+    const givenName = (contact.givenName || '').trim();
+    const familyName = (contact.familyName || '').trim();
+    setVisitorFirstName(givenName || (fullName ? fullName.split(/\\s+/)[0] : ''));
+    setVisitorLastName(familyName || (fullName ? fullName.split(/\\s+/).slice(1).join(' ') : ''));
     setVisitorPhone(phone);
     setContactPickerVisible(false);
     setContactSearch('');
@@ -225,11 +231,11 @@ export default function VisitorsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Choose visitor from contacts"
             hitSlop={8}
-            style={{ position: 'absolute', right: 8, top: 0, bottom: 12, width: 34, alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'absolute', right: 10, top: 0, bottom: 12, width: 24, alignItems: 'center', justifyContent: 'center' }}
           >
             {contactsLoading
               ? <ActivityIndicator size="small" color={theme.gold} />
-              : <Ionicons name="person-add-outline" size={17} color={theme.gold} />}
+              : <Ionicons name="person-add-outline" size={14} color={theme.gold} />}
           </TouchableOpacity>
         </View>
         <Text style={labelStyle}>Phone number</Text>
@@ -280,11 +286,11 @@ export default function VisitorsScreen() {
               data={contacts.filter(contact => {
                 const query = contactSearch.trim().toLowerCase();
                 if (!query) return true;
-                const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(' ');
+                const fullName = [contact.givenName, contact.familyName, contact.fullName].filter(Boolean).join(' ');
                 return fullName.toLowerCase().includes(query)
-                  || (contact.phoneNumbers || []).some(phone => (phone.number || '').toLowerCase().includes(query));
+                  || (contact.phones || []).some(phone => (phone.number || '').toLowerCase().includes(query));
               })}
-              keyExtractor={(contact, index) => contact.id || ([contact.firstName, contact.lastName].filter(Boolean).join('-') || 'contact') + '-' + index}
+              keyExtractor={(contact, index) => contact.id || ([contact.givenName, contact.familyName].filter(Boolean).join('-') || 'contact') + '-' + index}
               keyboardShouldPersistTaps="handled"
               ListEmptyComponent={<Text style={{ color: theme.muted, textAlign: 'center', paddingVertical: 24 }}>No matching contacts with phone numbers.</Text>}
               renderItem={({ item }) => (
@@ -292,9 +298,9 @@ export default function VisitorsScreen() {
                   onPress={() => selectContact(item)}
                   style={{ paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: theme.border }}
                 >
-                  <Text style={{ color: theme.text, fontWeight: '700' }}>{[item.firstName, item.lastName].filter(Boolean).join(' ')}</Text>
+                  <Text style={{ color: theme.text, fontWeight: '700' }}>{item.fullName || [item.givenName, item.familyName].filter(Boolean).join(' ')}</Text>
                   <Text style={{ color: theme.muted, fontSize: 12, marginTop: 4 }}>
-                    {item.phoneNumbers?.find(phone => !!phone.number?.trim())?.number || ''}
+                    {item.phones?.find(phone => !!phone.number?.trim())?.number || ''}
                   </Text>
                 </Pressable>
               )}
