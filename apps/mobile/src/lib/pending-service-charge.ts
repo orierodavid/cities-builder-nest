@@ -1,14 +1,22 @@
 import { supabase } from './supabase';
+import { readDashboardCacheValue, writeDashboardCacheValue } from './dashboard-cache';
+
+const PENDING_CHARGE_CACHE_TTL_MS = 30_000;
 
 /**
  * Calculates outstanding active estate service charges for the signed-in
  * resident. Payment records are matched by apartment first so a confirmed
  * household payment clears the shared apartment charge for both residents.
  */
-export async function loadPendingServiceChargeTotalKobo(): Promise<number> {
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+export async function loadPendingServiceChargeTotalKobo(forceRefresh = false): Promise<number> {
+  const { data: { session }, error: authError } = await supabase.auth.getSession();
   if (authError) throw authError;
+  const user = session?.user;
   if (!user) throw new Error('A signed-in resident is required to view pending charges.');
+  if (!forceRefresh) {
+    const cached = await readDashboardCacheValue<number>('resident', user.id, 'pendingChargeKobo', PENDING_CHARGE_CACHE_TTL_MS);
+    if (cached !== null) return cached;
+  }
 
   const { data: memberships, error: membershipError } = await supabase
     .from('estate_memberships')
@@ -19,7 +27,10 @@ export async function loadPendingServiceChargeTotalKobo(): Promise<number> {
   if (membershipError) throw membershipError;
 
   const estateIds = [...new Set((memberships || []).map(row => row.estate_id).filter(Boolean))];
-  if (!estateIds.length) return 0;
+  if (!estateIds.length) {
+    await writeDashboardCacheValue('resident', user.id, 'pendingChargeKobo', 0);
+    return 0;
+  }
 
   const { data: assignments, error: assignmentError } = await supabase
     .from('resident_units')
@@ -67,5 +78,6 @@ export async function loadPendingServiceChargeTotalKobo(): Promise<number> {
     }
   }
 
+  await writeDashboardCacheValue('resident', user.id, 'pendingChargeKobo', totalKobo);
   return totalKobo;
 }
