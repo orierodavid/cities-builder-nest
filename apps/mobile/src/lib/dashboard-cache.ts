@@ -56,3 +56,16 @@ export async function writeDashboardCacheValue<T>(role: "resident" | "security",
     await AsyncStorage.setItem(key, JSON.stringify({ ...existing, cacheEntries: { ...entries, [field]: { value, cachedAt: Date.now() } } }));
   } catch { /* Cache failures must never block app access or payments. */ }
 }
+
+
+export async function clearDashboardCacheValue(role: "resident" | "security", userId: string, field: string): Promise<void> {
+  try {
+    const key = `${PREFIX}:${role}:${userId}`;
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return;
+    const existing = JSON.parse(raw) as Record<string, unknown>;
+    const entries = (existing.cacheEntries && typeof existing.cacheEntries === "object" ? existing.cacheEntries : {}) as Record<string, unknown>;
+    delete entries[field];
+    await AsyncStorage.setItem(key, JSON.stringify({ ...existing, cacheEntries: entries }));
+  } catch { /* Cache invalidation must never block a confirmed payment. */ }
+}
