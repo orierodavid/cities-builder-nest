@@ -33,7 +33,8 @@ export default function VisitorsScreen() {
   const [estateId, setEstateId] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [visitorName, setVisitorName] = useState('');
+  const [visitorFirstName, setVisitorFirstName] = useState('');
+  const [visitorLastName, setVisitorLastName] = useState('');
   const [visitorPhone, setVisitorPhone] = useState('');
   const [contactPickerVisible, setContactPickerVisible] = useState(false);
   const [contactSearch, setContactSearch] = useState('');
@@ -113,12 +114,13 @@ export default function VisitorsScreen() {
       }
 
       const result = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+        fields: [Contacts.Fields.FirstName, Contacts.Fields.LastName, Contacts.Fields.PhoneNumbers],
         sort: Contacts.SortTypes.FirstName,
-        pageSize: 1000,
+        pageSize: 500,
       });
       const available = (result.data || []).filter(
-        contact => !!contact.name && !!contact.phoneNumbers?.some(phone => !!phone.number?.trim()),
+        contact => !!(contact.firstName?.trim() || contact.lastName?.trim())
+          && !!contact.phoneNumbers?.some(phone => !!phone.number?.trim()),
       );
       setContacts(available);
       setContactSearch('');
@@ -127,8 +129,8 @@ export default function VisitorsScreen() {
         setMessage('No contacts with phone numbers were found in the address book.');
       }
     } catch (error) {
-      const detail = error instanceof Error ? error.message : '';
-      setMessage(detail ? 'Contacts could not be loaded. Check CB Nest contact permission in your device settings.' : 'Your contacts could not be opened. Enter the visitor details manually.');
+      console.warn('[CB Nest contacts] Unable to read device contacts:', error);
+      setMessage('CB Nest could not read your address book. Check that Contacts access is allowed in your device settings, then try again. You can also enter the visitor details manually.');
     } finally {
       setContactsLoading(false);
     }
@@ -136,7 +138,8 @@ export default function VisitorsScreen() {
 
   function selectContact(contact: Contacts.ExistingContact) {
     const phone = contact.phoneNumbers?.find(item => !!item.number?.trim())?.number || '';
-    setVisitorName(contact.name || '');
+    setVisitorFirstName(contact.firstName || '');
+    setVisitorLastName(contact.lastName || '');
     setVisitorPhone(phone);
     setContactPickerVisible(false);
     setContactSearch('');
@@ -147,7 +150,7 @@ export default function VisitorsScreen() {
   async function shareWhatsApp(code: string, pass?: Pass | null) {
     const details = [
       'CB Nest Visitor Access Pass',
-      'Visitor: ' + (pass?.visitor_name || visitorName || 'Visitor'),
+      'Visitor: ' + (pass?.visitor_name || [visitorFirstName, visitorLastName].filter(Boolean).join(' ') || 'Visitor'),
       'Phone: ' + (pass?.visitor_phone || visitorPhone || 'Not provided'),
       'Number of visitors: ' + String(pass?.visitor_count || visitorCount || 1),
       'Frequency: ' + String(pass?.visit_frequency || frequency).toUpperCase(),
@@ -175,7 +178,7 @@ export default function VisitorsScreen() {
   }
 
   async function createPass() {
-    const name = visitorName.trim();
+    const name = [visitorFirstName.trim(), visitorLastName.trim()].filter(Boolean).join(' ');
     const count = Number(visitorCount);
     if (!name) { setMessage('Enter your visitor’s name.'); return; }
     if (!Number.isInteger(count) || count < 1 || count > 50) { setMessage('Enter a visitor count between 1 and 50.'); return; }
@@ -193,7 +196,7 @@ export default function VisitorsScreen() {
       const code = result.accessCode || '';
       if (!code) throw new Error('The visitor pass was created, but its access code is not available yet. Please refresh your visitor history.');
       const pass = result.visitorPass || null;
-      setIssuedCode(code); setIssuedPass(pass); setVisitorName(''); setVisitorPhone(''); setVisitorCount('1');
+      setIssuedCode(code); setIssuedPass(pass); setVisitorFirstName(''); setVisitorLastName(''); setVisitorPhone(''); setVisitorCount('1');
       await Clipboard.setStringAsync(code);
       setMessage('Visitor pass generated. The access code has been copied to your clipboard.');
       await loadPasses(session.access_token);
@@ -211,20 +214,22 @@ export default function VisitorsScreen() {
     <Screen title="Visitor Management" subtitle="Create and manage access passes for your visitors">
       <SectionTitle>Generate access code</SectionTitle>
       <Card>
-        <Text style={labelStyle}>Visitor name</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-          <TextInput value={visitorName} onChangeText={setVisitorName} placeholder="Enter visitor’s full name" placeholderTextColor={theme.muted} autoCapitalize="words" style={[inputStyle, { flex: 1, marginBottom: 0, marginRight: 9 }]} />
+        <Text style={labelStyle}>First name</Text>
+        <TextInput value={visitorFirstName} onChangeText={setVisitorFirstName} placeholder="Enter visitor’s first name" placeholderTextColor={theme.muted} autoCapitalize="words" style={inputStyle} />
+        <Text style={labelStyle}>Last name</Text>
+        <View style={{ position: 'relative', marginBottom: 12, justifyContent: 'center' }}>
+          <TextInput value={visitorLastName} onChangeText={setVisitorLastName} placeholder="Enter visitor’s last name" placeholderTextColor={theme.muted} autoCapitalize="words" style={[inputStyle, { paddingRight: 48, marginBottom: 0 }]} />
           <TouchableOpacity
             onPress={() => void chooseContact()}
             disabled={contactsLoading}
             accessibilityRole="button"
             accessibilityLabel="Choose visitor from contacts"
             hitSlop={8}
-            style={{ width: 46, height: 46, borderRadius: 12, borderWidth: 1, borderColor: theme.gold, alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'absolute', right: 8, top: 0, bottom: 12, width: 34, alignItems: 'center', justifyContent: 'center' }}
           >
             {contactsLoading
               ? <ActivityIndicator size="small" color={theme.gold} />
-              : <Ionicons name="person-add-outline" size={21} color={theme.gold} />}
+              : <Ionicons name="person-add-outline" size={17} color={theme.gold} />}
           </TouchableOpacity>
         </View>
         <Text style={labelStyle}>Phone number</Text>
@@ -275,10 +280,11 @@ export default function VisitorsScreen() {
               data={contacts.filter(contact => {
                 const query = contactSearch.trim().toLowerCase();
                 if (!query) return true;
-                return (contact.name || '').toLowerCase().includes(query)
+                const fullName = [contact.firstName, contact.lastName].filter(Boolean).join(' ');
+                return fullName.toLowerCase().includes(query)
                   || (contact.phoneNumbers || []).some(phone => (phone.number || '').toLowerCase().includes(query));
               })}
-              keyExtractor={(contact, index) => contact.id || (contact.name || 'contact') + '-' + index}
+              keyExtractor={(contact, index) => contact.id || ([contact.firstName, contact.lastName].filter(Boolean).join('-') || 'contact') + '-' + index}
               keyboardShouldPersistTaps="handled"
               ListEmptyComponent={<Text style={{ color: theme.muted, textAlign: 'center', paddingVertical: 24 }}>No matching contacts with phone numbers.</Text>}
               renderItem={({ item }) => (
@@ -286,7 +292,7 @@ export default function VisitorsScreen() {
                   onPress={() => selectContact(item)}
                   style={{ paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: theme.border }}
                 >
-                  <Text style={{ color: theme.text, fontWeight: '700' }}>{item.name}</Text>
+                  <Text style={{ color: theme.text, fontWeight: '700' }}>{[item.firstName, item.lastName].filter(Boolean).join(' ')}</Text>
                   <Text style={{ color: theme.muted, fontSize: 12, marginTop: 4 }}>
                     {item.phoneNumbers?.find(phone => !!phone.number?.trim())?.number || ''}
                   </Text>
