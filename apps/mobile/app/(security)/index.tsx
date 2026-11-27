@@ -28,7 +28,6 @@ export default function SecurityHomeRoute() {
         if (profileError) throw profileError;
         const name = profile?.full_name || user.user_metadata?.full_name || "Security Officer";
         await writeDashboardCache("security", user.id, { officerName: name });
-        if (active) setOfficerName(name);
       } catch { if (active) setOfficerName("Security Officer"); }
       finally { if (active) setProfileLoading(false); }
     })();
