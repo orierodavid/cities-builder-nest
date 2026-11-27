@@ -6,6 +6,7 @@ import { Screen, Card } from '../../src/components/ui';
 import { supabase } from '../../src/lib/supabase';
 import { theme } from '../../src/theme/theme';
 import { loadPendingServiceChargeTotalKobo } from '../../src/lib/pending-service-charge';
+import { readDashboardCacheValue, writeDashboardCacheValue } from '../../src/lib/dashboard-cache';
 
 function PaystackMark() {
   return <Svg width={34} height={34} viewBox="0 0 34 34">
@@ -32,11 +33,11 @@ export default function WalletScreen() {
   const [funding, setFunding] = useState(false);
   const [message, setMessage] = useState('');
 
-  const loadPendingCharge = useCallback(async () => {
+  const loadPendingCharge = useCallback(async (forceRefresh = false) => {
     setPendingChargeLoading(true);
     try {
       // Match the RLS-protected charge and payment records shown on Service Charges.
-      setPendingChargeKobo(await loadPendingServiceChargeTotalKobo());
+      setPendingChargeKobo(await loadPendingServiceChargeTotalKobo(forceRefresh));
     } catch (error) {
       console.warn('[CB Nest pending charge] Resident records unavailable; trying the summary RPC.', error instanceof Error ? error.message : 'Unknown error');
       try {
@@ -56,13 +57,23 @@ export default function WalletScreen() {
     }
   }, []);
 
-  const loadBalance = useCallback(async () => {
-    void loadPendingCharge();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const loadBalance = useCallback(async (forceRefresh = false) => {
+    void loadPendingCharge(forceRefresh);
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+    const user = session?.user;
     if (authError || !user) {
       setMessage('Please sign in again to view your wallet.');
       setLoading(false);
       return;
+    }
+    if (!forceRefresh) {
+      const cached = await readDashboardCacheValue<{balanceKobo:number|null;status:string|null}>('resident', user.id, 'walletBalance', 30_000);
+      if (cached) {
+        setBalanceKobo(cached.balanceKobo);
+        setWalletStatus(cached.status);
+        setLoading(false);
+        return;
+      }
     }
     const walletResult = await supabase.rpc('get_my_wallet_balance');
     const { data, error } = walletResult;
@@ -72,16 +83,21 @@ export default function WalletScreen() {
       return;
     }
     const wallet = Array.isArray(data) ? data[0] : null;
-    setBalanceKobo(wallet ? Number(wallet.balance_kobo) : null);
-    setWalletStatus(wallet?.status ?? null);
+    const nextBalance = wallet ? Number(wallet.balance_kobo) : null;
+    const nextStatus = wallet?.status ?? null;
+    setBalanceKobo(nextBalance);
+    setWalletStatus(nextStatus);
+    await writeDashboardCacheValue('resident', user.id, 'walletBalance', { balanceKobo: nextBalance, status: nextStatus });
 
     setLoading(false);
   }, [loadPendingCharge]);
 
   useEffect(() => { void loadBalance(); }, [loadBalance]);
   useEffect(() => {
+    let wasBackgrounded = AppState.currentState !== 'active';
     const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') void loadBalance();
+      if (state !== 'active') { wasBackgrounded = true; return; }
+      if (wasBackgrounded) { wasBackgrounded = false; void loadBalance(true); }
     });
     return () => sub.remove();
   }, [loadBalance]);
@@ -139,7 +155,7 @@ export default function WalletScreen() {
         <Text accessibilityLabel="Wallet balance" style={{ color: theme.text, fontSize: 30, fontWeight: '900', marginTop: 9 }}>
           {loading ? 'Loading…' : balance}
         </Text>
-        <TouchableOpacity onPress={() => void loadBalance()} disabled={loading} style={{ alignSelf: 'flex-start', marginTop: 10 }}>
+        <TouchableOpacity onPress={() => void loadBalance(true)} disabled={loading} style={{ alignSelf: 'flex-start', marginTop: 10 }}>
           <Text style={{ color: theme.goldSoft, fontSize: 12, fontWeight: '700' }}>Refresh balance</Text>
         </TouchableOpacity>
       </Card>
