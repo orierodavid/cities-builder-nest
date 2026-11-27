@@ -29,3 +29,30 @@ export async function clearDashboardCache(role: "resident" | "security", userId:
     // Sign-out must continue even if local cache cleanup fails.
   }
 }
+
+
+// Field-level entries have independent expiry times so refreshing a profile
+// never makes an old wallet balance appear fresh (or vice versa).
+type CacheEntry<T> = { value: T; cachedAt: number };
+
+export async function readDashboardCacheValue<T>(role: "resident" | "security", userId: string, field: string, maxAgeMs: number): Promise<T | null> {
+  try {
+    const raw = await AsyncStorage.getItem(`${PREFIX}:${role}:${userId}`);
+    if (!raw) return null;
+    const stored = JSON.parse(raw) as Record<string, unknown>;
+    const entries = stored.cacheEntries as Record<string, CacheEntry<T>> | undefined;
+    const entry = entries?.[field];
+    if (!entry || typeof entry.cachedAt !== "number" || Date.now() - entry.cachedAt > maxAgeMs) return null;
+    return entry.value;
+  } catch { return null; }
+}
+
+export async function writeDashboardCacheValue<T>(role: "resident" | "security", userId: string, field: string, value: T): Promise<void> {
+  try {
+    const key = `${PREFIX}:${role}:${userId}`;
+    const previous = await AsyncStorage.getItem(key);
+    const existing = previous ? JSON.parse(previous) as Record<string, unknown> : {};
+    const entries = (existing.cacheEntries && typeof existing.cacheEntries === "object" ? existing.cacheEntries : {}) as Record<string, CacheEntry<unknown>>;
+    await AsyncStorage.setItem(key, JSON.stringify({ ...existing, cacheEntries: { ...entries, [field]: { value, cachedAt: Date.now() } } }));
+  } catch { /* Cache failures must never block app access or payments. */ }
+}
