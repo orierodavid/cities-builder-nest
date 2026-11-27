@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert, ActivityIndicator, useWindowDimensions, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -29,7 +30,7 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
  const [walletBalanceKobo,setWalletBalanceKobo]=useState<number|null>(null); const [walletBalanceLoading,setWalletBalanceLoading]=useState(role==='resident'); const [pendingChargeKobo,setPendingChargeKobo]=useState<number|null>(null); const [pendingChargeLoading,setPendingChargeLoading]=useState(role==='resident');
  const [residentName,setResidentName]=useState(providedName||''); const [residentUnit,setResidentUnit]=useState(providedUnit||''); const [profileLoading,setProfileLoading]=useState(role==='resident'); const [profileError,setProfileError]=useState('');
  const go=(route:string)=>router.push((role==='resident' && (route==='/wallet'||route==='/support') ? `/(resident)${route}` : route) as never);
- const loadWalletBalance=async()=>{
+ const loadWalletBalance=async(forceRefresh=false)=>{
   if(role!=='resident')return;
   setWalletBalanceLoading(true);
   try{
@@ -48,7 +49,7 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   setPendingChargeLoading(true);
   try{
    // Use the same RLS-protected resident charge/payment records as the Service Charges screen.
-   setPendingChargeKobo(await loadPendingServiceChargeTotalKobo());
+   setPendingChargeKobo(await loadPendingServiceChargeTotalKobo(forceRefresh));
   }catch(error){
    console.warn('[CB Nest pending charge] Resident records unavailable; trying the summary RPC.', error instanceof Error ? error.message : 'Unknown error');
    try{
@@ -62,6 +63,14 @@ export function RoleLanding({role,name:providedName,unit:providedUnit,hasUnread}
   }
  };
  useEffect(()=>{if(role==='resident')void loadWalletBalance();},[role]);
+ useEffect(()=>{
+  let wasBackgrounded=AppState.currentState!=='active';
+  const subscription=AppState.addEventListener('change',state=>{
+   if(state!=='active'){wasBackgrounded=true;return;}
+   if(wasBackgrounded){wasBackgrounded=false;if(role==='resident')void loadWalletBalance(true);}
+  });
+  return ()=>subscription.remove();
+ },[role]);
  useEffect(()=>{
   if(role!=='resident')return;
   const timer=setInterval(()=>{
