@@ -144,8 +144,8 @@ export default function VisitorsScreen() {
     const fullName = (contact.fullName || '').trim();
     const givenName = (contact.givenName || '').trim();
     const familyName = (contact.familyName || '').trim();
-    setVisitorFirstName(givenName || (fullName ? fullName.split(/\\s+/)[0] : ''));
-    setVisitorLastName(familyName || (fullName ? fullName.split(/\\s+/).slice(1).join(' ') : ''));
+    setVisitorFirstName(givenName || (fullName ? fullName.split(/\s+/)[0] : ''));
+    setVisitorLastName(familyName || (fullName ? fullName.split(/\s+/).slice(1).join(' ') : ''));
     setVisitorPhone(phone);
     setContactPickerVisible(false);
     setContactSearch('');
