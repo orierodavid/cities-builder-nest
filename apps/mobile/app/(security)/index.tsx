@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import SecurityHome from "../../components/SecurityHome";
 import { supabase } from "../../lib/supabase";
 import { useSecurityContext } from "../../src/features/security/SecurityContext";
-import { readDashboardCache, writeDashboardCache } from "../../src/lib/dashboard-cache";
+import { readDashboardCache, writeDashboardCache, readDashboardCacheValue, writeDashboardCacheValue } from "../../src/lib/dashboard-cache";
 
 export default function SecurityHomeRoute() {
   const router = useRouter();
@@ -20,14 +20,17 @@ export default function SecurityHomeRoute() {
         const user = session?.user;
         if (authError) throw authError;
         if (!user) throw new Error("Your session has expired. Sign in again.");
-        const cached = await readDashboardCache<{ officerName?: string }>("security", user.id);
-        if (cached?.officerName) {
-          if (active) { setOfficerName(cached.officerName); setProfileLoading(false); }
+        const cachedName = await readDashboardCacheValue<string>("security", user.id, "officerName", 900_000);
+        if (cachedName) {
+          if (active) setOfficerName(cachedName);
+        } else {
+          const { data: profile, error: profileError } = await supabase.from("users").select("full_name").eq("id", user.id).maybeSingle();
+          if (profileError) throw profileError;
+          const name = profile?.full_name || user.user_metadata?.full_name || "Security Officer";
+          await writeDashboardCache("security", user.id, { officerName: name });
+          await writeDashboardCacheValue("security", user.id, "officerName", name);
+          if (active) setOfficerName(name);
         }
-        const { data: profile, error: profileError } = await supabase.from("users").select("full_name").eq("id", user.id).maybeSingle();
-        if (profileError) throw profileError;
-        const name = profile?.full_name || user.user_metadata?.full_name || "Security Officer";
-        await writeDashboardCache("security", user.id, { officerName: name });
       } catch { if (active) setOfficerName("Security Officer"); }
       finally { if (active) setProfileLoading(false); }
     })();
