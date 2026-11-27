@@ -3,6 +3,7 @@ import { ActivityIndicator, AppState, SafeAreaView, Text, TouchableOpacity, View
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { WebView, WebViewNavigation } from "react-native-webview";
 import { supabase } from "../src/lib/supabase";
+import { clearDashboardCacheValue } from "../src/lib/dashboard-cache";
 
 type PaymentStatus = "pending" | "successful" | "failed" | "reversed" | "unknown";
 
@@ -56,6 +57,20 @@ export default function PaymentCheckoutScreen() {
       setChecking(false);
     }
   }, [paymentType, reference]);
+
+  useEffect(() => {
+    if (status !== "successful") return;
+    void supabase.auth.getSession().then(({ data }) => {
+      const userId = data.session?.user.id;
+      if (!userId) return;
+      if (paymentType === "wallet_funding") {
+        void clearDashboardCacheValue("resident", userId, "walletBalance");
+      }
+      if (paymentType === "service_charge") {
+        void clearDashboardCacheValue("resident", userId, "pendingChargeKobo");
+      }
+    });
+  }, [status, paymentType]);
 
   useEffect(() => { void checkPayment(true); }, [checkPayment]);
 
